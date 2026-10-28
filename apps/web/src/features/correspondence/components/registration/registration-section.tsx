@@ -13,6 +13,7 @@ import {
   registrationReasonText,
   type RegistrationDraft,
 } from '../../lib/registration-draft.js';
+import { MainDocumentSection } from './main-document-section.js';
 import { RegistrationFields } from './registration-fields.js';
 import { RegistrationSummary } from './registration-summary.js';
 
@@ -61,6 +62,7 @@ export function RegistrationSection({
           ctl.setRegistration(registrationInputOf(next, todayIso()));
         }}
       />
+      <MainDocumentSection letter={letter} />
       <RegistrationSummary letter={letter} draft={value} />
     </div>
   );

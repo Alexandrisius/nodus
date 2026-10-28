@@ -32,8 +32,17 @@ export const letterSourceSchema = z.enum(['manual', 'mail']);
 export type LetterSource = z.infer<typeof letterSourceSchema>;
 
 /** Роль файла письма (Р8): главный документ (скан, PDF письма) — один,
- *  тело письма почты (HTML/текст) — одно, приложения, исходник (.eml, #56). */
-export const letterAttachmentRoleSchema = z.enum(['main', 'body', 'attachment', 'source']);
+ *  тело письма почты (HTML/текст) — одно, PDF-копия тела («Основной документ
+ *  письма» #56: системный кандидат, рождается конвертацией Gotenberg, роль
+ *  неизменна — главным становится де-факто, когда `main` не выбран),
+ *  приложения, исходник (.eml, #56). */
+export const letterAttachmentRoleSchema = z.enum([
+  'main',
+  'body',
+  'body_pdf',
+  'attachment',
+  'source',
+]);
 export type LetterAttachmentRole = z.infer<typeof letterAttachmentRoleSchema>;
 
 export const letterAttachmentSchema = z.object({
@@ -153,6 +162,10 @@ export const letterMailInfoSchema = z.object({
   /** Часть письма не сохранена (исходник сверх потолка, вложения сверх
    *  лимита) — карточка помечает. */
   storageIncomplete: z.boolean(),
+  /** PDF-копия тела не создана (конвертер недоступен/отказал после ретраев —
+   *  «Основной документ письма» #56): кандидат «текст-PDF» недоступен, текст
+   *  читается вкладкой «Текст письма». */
+  bodyPdfIssue: z.boolean(),
 });
 export type LetterMailInfo = z.infer<typeof letterMailInfoSchema>;
 
@@ -238,10 +251,19 @@ export const updateLetterBodySchema = z
 export type UpdateLetterBody = z.infer<typeof updateLetterBodySchema>;
 
 /** `POST /letters/:id/participants` — пригласить коллегу в обсуждение
- *  (редизайн #56): только держатель `correspondence.register`, письмо в
- *  любом состоянии, повторное приглашение идемпотентно. */
+ *  (редизайн #56): только держатель `correspondence.register`, письмо в любом
+ *  состоянии, повторное приглашение идемпотентно. */
 export const addLetterParticipantBodySchema = z.object({ userId: z.uuid() }).strict();
 export type AddLetterParticipantBody = z.infer<typeof addLetterParticipantBodySchema>;
+
+/** `POST /letters/:id/main-document` — выбор основного документа письма
+ *  («Основной документ письма» #56): канцелярия до регистрации помечает
+ *  звёздочкой один из файлов-кандидатов (вложение или PDF-копию тела) —
+ *  этот документ открывает вкладка «Письмо» и получает номер при
+ *  регистрации. После регистрации выбор заморожен (LETTER_NOT_EDITABLE).
+ *  Повтор того же выбора — не ошибка (идемпотентность). */
+export const setLetterMainDocumentBodySchema = z.object({ attachmentId: z.uuid() }).strict();
+export type SetLetterMainDocumentBody = z.infer<typeof setLetterMainDocumentBodySchema>;
 
 /** Изменение поля в истории (`letter_updated`): ключ — системное поле
  *  (`counterpartyId`, `theirDate`, …) или атрибут `cf.<uuid>`; значения —

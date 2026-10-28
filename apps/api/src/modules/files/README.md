@@ -16,7 +16,11 @@
   `save(meta, stream) → {fileId}` и `remove(fileIds)`) и **`AVATAR_PROCESSOR`**
   (`core/ports/avatar-processor.port.ts`, #186: валидация PNG/JPEG/WebP ≤10 МБ
   по magic bytes с пиксельным потолком декодирования 4096² (#231, канон #221 —
-  декомпрессионные бомбы) → квадратный WebP-дериват ≤640, реализация `avatars/`).
+  декомпрессионные бомбы) → квадратный WebP-дериват ≤640, реализация `avatars/`),
+  и **`DOCUMENT_CONVERTER`** (`core/ports/document-converter.port.ts`,
+  «Основной документ письма» #56: HTML+ассеты → PDF; реализация
+  `derivatives/gotenberg-converter.provider.ts` — Chromium-роут того же
+  Gotenberg, A4 с полями; производные #139 остаются на LibreOffice-роуте).
   Модуль `@Global` (как CryptoModule): потребитель инжектит токен без
   межмодульного импорта.
 - Обратное направление — реестр **`FileAccessRegistry`**

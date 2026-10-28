@@ -16,6 +16,9 @@ import { LettersMutationService } from './letters/letters-mutation.service.js';
 import { LettersQueryService } from './letters/letters-query.service.js';
 import { LettersRepository } from './letters/letters.repository.js';
 import { LetterThreadingService } from './letters/letter-threading.service.js';
+import { LetterBodyPdfQueue } from './mail/body-pdf/letter-body-pdf.queue.js';
+import { LetterBodyPdfService } from './mail/body-pdf/letter-body-pdf.service.js';
+import { LetterBodyPdfWorker } from './mail/body-pdf/letter-body-pdf.worker.js';
 import { MailInboxService } from './mail/mail-inbox.service.js';
 import { MailLetterWriter } from './mail/mail-letter-writer.js';
 import { MailModule } from './mail/mail.module.js';
@@ -70,6 +73,12 @@ import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
     MailInboxService,
     MailPollJob,
     SmtpOutboxTransport,
+    // «Основной документ письма» #56: фоновая PDF-копия тела (BullMQ) —
+    // кандидат основного документа, конвертация через порт DOCUMENT_CONVERTER
+    // (реализация — files/Gotenberg, тот же конвертер, что у производных).
+    LetterBodyPdfQueue,
+    LetterBodyPdfService,
+    LetterBodyPdfWorker,
   ],
 })
 export class CorrespondenceModule {}

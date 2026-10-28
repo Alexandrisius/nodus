@@ -131,6 +131,62 @@ export class LettersRepository {
     });
   }
 
+  // ===== «Основной документ письма» (#56): PDF-копия тела + выбор звездой =====
+
+  /** Копия тела уже есть (проверка гонки внутри транзакции вставки). */
+  hasBodyPdf(tx: TransactionClient, letterId: string): Promise<boolean> {
+    return tx.letterAttachment
+      .findFirst({ where: { letterId, role: 'body_pdf' }, select: { id: true } })
+      .then(Boolean);
+  }
+
+  /** Вставка PDF-копии тела (роль body_pdf; частичный unique — одна на
+   *  письмо, гонка постановок гасится вызывающим). */
+  async addBodyPdf(
+    tx: TransactionClient,
+    letterId: string,
+    data: { fileId: string; sortOrder: number },
+  ): Promise<void> {
+    await tx.letterAttachment.create({
+      data: { letterId, fileId: data.fileId, role: 'body_pdf', sortOrder: data.sortOrder },
+    });
+  }
+
+  /** Backfill конвертации: живые почтовые письма с телом, но без PDF-копии
+   *  (приняты до конвейера или при отказавшем конвертере). */
+  async bodyPdfBacklog(): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT l.id FROM letters l
+      JOIN letter_attachments body ON body.letter_id = l.id AND body.role = 'body'
+      WHERE l.deleted_at IS NULL AND l.mail_parse_issue = false
+        AND NOT EXISTS (
+          SELECT 1 FROM letter_attachments pdf
+          WHERE pdf.letter_id = l.id AND pdf.role = 'body_pdf'
+        )`;
+    return rows.map((row) => row.id);
+  }
+
+  /** Выбор основного документа звездой: новые роли за один раз —
+   *  promoting становится main, прежний main (если был) — приложением. */
+  async setMainRoles(
+    tx: TransactionClient,
+    letterId: string,
+    changes: { promoteId?: string; demoteIds: readonly string[] },
+  ): Promise<void> {
+    if (changes.demoteIds.length > 0) {
+      await tx.letterAttachment.updateMany({
+        where: { letterId, id: { in: [...changes.demoteIds] } },
+        data: { role: 'attachment' },
+      });
+    }
+    if (changes.promoteId) {
+      await tx.letterAttachment.update({
+        where: { id: changes.promoteId },
+        data: { role: 'main' },
+      });
+    }
+  }
+
   create(tx: TransactionClient, data: Prisma.LetterUncheckedCreateInput) {
     return tx.letter.create({ data });
   }

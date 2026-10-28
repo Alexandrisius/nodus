@@ -101,6 +101,7 @@ function makeFakes(takenMessageIds: string[] = []) {
     storage as never,
     catalog as never,
     dictionaries as never,
+    { enqueue: vi.fn(async () => void 0) } as never,
   );
   return { writer, storage, createdLetters, links, events, repo };
 }
@@ -227,6 +228,7 @@ describe('MailLetterWriter: письмо из исходника (#56, Р3)', ()
         liveStages: async () => [{ id: 's', isInitial: true, systemState: 'backlog' }],
       } as never,
       { activeItemByCode: async () => null } as never,
+      { enqueue: vi.fn(async () => void 0) } as never,
     );
     await expect(failing.write(clientOf('win1251.eml'), 9n, async () => undefined)).rejects.toThrow(
       'БД упала',

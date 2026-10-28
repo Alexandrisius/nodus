@@ -17,6 +17,8 @@ import { OfficeController } from './office/office.controller.js';
 import { OfficeSessionService } from './office/office-session.service.js';
 import { OfficeTokenService } from './office/office-token.service.js';
 import { DERIVATIVES_CONFIG, getDerivativesConfig } from './derivatives/derivatives.config.js';
+import { GotenbergConverterProvider } from './derivatives/gotenberg-converter.provider.js';
+import { DOCUMENT_CONVERTER } from '../../core/ports/document-converter.port.js';
 import { DerivativesQueue } from './derivatives/derivatives.queue.js';
 import { DerivativesRepository } from './derivatives/derivatives.repository.js';
 import { DerivativesService } from './derivatives/derivatives.service.js';
@@ -59,6 +61,11 @@ import { LetterReceivedHandler } from './events/letter-received.handler.js';
     DerivativesQueue,
     DerivativesService,
     DerivativesWorker,
+    // Порт конвертации HTML→PDF («Основной документ письма» #56): потребитель
+    // — correspondence (PDF-копия тела письма), реализация — рядом с
+    // конвейером производных (тот же Gotenberg).
+    GotenbergConverterProvider,
+    { provide: DOCUMENT_CONVERTER, useExisting: GotenbergConverterProvider },
     // Аватарки (#186): общий конвейер квадратизации для chat и directory
     // (инжект классом из @Global-модуля, как FILE_STORAGE).
     AvatarService,
@@ -71,6 +78,12 @@ import { LetterReceivedHandler } from './events/letter-received.handler.js';
     // друг друга), реализация — AvatarService (см. avatars/).
     { provide: AVATAR_PROCESSOR, useExisting: AvatarService },
   ],
-  exports: [FILE_STORAGE, FILE_OBJECT_READER, FileAccessRegistry, AVATAR_PROCESSOR],
+  exports: [
+    FILE_STORAGE,
+    FILE_OBJECT_READER,
+    FileAccessRegistry,
+    AVATAR_PROCESSOR,
+    DOCUMENT_CONVERTER,
+  ],
 })
 export class FilesModule {}

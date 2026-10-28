@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react';
+import { Download, Star } from 'lucide-react';
 import type { LetterAttachment, LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
@@ -18,6 +18,8 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { FileTypeIcon } from '../../../../shared/files/file-type-icon.js';
 import { formatBytes } from '../../../../shared/lib/format.js';
+import { useSetMainDocument } from '../../api/letters-mutations.js';
+import { mainDocumentCandidates, mainDocumentOf } from '../../lib/letter-main-document.js';
 
 /** Файлы письма для показа: исходник почты (.eml, #56) — служебный,
  *  inline-картинки HTML-тела (#56, Р9) — внутри «Письма», не в блоке. */
@@ -36,9 +38,14 @@ export function attachmentLabel(file: LetterAttachment): string | null {
 /**
  * Блок «Файлы» карточки письма (#55): главный документ, текст письма и
  * приложения плитками. Клик — файл во вкладке правой панели (тело письма —
- * вкладка «Тело»), открытый сейчас — с контуром порта; скачивание — кнопкой
+ * вкладка «Тела»), открытый сейчас — с контуром порта; скачивание — кнопкой
  * плитки. Метки особых вложений почты (#56) — чипом в описании. Нет
  * файлов — блока нет (пустых заделов не держим).
+ *
+ * «Основной документ письма» (#56): у кандидатов (когда их больше одного и
+ * письмо ещё не зарегистрировано) — звезда: золотая = документ открывает
+ * вкладку «Письмо» и получит номер; клик по другой звезде меняет выбор
+ * мгновенно (оптимистично, I4).
  */
 export function LetterFilesBlock({
   letter,
@@ -51,6 +58,12 @@ export function LetterFilesBlock({
   onOpen: (attachmentId: string) => void;
 }) {
   const files = visibleLetterFiles(letter);
+  const setMain = useSetMainDocument(letter.id);
+  const main = mainDocumentOf(letter);
+  const candidates = mainDocumentCandidates(letter);
+  // Звезда нужна только для выбора: один кандидат — выбирать не из чего,
+  // после регистрации выбор заморожен.
+  const canStar = candidates.length > 1 && letter.access.canEdit && letter.registeredAt === null;
   if (files.length === 0) return null;
 
   return (
@@ -59,10 +72,11 @@ export function LetterFilesBlock({
       <AttachmentGroup className="mt-2 flex-wrap overflow-visible">
         {files.map((file) => {
           const role =
-            file.role === 'main' || file.role === 'body'
+            file.role === 'main' || file.role === 'body' || file.role === 'body_pdf'
               ? ui.letters.card.fileRoles[file.role]
               : null;
           const label = attachmentLabel(file);
+          const isMain = main?.id === file.id;
           return (
             <Attachment
               key={file.id}
@@ -90,6 +104,36 @@ export function LetterFilesBlock({
                 onClick={() => onOpen(file.id)}
               />
               <AttachmentActions>
+                {canStar ? (
+                  <AttachmentAction asChild>
+                    <button
+                      type="button"
+                      aria-pressed={isMain}
+                      aria-label={
+                        isMain
+                          ? ui.letters.card.mainDocument.starActive
+                          : `${ui.letters.card.mainDocument.star}: ${file.name}`
+                      }
+                      title={
+                        isMain
+                          ? ui.letters.card.mainDocument.starActive
+                          : ui.letters.card.mainDocument.star
+                      }
+                      disabled={setMain.isPending}
+                      onClick={() => {
+                        if (!isMain) setMain.mutate(file.id);
+                      }}
+                    >
+                      <Star
+                        className={cn(
+                          'size-4 transition-colors',
+                          isMain ? 'fill-warning text-warning' : 'text-muted-foreground',
+                        )}
+                        strokeWidth={1.75}
+                      />
+                    </button>
+                  </AttachmentAction>
+                ) : null}
                 <AttachmentAction asChild>
                   <a
                     href={file.url}

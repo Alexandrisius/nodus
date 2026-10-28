@@ -31,6 +31,7 @@ import {
   listLettersQuerySchema,
   paginatedSchema,
   Permission,
+  setLetterMainDocumentBodySchema,
   updateLetterBodySchema,
   workflowTransitionSchema,
   type AddLetterParticipantBody,
@@ -38,6 +39,7 @@ import {
   type CreateLetterFields,
   type ExecuteLetterTransitionResult,
   type ExecuteTransitionBody,
+  type SetLetterMainDocumentBody,
   type UpdateLetterBody,
   type LetterDetail,
   type LetterHistoryEntry,
@@ -161,6 +163,27 @@ export class LettersController {
     body: UpdateLetterBody,
   ): Promise<LetterDetail> {
     return this.mutations.update(user, id, body);
+  }
+
+  @Post(':id/main-document')
+  @RequirePermissions(Permission.CORRESPONDENCE_REGISTER)
+  @Audit({ action: 'correspondence.letter_main_document', entity: 'letter' })
+  @ApiOperation({
+    summary: 'Выбрать основной документ (звезда, только до регистрации; идемпотентно)',
+  })
+  @ApiOkResponse({ standardSchema: letterDetailSchema })
+  @ApiErrors(400, 401, 403, 404, 409, 422)
+  @ApiIdempotencyKey()
+  setMainDocument(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({
+      schema: setLetterMainDocumentBodySchema,
+      pipes: [new ZodValidationPipe(setLetterMainDocumentBodySchema)],
+    })
+    body: SetLetterMainDocumentBody,
+  ): Promise<LetterDetail> {
+    return this.mutations.setMainDocument(user, id, body.attachmentId);
   }
 
   @Post(':id/view')

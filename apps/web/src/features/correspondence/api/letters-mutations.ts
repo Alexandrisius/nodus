@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { api, apiUpload } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import type { LettersPages } from '../../../shared/api/letters-list.js';
+import { letterWithMainDocument } from '../lib/letter-main-document.js';
 import { chatKeys } from '../../../shared/chat/chat-keys.js';
 import {
   alreadyRegisteredNumber,
@@ -67,6 +68,40 @@ export function useExecuteLetterTransition() {
     onError: (error) => {
       if (registrationIssueOf(error) || alreadyRegisteredNumber(error) !== null) return;
       toast.error(letterErrorText(error));
+    },
+  });
+}
+
+/** Выбор основного документа звездой («Основной документ письма» #56):
+ *  вкладка «Письмо» меняется мгновенно (I4), ошибка — откат снапшотом. */
+export function useSetMainDocument(id: string) {
+  const queryClient = useQueryClient();
+  const detailKey = lettersKeys.detail(id);
+  return useMutation({
+    mutationFn: (attachmentId: string) =>
+      api<LetterDetail>(`/letters/${id}/main-document`, {
+        method: 'POST',
+        body: { attachmentId },
+      }),
+    onMutate: async (attachmentId) => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const previous = queryClient.getQueryData<LetterDetail>(detailKey);
+      const previousListItem = snapshotLetterInList(queryClient, id);
+      if (previous) {
+        const next = letterWithMainDocument(previous, attachmentId);
+        queryClient.setQueryData(detailKey, next);
+        syncLetterInLists(queryClient, id, listItemOf(next));
+      }
+      return { previous, previousListItem };
+    },
+    onError: (error, _attachmentId, context) => {
+      if (context?.previous) queryClient.setQueryData(detailKey, context.previous);
+      restoreLetterInLists(queryClient, id, context?.previousListItem ?? null);
+      toast.error(letterErrorText(error));
+    },
+    onSuccess: (letter) => {
+      applyLetter(queryClient, letter);
+      void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
     },
   });
 }

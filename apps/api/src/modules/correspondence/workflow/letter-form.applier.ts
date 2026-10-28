@@ -53,6 +53,24 @@ export class LetterFormApplier {
       actor.id,
       today,
     );
+    // «Основной документ письма» (#56): у письма с файлами-кандидатами один
+    // обязан быть выбран звездой — номер присваивается конкретному документу
+    // (главный де-факто: main или PDF-копия тела).
+    const attachments = await this.letters.attachments(letter.id, tx);
+    const candidates = attachments.filter(
+      (a) => !a.inline && a.role !== 'source' && a.role !== 'body',
+    );
+    const hasMain = attachments.some((a) => a.role === 'main' || a.role === 'body_pdf');
+    if (candidates.length > 0 && !hasMain) {
+      throw new DomainException(
+        ErrorCode.LETTER_REGISTRATION_INVALID,
+        'Main document is required',
+        {
+          field: 'mainDocument',
+          reason: 'required',
+        },
+      );
+    }
     const fields: WorkflowFormApplied['fields'] = {};
     const diff = (field: string, from: unknown, to: unknown): void => {
       if (String(from ?? '') === String(to ?? '')) return;

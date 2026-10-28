@@ -15,6 +15,7 @@ import type {
 import { RECEIPT_METHOD_CODES, checkLetterDates, ui } from '@nodus/contracts';
 
 import { todayIso } from './letter-format.js';
+import { mainDocumentMissing } from './letter-main-document.js';
 
 /**
  * Черновик формы регистрации (#55, U5) — одна модель для конвейера «Новые»
@@ -63,6 +64,7 @@ export const registrationFieldLabel: Record<LetterRegistrationField, string> = {
   responseDeadline: ui.letters.fields.responseDeadline,
   replyToLetterId: ui.letters.pipeline.replyBadge,
   customFields: ui.letters.form.attributes,
+  mainDocument: ui.letters.fields.mainDocument,
 };
 
 export const registrationReasonText: Record<LetterRegistrationIssue['reason'], string> = {
@@ -193,5 +195,8 @@ export function letterRegistrationInput(
   letter: LetterDetail,
   methods: readonly DictionaryItem[],
 ): LetterRegistrationInput | null {
+  // «Основной документ письма» (#56): кандидаты без выбора звезды — окно
+  // (контроль пропусков), прямая регистрация не идёт.
+  if (mainDocumentMissing(letter)) return null;
   return registrationInputOf(initialDraft(letter, methods), todayIso());
 }

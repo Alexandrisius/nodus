@@ -264,12 +264,16 @@ function mailInfoOf(row: LetterDetailRow): LetterMailInfo | null {
     messageId: row.mailMessageId,
     parseIssue: row.mailParseIssue,
     storageIncomplete: row.mailStorageIncomplete,
+    bodyPdfIssue: row.mailBodyPdfIssue,
   };
 }
 
-/** Тело (Р8): главный документ во вьювере, иначе HTML/текст почты, иначе пусто. */
+/** Тело (Р8): главный документ во вьювере, иначе HTML/текст почты, иначе
+ *  пусто. «Основной документ письма» #56: главный де-факто — выбор канцелярии
+ *  (main) или PDF-копия тела (body_pdf, системный кандидат по умолчанию). */
 export function bodyOf(files: readonly LetterAttachment[]): LetterBody {
-  const main = files.find((file) => file.role === 'main');
+  const main =
+    files.find((file) => file.role === 'main') ?? files.find((f) => f.role === 'body_pdf');
   if (main) return { kind: 'document', attachmentId: main.id };
   const body = files.find((file) => file.role === 'body');
   if (!body) return { kind: 'none' };

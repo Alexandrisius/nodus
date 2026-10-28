@@ -1594,6 +1594,9 @@ model Letter {
   mailParseIssue        Boolean @default(false) @map("mail_parse_issue")
   /// Часть письма не сохранена (исходник/вложения сверх лимита) — Р12.
   mailStorageIncomplete Boolean @default(false) @map("mail_storage_incomplete")
+  /// PDF-копия тела не создана (конвертер отказал после ретраев — «Основной
+  /// документ письма» #56): кандидат «текст-PDF» недоступен, письмо живёт.
+  mailBodyPdfIssue      Boolean @default(false) @map("mail_body_pdf_issue")
   /// Надгробие спама (Р13): файлы снесены, строка живёт ради Message-ID —
   /// переимпорт удалённого не возвращает его в «Новые». Списки/GET фильтруют.
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
@@ -1617,14 +1620,17 @@ model Letter {
 }
 
 /// Файл письма. Роль: main — основной документ («Письмо» во вьювере), body —
-/// HTML/текст тела, attachment — приложение, source — исходник почты (#56).
-/// Частичные unique «один main и один body на письмо» — в миграции.
+/// HTML/текст тела, body_pdf — PDF-копия тела («Основной документ письма»
+/// #56: системный кандидат, роль неизменна — главным становится де-факто,
+/// пока main не выбран), attachment — приложение, source — исходник почты
+/// (#56). Частичные unique «один main, один body и один body_pdf на письмо»
+/// — в миграции.
 model LetterAttachment {
   id        String   @id @default(uuid()) @db.Uuid
   letterId  String   @map("letter_id") @db.Uuid
   /// Файл модуля files — plain UUID без FK (I3).
   fileId    String   @map("file_id") @db.Uuid
-  /// main | body | attachment | source (CHECK в миграции).
+  /// main | body | body_pdf | attachment | source (CHECK в миграции).
   role      String
   sortOrder Int      @default(0) @map("sort_order")
   /// Content-ID MIME-части (#56): связывает inline-картинку HTML-тела с

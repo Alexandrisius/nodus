@@ -134,6 +134,7 @@ describe('письмо v3 (#55)', () => {
         messageId: '<abc@silium.by>',
         parseIssue: false,
         storageIncomplete: false,
+        bodyPdfIssue: false,
       },
       replySuggestion: null,
       counterpartySuggestion: { counterpartyId: id(), signerId: id() },

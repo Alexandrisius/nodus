@@ -241,10 +241,12 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
       ? { icon: <Lock className="size-3.5" />, text: ui.letters.card.readOnlyHint }
       : null;
 
-  // Флаги приёма почты (#56): письмо разобрано/сохранено не полностью.
+  // Флаги приёма почты (#56): письмо разобрано/сохранено не полностью;
+  // PDF-копия тела не создана («Основной документ письма» #56).
   const mailFlags: string[] = [];
   if (letter.mail?.parseIssue) mailFlags.push(ui.letters.card.mailParseIssue);
   if (letter.mail?.storageIncomplete) mailFlags.push(ui.letters.card.mailStorageIncomplete);
+  if (letter.mail?.bodyPdfIssue) mailFlags.push(ui.letters.card.mailBodyPdfIssue);
 
   return (
     <>

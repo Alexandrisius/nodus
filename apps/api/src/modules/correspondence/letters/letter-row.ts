@@ -42,6 +42,8 @@ export const letterDetailSelect = {
   mailReferences: true,
   mailParseIssue: true,
   mailStorageIncomplete: true,
+  // PDF-копия тела не создана («Основной документ письма» #56).
+  mailBodyPdfIssue: true,
   // Надгробие спама (Р13): невидимо ни в списках, ни в карточке — фильтр.
   deletedAt: true,
 } as const;

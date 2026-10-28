@@ -17,6 +17,10 @@ import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
 import {
+  FILE_OBJECT_READER,
+  type FileObjectReader,
+} from '../../../core/ports/file-object-reader.port.js';
+import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
@@ -55,6 +59,7 @@ export class LettersMutationService {
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
+    @Inject(FILE_OBJECT_READER) private readonly files: FileObjectReader,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
   ) {}
@@ -199,6 +204,70 @@ export class LettersMutationService {
           changes,
           ...(body.counterpartyId !== undefined ? { counterpartyId: body.counterpartyId } : {}),
           ...(signerChange ? { signerId: signerChange.to as string | null } : {}),
+        },
+        { actorId: user.id, aggregateType: 'letter', aggregateId: id },
+      );
+    });
+    return this.query.detail(user, id);
+  }
+
+  /** `POST /letters/:id/main-document` — выбор основного документа звездой
+   *  («Основной документ письма» #56): канцелярия, только до регистрации —
+   *  после номер присвоен документу и выбор заморожен. Кандидаты — файлы
+   *  (вложения и PDF-копия тела); текст почты кандидатом не является.
+   *  Повтор того же выбора — не ошибка (идемпотентность). */
+  async setMainDocument(user: AuthUser, id: string, attachmentId: string): Promise<LetterDetail> {
+    const row = await this.query.visibleRow(user, id);
+    if (!canRegisterLetters(user)) {
+      throw new DomainException(ErrorCode.LETTER_NOT_EDITABLE, 'Letter is not editable');
+    }
+    if (row.registeredAt !== null) {
+      throw new DomainException(ErrorCode.LETTER_NOT_EDITABLE, 'Main document is frozen');
+    }
+    const attachments = await this.repo.attachments(id);
+    const target = attachments.find((a) => a.id === attachmentId);
+    if (
+      !target ||
+      target.inline ||
+      (target.role !== 'attachment' && target.role !== 'body_pdf' && target.role !== 'main')
+    ) {
+      throw new DomainException(
+        ErrorCode.VALIDATION_FAILED,
+        'Attachment is not a main document candidate',
+      );
+    }
+    const mainBefore = attachments.find((a) => a.role === 'main') ?? null;
+    const bodyPdfBefore = attachments.find((a) => a.role === 'body_pdf') ?? null;
+    const effectiveBefore = mainBefore ?? bodyPdfBefore;
+    // Звезда на PDF-копии тела: роль body_pdf неизменна — главным текст
+    // становится де-факто (main сбрасывается); на файле — файл становится
+    // main, прежний main уходит в приложения.
+    const effectiveAfter = target;
+    if (effectiveBefore?.id === effectiveAfter.id) {
+      return this.query.detail(user, id);
+    }
+    const names = new Map(
+      (await this.files.refs(attachments.map((a) => a.fileId))).map((f) => [f.id, f.name]),
+    );
+    const displayName = (a: (typeof attachments)[number]): string =>
+      a.role === 'body_pdf' ? 'Текст письма.pdf' : (names.get(a.fileId) ?? 'Документ');
+    const promoteId = target.role === 'attachment' ? target.id : undefined;
+    const demoteIds = mainBefore ? [mainBefore.id] : [];
+    await this.txRunner.run(async (tx) => {
+      await this.repo.lock(tx, id);
+      await this.repo.setMainRoles(tx, id, { promoteId, demoteIds });
+      await this.eventBus.emit(
+        tx,
+        CORRESPONDENCE_EVENTS.LETTER_UPDATED,
+        {
+          letterId: id,
+          changes: [
+            {
+              field: 'mainDocument',
+              from: effectiveBefore ? displayName(effectiveBefore) : null,
+              to: displayName(effectiveAfter),
+            },
+          ],
         },
         { actorId: user.id, aggregateType: 'letter', aggregateId: id },
       );

@@ -59,7 +59,12 @@ export const letterRegistrationInputSchema = z
   .strict();
 export type LetterRegistrationInput = z.infer<typeof letterRegistrationInputSchema>;
 
-/** Поле формы регистрации (ключ подсветки и `details.field` ответа 422). */
+/** Поле формы регистрации (ключ подсветки и `details.field` ответа 422).
+ *  `mainDocument` — не поле ввода, а пропуск «основной документ»
+ *  («Основной документ письма» #56): сервер отказывает 422 с этим ключом,
+ *  когда у письма есть файлы-кандидаты, а ни один не выбран звёздочкой;
+ *  выбор — отдельным `POST /letters/:id/main-document`, в теле регистрации
+ *  не передаётся. */
 export const letterRegistrationFieldSchema = z.enum([
   'counterpartyId',
   'signerId',
@@ -72,6 +77,7 @@ export const letterRegistrationFieldSchema = z.enum([
   'responseDeadline',
   'replyToLetterId',
   'customFields',
+  'mainDocument',
 ]);
 export type LetterRegistrationField = z.infer<typeof letterRegistrationFieldSchema>;
 

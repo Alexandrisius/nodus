@@ -73,7 +73,14 @@ const base = {
 
 /** Конверт почты (#56): адрес/имя отправителя, Message-ID, флаги приёма. */
 function envelope(fromName: string | null, fromAddress: string, messageId: string) {
-  return { fromName, fromAddress, messageId, parseIssue: false, storageIncomplete: false };
+  return {
+    fromName,
+    fromAddress,
+    messageId,
+    parseIssue: false,
+    storageIncomplete: false,
+    bodyPdfIssue: false,
+  };
 }
 
 function fresh(

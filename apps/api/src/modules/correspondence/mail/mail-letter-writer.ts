@@ -25,6 +25,7 @@ import {
   PROCESS_CATALOG_READER,
   type ProcessCatalogReader,
 } from '../../workflows/ports/process-catalog-reader.port.js';
+import { LetterBodyPdfQueue } from './body-pdf/letter-body-pdf.queue.js';
 import { LetterThreadingService } from '../letters/letter-threading.service.js';
 import { LettersRepository } from '../letters/letters.repository.js';
 import type { MailClient } from './mail-client.port.js';
@@ -65,6 +66,7 @@ export class MailLetterWriter {
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
+    private readonly bodyPdf: LetterBodyPdfQueue,
   ) {}
 
   async write(
@@ -261,6 +263,12 @@ export class MailLetterWriter {
           { aggregateType: 'letter', aggregateId: letterId },
         );
       });
+      // После коммита («Основной документ письма» #56): у письма с телом —
+      // фоновая PDF-копия (кандидат основного документа). Best-effort: сбой
+      // постановки не валит приём — backfill старта подберёт.
+      if (rows.some((row) => row.role === 'body')) {
+        await this.bodyPdf.enqueue(letterId);
+      }
     } catch (error) {
       // Компенсация файлов (паттерн #55): транзакция не прошла — хранилище
       // без сирот; курсор НЕ двигаем — повтор в следующем цикле.
