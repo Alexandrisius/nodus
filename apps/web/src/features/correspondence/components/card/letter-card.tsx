@@ -1,11 +1,15 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useRailShrink } from '../../../../app/shell/right-rail.js';
 import { useCloseCard } from '../../../../app/shell/use-card-stack.js';
+import { useLetterConversation } from '../../../../shared/chat/chat-queries.js';
+import { CHAT_PANEL_W, ChatSidePanel } from '../../../../shared/chat/chat-side-panel.js';
 import { ApiError } from '../../../../shared/api-client.js';
+import { lettersKeys } from '../../../../shared/api/letters-keys.js';
 import { useReadEntityNotifications } from '../../../../shared/api/read-entity-notifications.js';
 import { uiPx } from '../../../../shared/ui/ui-scale.js';
 import {
@@ -13,9 +17,8 @@ import {
   MIN_CHAT_WITH_PANEL,
   useChatWidth,
 } from '../../../../shared/ui/use-chat-width.js';
-import { useLetterConversation } from '../../../../shared/chat/chat-queries.js';
-import { CHAT_PANEL_W, ChatSidePanel } from '../../../../shared/chat/chat-side-panel.js';
 import { useDeleteSpamLetter, useJoinLetter } from '../../api/letters-mutations.js';
+import { useMarkLetterViewed } from '../../api/mark-letter-viewed.js';
 import { useLetterDetail } from '../../api/letters-queries.js';
 import {
   activateTab,
@@ -27,14 +30,14 @@ import {
   type LetterTabId,
   type LetterTabsState,
 } from '../../lib/letter-tabs.js';
-import { SpamConfirmDialog } from '../pipeline/spam-confirm-dialog.js';
+import { SpamConfirmDialog } from '../spam-confirm-dialog.js';
+import { InviteParticipantDialog } from './invite-participant-dialog.js';
 import { LetterActionBar } from './letter-action-bar.js';
 import { LetterAttributes } from './letter-attributes.js';
 import { LetterCardChainBar } from './letter-card-chain-bar.js';
 import { LetterCardSkeleton } from './letter-card-skeleton.js';
 import { LetterFieldsBoard } from './letter-fields-board.js';
 import { LetterFilesBlock } from './letter-files-block.js';
-import { LetterHistory } from './letter-history.js';
 import { LetterSideTabs } from './letter-side-tabs.js';
 // Побочный эффект: превью ссылок на письма в чате (link-previews); карточка —
 // eager-импорт стека, поэтому реестр заполнен на старте.
@@ -43,30 +46,42 @@ import '../letter-link-preview.js';
 /** Левая зона не уже этого: дальше сужается правая панель до своего пола. */
 const MIN_MAIN_W = uiPx(320);
 
-/** Стартовая вкладка: «Тело»; у письма без текста и документа участнику —
- *  сразу «Чат». */
+/** Стартовая вкладка: «Письмо»; у письма без документа (текста-PDF ещё
+ *  нет или отказ конвертера) участнику — сразу «Чат». */
 function defaultTabOf(letter: LetterDetail): LetterTabId {
   return letter.body.kind === 'none' && letter.access.isParticipant ? 'chat' : 'body';
 }
 
+/** Регистрация письма в карточке (окном или кнопкой без окна): списки
+ *  рефечатся сразу — строка уходит из «Новые» и появляется во «Входящих» без
+ *  F5, после чего карточка закрывается — возврат к списку «Новых»
+ *  (вердикт владельца 28.10). */
+
 /**
- * Карточка письма (#55, U7; стек ADR-0009, `?cards=letter:<id>`) — анатомия
- * карточки задачи: полоса цепочки «ПИСЬМО · Вх-…» со статусом; слева —
- * доска регистрационных данных (правка у канцелярии), атрибуты типа,
- * «Файлы», «История» (свёрнута) и замоноличенный бар h-16 с кнопками
- * маршрута и «Присоединиться к обсуждению»; справа — панель вкладок «Тело» /
- * «Чат» / вложения по канону «чат — буфер сужений»: рельса сужает её до
- * пола, дальше — левую зону; перегородка тянется с общей памятью ширины.
+ * Карточка письма (#55, U7; редизайн #56, стек ADR-0009, `?cards=letter:<id>`)
+ * — анатомия карточки задачи: полоса цепочки «ПИСЬМО · Вх-…» со статусом;
+ * слева — доска реквизитов (незарегистрированное — ФОРМА: поля по месту,
+ * обязательные помечены), атрибуты типа и «Файлы», и
+ * замоноличенный бар h-16 («Зарегистрировать» при заполненных полях идёт
+ * без окна; после успешной регистрации карточка закрывается — возврат к
+ * списку «Новых»); справа — панель вкладок «Письмо» (документ: выбор
+ * канцелярии или текст-PDF) / «Чат» / вложения по канону «чат — буфер
+ * сужений».
+ * Открытие карточки гасит личную точку «я ещё не открывал» в «Новых».
  * Тема — в хроме слайдера (`LetterTitle`), в теле не дублируется.
  */
 export function LetterCard({ letterId }: { letterId: string }) {
   const { data: letter, isLoading, error } = useLetterDetail(letterId);
-  // Открыл письмо — его уведомления прочитаны (как у задачи, #252).
+  // Открыл письмо — его уведомления прочитаны (как у задачи, #252), а личная
+  // точка «я ещё не открывал» в «Новых» погашена (редизайн #56).
   useReadEntityNotifications('letter', letterId);
+  useMarkLetterViewed(letterId);
   const join = useJoinLetter(letterId);
   const deleteSpam = useDeleteSpamLetter();
   const closeCard = useCloseCard();
+  const queryClient = useQueryClient();
   const [spamOpen, setSpamOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   // Вкладки — до первого действия производные от письма (стартовая вкладка).
   const [tabsState, setTabsState] = useState<LetterTabsState | null>(null);
   // Панель вложений беседы (#55): как в мессенджере — тоггл в полосе вкладок
@@ -89,6 +104,34 @@ export function LetterCard({ letterId }: { letterId: string }) {
   );
   const sideW = Math.max(chatW - railShrink - panelShrink, chatFloor);
 
+  // Письмо было «новым» и зарегистрировалось (окном или кнопкой без окна) —
+  // обновляем списки, чтобы строка ушла из «Новые» и пришла во «Входящие»
+  // без перезагрузки страницы. Карточку НЕ меняем (вердикт владельца 28.10).
+  const wasNew = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    setTabsState(null);
+    setPanelOpen(false);
+    wasNew.current = null;
+  }, [letterId]);
+
+  useEffect(() => {
+    if (!letter) return;
+    if (wasNew.current === null) {
+      wasNew.current = letter.registeredAt === null;
+      return;
+    }
+    if (!wasNew.current || letter.registeredAt === null) {
+      wasNew.current = letter.registeredAt === null;
+      return;
+    }
+    wasNew.current = false;
+    void queryClient.invalidateQueries({ queryKey: lettersKeys.lists() });
+    // Вердикт владельца 28.10: после регистрации карточка закрывается —
+    // секретарь возвращается к списку «Новых» и сама выбирает следующее.
+    closeCard();
+  }, [letter, queryClient, closeCard]);
+
   if (!letter && error instanceof ApiError && error.status === 404) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -108,10 +151,11 @@ export function LetterCard({ letterId }: { letterId: string }) {
       change(pruneFileTabs(state ?? initialTabs(defaultTabOf(letter)), attachmentIds)),
     );
   const bodyAttachmentId = letter.body.kind === 'none' ? null : letter.body.attachmentId;
-  // Подсветка плитки: файл активной вкладки, у «Тела» — его документ.
+  // Подсветка плитки: файл активной вкладки, у «Письма» — его документ,
+  // у «Текста письма» — текстовая часть.
   const activeFileId = fileIdOf(tabs.active) ?? (tabs.active === 'body' ? bodyAttachmentId : null);
 
-  /** Файл из блока «Файлы»: тело письма — вкладка «Тело», остальное — своя. */
+  /** Файл из блока «Файлы» — своя вкладка; главный — вкладка «Письмо». */
   const openAttachment = (attachmentId: string) =>
     updateTabs((state) =>
       attachmentId === bodyAttachmentId
@@ -138,14 +182,12 @@ export function LetterCard({ letterId }: { letterId: string }) {
               <LetterFieldsBoard letter={letter} />
               <LetterAttributes letter={letter} />
               <LetterFilesBlock letter={letter} activeId={activeFileId} onOpen={openAttachment} />
-              <LetterHistory letterId={letter.id} />
             </div>
           </div>
           <div className="flex h-16 shrink-0 items-center border-t border-border px-5">
             <LetterActionBar
               letter={letter}
-              joining={join.isPending}
-              onJoin={onJoin}
+              onInvite={() => setInviteOpen(true)}
               onDeleteSpam={() => setSpamOpen(true)}
             />
           </div>
@@ -211,6 +253,11 @@ export function LetterCard({ letterId }: { letterId: string }) {
           closeCard();
           deleteSpam.mutate(letter.id);
         }}
+      />
+      <InviteParticipantDialog
+        letterId={letter.id}
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
       />
     </div>
   );

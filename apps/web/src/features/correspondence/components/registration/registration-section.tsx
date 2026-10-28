@@ -12,6 +12,7 @@ import {
   registrationReasonText,
   type RegistrationDraft,
 } from '../../lib/registration-draft.js';
+import { MainDocumentSection } from './main-document-section.js';
 import { RegistrationFields } from './registration-fields.js';
 import { RegistrationSummary } from './registration-summary.js';
 
@@ -38,13 +39,14 @@ export function RegistrationSection({
       ? { ...draft, receiptMethodId: defaultReceiptMethodId(letter.source, methods) }
       : draft;
 
+  // Рамки полей — только ПОСЛЕ попытки регистрации (сервер вернул 422):
+  // до попытки обязательность несут звёздочки, поля спокойны (28.10).
+  const attempted = serverIssue !== null;
   const invalidKeys: Partial<Record<LetterRegistrationField, string>> = {};
-  for (const issue of draftIssues(value, todayIso())) {
-    invalidKeys[issue.field] = registrationReasonText[issue.reason];
-  }
-  if (serverIssue) {
-    invalidKeys[serverIssue.field as LetterRegistrationField] =
-      registrationReasonText[serverIssue.reason as keyof typeof registrationReasonText];
+  if (attempted) {
+    for (const issue of draftIssues(value, todayIso())) {
+      invalidKeys[issue.field] = registrationReasonText[issue.reason];
+    }
   }
 
   return (
@@ -59,7 +61,8 @@ export function RegistrationSection({
           ctl.setRegistration(registrationInputOf(next, todayIso()));
         }}
       />
-      <RegistrationSummary letter={letter} draft={value} />
+      <MainDocumentSection letter={letter} />
+      <RegistrationSummary letter={letter} />
     </div>
   );
 }

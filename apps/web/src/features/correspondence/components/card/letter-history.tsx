@@ -1,5 +1,4 @@
 import { Cpu } from 'lucide-react';
-import { useState } from 'react';
 import type {
   CustomFieldDefinition,
   LetterHistoryChange,
@@ -8,7 +7,6 @@ import type {
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useCustomFieldDefinitions } from '../../../../shared/custom-fields/queries.js';
@@ -110,65 +108,52 @@ function HistoryRow({
 }
 
 /**
- * «История» карточки письма (#55, Р11: журнал событий агрегата `letter`) —
- * свёрнута по умолчанию, запрос — при раскрытии; новые сверху, «Показать
- * ещё» — старые страницы курсором. Изменения данных — построчно «поле:
- * было → стало» (даты — ДД.ММ.ГГГГ, пустое — «пусто»).
+ * Вкладка «История» правой панели (#55, Р11: журнал событий агрегата
+ * `letter`): лента на всю панель — большому списку не место в левой колонке
+ * реквизитов (вердикт владельца 28.10). Грузится при первом показе,
+ * дальше — страницы кнопкой «Показать ещё».
  */
 export function LetterHistory({ letterId }: { letterId: string }) {
-  const [open, setOpen] = useState(false);
-  const query = useLetterHistory(letterId, open);
+  const query = useLetterHistory(letterId, true);
   const { data: definitions = [] } = useCustomFieldDefinitions('letter');
   const entries = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <section className="mt-7">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="-mx-1 rounded-md px-1 py-0.5 transition-colors hover:bg-accent/40"
-      >
-        <NodeLabel label={ui.letters.card.history} chevron={open ? 'down' : 'right'} />
-      </button>
-      {open ? (
-        <div className="mt-1">
-          {query.isLoading ? (
-            <div className="flex flex-col gap-2 py-2">
-              <Skeleton className="h-6 w-full max-w-lg" />
-              <Skeleton className="h-6 w-full max-w-md" />
-            </div>
-          ) : query.isError && entries.length === 0 ? (
-            <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-              {ui.letters.card.historyLoadError}
-              <Button variant="ghost" size="sm" onClick={() => void query.refetch()}>
-                {ui.letters.list.retry}
-              </Button>
-            </p>
-          ) : entries.length === 0 ? (
-            <p className="py-2 text-xs text-muted-foreground">{ui.letters.card.historyEmpty}</p>
-          ) : (
-            <>
-              <ol className="flex flex-col">
-                {entries.map((entry) => (
-                  <HistoryRow key={entry.id} entry={entry} definitions={definitions} />
-                ))}
-              </ol>
-              {query.hasNextPage ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={query.isFetchingNextPage}
-                  onClick={() => void query.fetchNextPage()}
-                  className="mt-1 text-muted-foreground"
-                >
-                  {ui.letters.card.historyMore}
-                </Button>
-              ) : null}
-            </>
-          )}
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      {query.isLoading ? (
+        <div className="flex flex-col gap-2 py-2">
+          <Skeleton className="h-6 w-full max-w-lg" />
+          <Skeleton className="h-6 w-full max-w-md" />
         </div>
-      ) : null}
-    </section>
+      ) : query.isError && entries.length === 0 ? (
+        <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          {ui.letters.card.historyLoadError}
+          <Button variant="ghost" size="sm" onClick={() => void query.refetch()}>
+            {ui.letters.list.retry}
+          </Button>
+        </p>
+      ) : entries.length === 0 ? (
+        <p className="py-2 text-xs text-muted-foreground">{ui.letters.card.historyEmpty}</p>
+      ) : (
+        <>
+          <ol className="flex flex-col">
+            {entries.map((entry) => (
+              <HistoryRow key={entry.id} entry={entry} definitions={definitions} />
+            ))}
+          </ol>
+          {query.hasNextPage ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={query.isFetchingNextPage}
+              onClick={() => void query.fetchNextPage()}
+              className="mt-1 text-muted-foreground"
+            >
+              {ui.letters.card.historyMore}
+            </Button>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }

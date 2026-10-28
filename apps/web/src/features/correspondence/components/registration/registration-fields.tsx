@@ -24,11 +24,14 @@ import { ProjectPicker } from '../../../../shared/ui/project-picker.js';
 import { useReceiptMethods } from '../../api/letters-queries.js';
 import {
   nextEmptyField,
+  REQUIRED_FIELDS,
   registrationFieldLabel,
   type RegistrationDraft,
 } from '../../lib/registration-draft.js';
+import { useSuggestedCounterparty } from '../../lib/registration-suggestion.js';
 import { AddresseeField } from './addressee-field.js';
 import { DateInput } from './date-input.js';
+import { ReplySuggestion } from './reply-suggestion.js';
 import { SignerField } from './signer-field.js';
 
 /** Фокус в поле формы по ключу (Enter → следующее пустое, «Не хватает»). */
@@ -76,6 +79,9 @@ export function RegistrationFields({
     typeIdsOf(definition).includes(letter.typeId),
   );
 
+  // Подстановка контрагента/подписанта по адресу отправителя (Р6, В2).
+  const { fromSuggestion } = useSuggestedCounterparty(letter, value, onChange);
+
   const fieldId = (field: LetterRegistrationField) => `${prefix}-${field}`;
   const errorId = (field: LetterRegistrationField) =>
     invalidKeys[field] ? `${prefix}-${field}-error` : undefined;
@@ -89,10 +95,17 @@ export function RegistrationFields({
     }
   }
 
+  // Обязательность — тонкой звёздочкой в тоне действия, прижатой к слову
+  // (канон EntityFields; вердикт владельца 28.10 — вместо текстовых списков).
   const row = (field: LetterRegistrationField, control: ReactNode, className?: string) => (
     <div data-reg-field={field} className={cn('flex min-w-0 flex-col gap-1', className)}>
       <label htmlFor={fieldId(field)} className="text-xs font-medium text-muted-foreground">
         {registrationFieldLabel[field]}
+        {REQUIRED_FIELDS.includes(field) ? (
+          <span aria-hidden className="ml-0.5 text-primary">
+            *
+          </span>
+        ) : null}
       </label>
       {control}
       {invalidKeys[field] ? (
@@ -105,6 +118,12 @@ export function RegistrationFields({
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
+      <ReplySuggestion
+        letter={letter}
+        value={value}
+        invalid={invalidKeys.replyToLetterId}
+        onToggle={(linkReply) => set({ linkReply })}
+      />
       {row(
         'counterpartyId',
         <CounterpartyCombobox
@@ -123,9 +142,18 @@ export function RegistrationFields({
           placeholder={ui.letters.form.counterpartyPlaceholder}
           invalid={Boolean(invalidKeys.counterpartyId)}
           describedBy={errorId('counterpartyId')}
-          autoFocus={autoFocus}
+          // Окно-контроль пропусков: фокус — только на ещё пустое поле, и он
+          // молчалив — список не распахивается (приёмка 28.10: заполненное не
+          // активируем, пустое не раскрываем; Enter-навигация живёт).
+          autoFocus={autoFocus && !value.counterparty}
+          openOnFocus={false}
         />,
       )}
+      {fromSuggestion ? (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          {ui.letters.form.suggestedCounterparty}
+        </p>
+      ) : null}
       {row(
         'signerId',
         <SignerField
@@ -236,6 +264,7 @@ export function RegistrationFields({
           onChange={(addressee) => set({ addressee }, addressee ? 'addresseeId' : undefined)}
           invalid={Boolean(invalidKeys.addresseeId)}
           describedBy={errorId('addresseeId')}
+          openOnFocus={false}
         />,
       )}
       {projectsAvailable('letters')

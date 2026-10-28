@@ -1,0 +1,32 @@
+Message-ID: <reply-offer@galurgiya.by>
+In-Reply-To: <out-1@passat.by>
+References: <old-thread@passat.by> <out-1@passat.by>
+From: =?utf-8?B?0JvRg9C60LDRiNC10LLQuNGHINCQ0L3QvdCw?= <a.lukashevich@galurgiya.by>
+Subject: =?utf-8?B?UkU6INCU0L7Qs9C+0LLQvtGALdC+0YTQtdGA0YLQsCDQvdCwINC/0YDQvtC10LrRgtC40YDQvtCy0LDQvdC40LU=?=
+Date: Wed, 28 Oct 2026 08:30:00 +0300
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mix"
+
+--mix
+Content-Type: multipart/related; boundary="rel"
+
+--rel
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: base64
+
+PHA+0J/QvtC00YLQstC10YDQttC00LDQtdC8INC/0L7Qu9GD0YfQtdC90LjQtSDQvtGE0LXRgNGC0YsuPC9wPjxpbWcgc3JjPSJjaWQ6bG9nb0Bwc20tcGFydG5lciIgYWx0PSLQu9C+0LPQviI+
+--rel
+Content-Type: image/png; name="лого.png"
+Content-Disposition: inline; filename="лого.png"
+Content-ID: <logo@psm-partner>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
+--rel--
+--mix
+Content-Type: application/pkcs7-signature; name="Подпись.p7s"
+Content-Disposition: attachment; filename="Подпись.p7s"
+Content-Transfer-Encoding: base64
+
+UEtDUzcgZGVtbyBzaWduYXR1cmU=
+--mix--

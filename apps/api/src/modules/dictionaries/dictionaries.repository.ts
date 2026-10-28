@@ -224,6 +224,24 @@ export class DictionariesRepository {
     return row?.id ?? null;
   }
 
+  /** Активный элемент справочника по коду элемента (#56: поллер почты
+   *  подставляет «Электронная почта» из `receipt-method` без пользователя). */
+  async findActiveItemByCode(
+    dictionaryCode: string,
+    itemCode: string,
+    tx?: TransactionClient,
+  ): Promise<{ id: string; name: string } | null> {
+    const dictionary = await this.db(tx).dictionary.findUnique({
+      where: { code: dictionaryCode },
+      select: { id: true },
+    });
+    if (!dictionary) return null;
+    return this.db(tx).dictionaryItem.findFirst({
+      where: { dictionaryId: dictionary.id, code: itemCode, isActive: true },
+      select: { id: true, name: true },
+    });
+  }
+
   private db(tx?: TransactionClient) {
     return tx ?? this.prisma;
   }

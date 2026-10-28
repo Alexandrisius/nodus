@@ -124,7 +124,9 @@ export function windowCanSubmit({
   if (!lines.every((line) => line.ok)) return false;
   for (const section of sections) {
     if (section.kind === 'comment' && section.required && !draft.comment.trim()) return false;
-    if (section.kind === 'registration' && draft.registration === null) return false;
+    // Регистрация письма кнопку НЕ блокирует (вердикт владельца 28.10):
+    // попытка с пропусками уходит на сервер, 422 возвращается в окно и
+    // красит рамки незаполненных — мёртвая кнопка и текстовые списки убраны.
     if (section.kind === 'result_messages' && section.required && draft.messages.length === 0) {
       return false;
     }

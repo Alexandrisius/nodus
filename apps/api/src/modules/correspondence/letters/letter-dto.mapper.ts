@@ -7,8 +7,11 @@ import {
   type LetterAccess,
   type LetterAttachment,
   type LetterBody,
+  type LetterCounterpartySuggestion,
   type LetterDetail,
   type LetterListItem,
+  type LetterMailInfo,
+  type LetterRef,
   type ProcessTypeRef,
   type ReceiptMethodRef,
   type UserRef,
@@ -119,6 +122,8 @@ export class LetterDtoMapper {
     row: LetterListRow | LetterDetailRow,
     refs: LetterRefs,
     attachmentCount: number,
+    replyTo: LetterRef | null = null,
+    viewed: boolean = false,
   ): LetterListItem {
     const stage = refs.stages.get(row.stageId);
     return {
@@ -139,6 +144,8 @@ export class LetterDtoMapper {
       registeredAt: row.registeredAt?.toISOString() ?? null,
       receivedAt: row.receivedAt.toISOString(),
       source: row.source as LetterListItem['source'],
+      mailFromName: row.mailFromName,
+      mailFromAddress: row.mailFromAddress,
       subject: row.subject,
       counterparty: row.counterpartyId
         ? (refs.counterparties.get(row.counterpartyId) ?? null)
@@ -150,23 +157,42 @@ export class LetterDtoMapper {
       project: null,
       addressee: row.addresseeId ? (refs.users.get(row.addresseeId) ?? null) : null,
       responseDeadline: dateOnly(row.responseDeadline),
+      replyTo,
       attachmentCount,
+      viewed,
     };
   }
 
   async toListItems(
     rows: readonly LetterListRow[],
     counts: Map<string, number>,
+    replyTos: ReadonlyMap<string, LetterRef> = new Map(),
+    viewed: ReadonlySet<string> = new Set(),
   ): Promise<LetterListItem[]> {
     const refs = await this.refsOf(rows);
-    return rows.map((row) => this.toListItem(row, refs, counts.get(row.id) ?? 0));
+    return rows.map((row) =>
+      this.toListItem(
+        row,
+        refs,
+        counts.get(row.id) ?? 0,
+        replyTos.get(row.id) ?? null,
+        viewed.has(row.id),
+      ),
+    );
   }
 
-  /** Деталь: тип, подписант, регистратор, файлы, тело и атрибуты. */
+  /** Деталь: тип, подписант, регистратор, файлы, тело и атрибуты.
+   *  Почтовые подсказки (#56) вычисляет сервис чтения (динамика: контакт
+   *  могут завести позже — Р6) и передаёт сюда готовыми. */
   async toDetail(
     row: LetterDetailRow,
     attachments: readonly LetterAttachmentRow[],
     access: LetterAccess,
+    extra: {
+      replyTo: LetterRef | null;
+      replySuggestion: LetterRef | null;
+      counterpartySuggestion: LetterCounterpartySuggestion | null;
+    },
   ): Promise<LetterDetail> {
     const refs = await this.refsOf([row], {
       contacts: row.signerId ? [row.signerId] : [],
@@ -187,6 +213,8 @@ export class LetterDtoMapper {
         name,
         mime,
         size: file?.size ?? 0,
+        contentId: a.contentId,
+        inline: a.inline,
         url: this.signedUrls.fileContentUrl(a.fileId),
         pdfUrl:
           previewKind === 'office' && isPdfDerivativeCandidate(name)
@@ -197,7 +225,16 @@ export class LetterDtoMapper {
     });
     const values = (row.customFields ?? {}) as LetterDetail['customFields'];
     return {
-      ...this.toListItem(row, refs, files.filter((file) => file.role !== 'source').length),
+      ...this.toListItem(
+        row,
+        refs,
+        // Скрепка в списке — только настоящие вложения: тело письма и главный
+        // документ (скан) — части самого письма, а не приложения (вердикт 28.10).
+        files.filter((file) => file.role === 'attachment' && !file.inline).length,
+        extra.replyTo,
+        // Карточку показывают только тому, кто её открыл — он и просмотрел.
+        true,
+      ),
       type: refs.types.get(row.typeId) ?? {
         id: row.typeId,
         code: 'letter',
@@ -206,6 +243,9 @@ export class LetterDtoMapper {
       },
       signer: row.signerId ? (refs.contacts.get(row.signerId) ?? null) : null,
       registrar: row.registrarId ? (refs.users.get(row.registrarId) ?? null) : null,
+      mail: mailInfoOf(row),
+      replySuggestion: extra.replyTo ? null : extra.replySuggestion,
+      counterpartySuggestion: extra.counterpartySuggestion,
       attachments: files,
       body: bodyOf(files),
       customFields: values,
@@ -215,17 +255,25 @@ export class LetterDtoMapper {
   }
 }
 
-/** Тело (Р8): главный документ во вьювере, иначе HTML/текст почты, иначе пусто. */
+/** Конверт в DTO (#56): null — бумажное письмо, внесённое вручную. */
+function mailInfoOf(row: LetterDetailRow): LetterMailInfo | null {
+  if (!row.mailFromAddress && !row.mailMessageId) return null;
+  return {
+    fromAddress: row.mailFromAddress ?? '',
+    fromName: row.mailFromName,
+    messageId: row.mailMessageId,
+    parseIssue: row.mailParseIssue,
+    storageIncomplete: row.mailStorageIncomplete,
+    bodyPdfIssue: row.mailBodyPdfIssue,
+  };
+}
+
+/** Вкладка «Письмо» (Р8): документ во вьювере, иначе пусто — текст письма
+ *  показывается ТОЛЬКО PDF-копией («Основной документ письма» #56, вердикт
+ *  владельца 28.10). Главный де-факто — выбор канцелярии (main) или
+ *  PDF-копия тела (body_pdf, системный кандидат по умолчанию). */
 export function bodyOf(files: readonly LetterAttachment[]): LetterBody {
-  const main = files.find((file) => file.role === 'main');
+  const main = files.find((file) => file.role === 'main' || file.role === 'body_pdf');
   if (main) return { kind: 'document', attachmentId: main.id };
-  const body = files.find((file) => file.role === 'body');
-  if (!body) return { kind: 'none' };
-  const isHtml = body.mime.includes('html');
-  const isText = body.mime.startsWith('text/');
-  return isHtml
-    ? { kind: 'html', attachmentId: body.id }
-    : isText
-      ? { kind: 'text', attachmentId: body.id }
-      : { kind: 'none' };
+  return { kind: 'none' };
 }

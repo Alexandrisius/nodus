@@ -6,6 +6,7 @@ import {
   defaultReceiptMethodId,
   draftIssues,
   initialDraft,
+  letterRegistrationInput,
   missingFields,
   nextEmptyField,
   registrationInputOf,
@@ -38,6 +39,8 @@ const letter = {
   addressee: null,
   responseDeadline: null,
   customFields: {},
+  attachments: [],
+  body: { kind: 'none' },
 } as unknown as LetterDetail;
 
 const complete = (patch: Partial<RegistrationDraft> = {}): RegistrationDraft => ({
@@ -100,6 +103,85 @@ describe('черновик регистрации (#55, U5)', () => {
     expect(
       registrationInputOf(complete({ responseDeadline: '2026-10-25' }), '2026-10-26'),
     ).toBeNull();
+  });
+
+  it('подтверждение подсказки «ответ на» (#56, Р5): уходит в тело только с галочкой', () => {
+    const suggested = {
+      id: '70000000-0000-4000-8000-000000000030',
+      regNumber: 'Исх-2026/1',
+      subject: 'Оферта',
+    };
+    const draft = complete({ suggestedReply: suggested });
+    // Без галочки связи нет — Вика подтверждает сама.
+    expect(registrationInputOf(draft, '2026-10-26')).not.toHaveProperty('replyToLetterId');
+    const linked = registrationInputOf(
+      complete({ suggestedReply: suggested, linkReply: true }),
+      '2026-10-26',
+    );
+    if (!linked) throw new Error('с галочкой связи тело регистрации ожидается не пустым');
+    expect(linked.replyToLetterId).toBe(suggested.id);
+    // Подсказка берётся из карточки письма при монтировании формы.
+    expect(initialDraft(letter, METHODS).linkReply).toBe(false);
+    expect(
+      initialDraft({ ...letter, replySuggestion: suggested } as LetterDetail, METHODS)
+        .suggestedReply,
+    ).toBe(suggested);
+  });
+
+  it('ввод из самого письма (редизайн #56): всё обязательное заполнено в карточке — готов; пропуск — null, нужен контроль окна', () => {
+    const filled = {
+      ...letter,
+      counterparty: { id: '00000000-0000-4000-8000-000000000001', name: 'АО «Галургия»' },
+      theirNumber: '0359-КЖ/152',
+      theirDate: '2026-10-25',
+      addressee: {
+        id: '00000000-0000-4000-8000-000000000007',
+        displayName: 'Валерия Шайдерова',
+        avatarUrl: null,
+      },
+    } as LetterDetail;
+    const input = letterRegistrationInput(filled, METHODS);
+    expect(input).not.toBeNull();
+    expect(input?.counterpartyId).toBe(filled.counterparty!.id);
+    expect(input?.addresseeId).toBe(filled.addressee!.id);
+    expect(input?.receiptMethodId).toBe(METHODS[0]!.id);
+    // Что-то обязательное пусто (адресат не выбран по месту) — без окна нельзя.
+    expect(letterRegistrationInput(letter, METHODS)).toBeNull();
+    expect(
+      letterRegistrationInput({ ...filled, addressee: null } as LetterDetail, METHODS),
+    ).toBeNull();
+  });
+
+  it('пропуск «основной документ» (#56): кандидаты без звезды — окно контроля', () => {
+    const candidate = {
+      id: '00000000-0000-4000-8000-0000000000a1',
+      fileId: '00000000-0000-4000-8000-0000000000a1',
+      role: 'attachment',
+      name: 'Скан.pdf',
+      mime: 'application/pdf',
+      size: 100,
+      contentId: null,
+      inline: false,
+      url: '/f',
+      pdfUrl: null,
+      previewKind: 'pdf',
+    } as LetterDetail['attachments'][number];
+    const filled2 = {
+      ...letter,
+      counterparty: { id: '00000000-0000-4000-8000-000000000001', name: 'АО «Галургия»' },
+      theirNumber: '0359-КЖ/152',
+      theirDate: '2026-10-25',
+      addressee: { id: '00000000-0000-4000-8000-000000000007', displayName: 'В', avatarUrl: null },
+      attachments: [candidate],
+      body: { kind: 'none' },
+    } as unknown as LetterDetail;
+    // Все поля заполнены, но звезда не выбрана — прямая регистрация не идёт.
+    expect(letterRegistrationInput(filled2, METHODS)).toBeNull();
+    const chosen = {
+      ...filled2,
+      body: { kind: 'document', attachmentId: candidate.id },
+    } as LetterDetail;
+    expect(letterRegistrationInput(chosen, METHODS)).not.toBeNull();
   });
 });
 

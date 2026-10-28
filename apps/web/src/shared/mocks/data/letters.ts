@@ -15,6 +15,10 @@ export const demoLetters: DemoLetter[] = seedLetters();
 
 export const letterHistory: Map<string, LetterHistoryEntry[]> = seedHistory(demoLetters);
 
+/** «Я открывал» (редизайн #56): личный признак мока — какие незарегистриро-
+ * ванные письма текущий актёр открывал карточкой (сброс — F5). */
+export const viewedLetterIds: Set<string> = new Set();
+
 export function findLetter(id: string): DemoLetter | undefined {
   return demoLetters.find((letter) => letter.id === id);
 }
@@ -27,10 +31,11 @@ export function pushLetterHistory(letterId: string, entry: LetterHistoryEntry): 
 }
 
 /** Серии номеров без пропусков и со сбросом по году (Р2): демо-набор
- *  заканчивается Вх-2026/117 — первая регистрация даёт «Вх-2026/118». */
+ *  заканчивается Вх-2026/117 — первая регистрация даёт «Вх-2026/118»;
+ *  исходящее Исх-2026/1 уже отправлено (демо #56). */
 const series: Record<LetterDirection, { prefix: string; year: number; last: number }> = {
   incoming: { prefix: 'Вх', year: 2026, last: 117 },
-  outgoing: { prefix: 'Исх', year: 2026, last: 0 },
+  outgoing: { prefix: 'Исх', year: 2026, last: 1 },
 };
 
 export function nextLetterNumber(direction: LetterDirection, at = new Date()): string {

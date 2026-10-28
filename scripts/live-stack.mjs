@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dbName, loadDotEnv, sandboxSecrets } from './live-stack-env.mjs';
+import { dbName, loadDotEnv, sandboxMailEnv, sandboxSecrets } from './live-stack-env.mjs';
 import { mockEnvOf } from './live-stack-mock.mjs';
 import { printStatus } from './live-stack-status.mjs';
 
@@ -185,6 +185,12 @@ async function up(mode, mock) {
     }
   }
 
+  // Эфемерный конвертер песочницы (план-Б #56, Р10): прод-gotenberg теперь
+  // только во internal-сети без портов — api песочницы (хост) ходит в свой
+  // экземпляр профиля sandbox на loopback-порту. Живёт, пока песочница:
+  // down() его останавливает.
+  run('docker compose --profile sandbox up -d gotenberg-sandbox', [], { ...process.env });
+
   // Изоляция песочницы (#178, урок-инцидент #175): без явного env процесса
   // песочница САМА уходит на изолированные nodus_night + Redis db1 — из .env
   // (там прод-значения) конструируем песочные. Явный env процесса главнее;
@@ -250,6 +256,9 @@ async function up(mode, mock) {
       COOKIE_SECURE: 'false',
       // e2e-прогоны подряд с двух браузеров выбивают дефолт 3000/мин с NAT-IP.
       RATE_LIMIT_MAX: '30000',
+      // Почтовый контур песочницы — только тестовый ящик (MAIL_TEST_*),
+      // изоляция и анти-брутфорс Kerio: live-stack-env.sandboxMailEnv.
+      ...sandboxMailEnv(base),
       // ONLYOFFICE (#138): documentserver-контейнер (compose profile office)
       // ходит за файлами/колбэками на ЭТОТ api — адрес хоста из контейнера.
       OFFICE_API_INTERNAL_URL: `http://host.docker.internal:${PORTS.api}`,
@@ -323,6 +332,8 @@ function down() {
   }
   fs.rmSync(PID_FILE, { force: true });
   fs.rmSync(MODE_FILE, { force: true });
+  // Эфемерный конвертер песочницы (план-Б #56, Р10) — гасим вместе со стеком.
+  run('docker compose --profile sandbox stop gotenberg-sandbox', [], { ...process.env });
   console.log(
     stopped === 0 ? 'Stack was not running (no/empty PID file).' : `Stopped processes: ${stopped}`,
   );

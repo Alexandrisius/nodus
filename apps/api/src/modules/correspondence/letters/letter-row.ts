@@ -24,6 +24,9 @@ export const letterListSelect = {
   projectId: true,
   addresseeId: true,
   responseDeadline: true,
+  // Конверт почты (#56): строка очереди «Новые» — отправитель и бейдж связи.
+  mailFromAddress: true,
+  mailFromName: true,
 } as const;
 
 export const letterDetailSelect = {
@@ -33,6 +36,16 @@ export const letterDetailSelect = {
   registrarId: true,
   createdBy: true,
   customFields: true,
+  // Полный конверт и флаги приёма (#56) — карточка письма.
+  mailMessageId: true,
+  mailInReplyTo: true,
+  mailReferences: true,
+  mailParseIssue: true,
+  mailStorageIncomplete: true,
+  // PDF-копия тела не создана («Основной документ письма» #56).
+  mailBodyPdfIssue: true,
+  // Надгробие спама (Р13): невидимо ни в списках, ни в карточке — фильтр.
+  deletedAt: true,
 } as const;
 
 export type LetterListRow = Prisma.LetterGetPayload<{ select: typeof letterListSelect }>;
@@ -43,6 +56,8 @@ export const letterAttachmentSelect = {
   fileId: true,
   role: true,
   sortOrder: true,
+  contentId: true,
+  inline: true,
 } as const;
 
 export type LetterAttachmentRow = Prisma.LetterAttachmentGetPayload<{

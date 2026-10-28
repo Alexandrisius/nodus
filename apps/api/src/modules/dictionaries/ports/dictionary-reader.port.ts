@@ -48,4 +48,12 @@ export interface DictionaryReader {
   /** Id справочника по коду (#55): регистрация письма проверяет, что способ
    *  поступления — активный элемент системного `receipt-method`. null — нет. */
   dictionaryIdByCode(code: string, tx?: TransactionClient): Promise<string | null>;
+
+  /** Действующий элемент по коду справочника и коду элемента (#56: приём
+   *  почты подставляет «Электронная почта»). null — нет или архивный. */
+  activeItemByCode(
+    dictionaryCode: string,
+    itemCode: string,
+    tx?: TransactionClient,
+  ): Promise<{ id: string; name: string } | null>;
 }

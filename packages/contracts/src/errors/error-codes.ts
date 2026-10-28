@@ -117,6 +117,10 @@ export const ErrorCode = {
   LETTER_NOT_DELETABLE: 'LETTER_NOT_DELETABLE',
   /** Править регистрационные данные можно только у зарегистрированного письма (#55, Р11). */
   LETTER_NOT_EDITABLE: 'LETTER_NOT_EDITABLE',
+  /** Подтверждение связи «ответ на» не прошло: цель не исходящее
+   *  зарегистрированное письмо или не совпадает со свежей подсказкой;
+   *  details — { field, reason } (#56, Р5). */
+  LETTER_RELATION_INVALID: 'LETTER_RELATION_INVALID',
   /** Значение кастомного поля не прошло проверку (#431, ADR-0029):
    *  details.issues[] — { fieldId, reason: unknown|invalid|not_found|inactive|not_in_type, message }. */
   CUSTOM_FIELD_VALUE_INVALID: 'CUSTOM_FIELD_VALUE_INVALID',

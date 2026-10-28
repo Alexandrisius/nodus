@@ -81,6 +81,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /letters': LETTER_VISIBILITY,
   'GET /letters/resolvers': LETTER_RESOLVERS,
   'GET /letters/:id': LETTER_VISIBLE_ONE,
+  'POST /letters/:id/view': LETTER_VISIBLE_ONE,
   'POST /letters/:id/join': LETTER_VISIBLE_ONE,
   'GET /letters/:id/transitions': LETTER_VISIBLE_ONE,
   'POST /letters/:id/transitions/:transitionId': LETTER_VISIBLE_ONE,

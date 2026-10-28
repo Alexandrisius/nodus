@@ -59,15 +59,47 @@ describe('мок-мир писем v3 (#55, §7.6) парсится контра
     }
   });
 
-  it('«Новые» — шесть писем, Вх-2026/108…117 без пропусков, следующий 118', () => {
-    expect(demoLetters.filter((l) => boxOf(l) === 'new')).toHaveLength(6);
+  it('«Новые» — десять писем, Вх-2026/108…117 без пропусков, следующий 118', () => {
+    expect(demoLetters.filter((l) => boxOf(l) === 'new')).toHaveLength(10);
     const seqs = demoLetters
+      .filter((l) => l.direction === 'incoming')
       .map((l) => Number(l.regNumber?.split('/')[1]))
       .filter((n) => !Number.isNaN(n))
       .sort((a, b) => a - b);
     expect(seqs).toEqual([108, 109, 110, 111, 112, 113, 114, 115, 116, 117]);
-    expect(demoLetters.filter((l) => l.direction === 'outgoing')).toHaveLength(0);
     expect(nextLetterNumber('incoming', new Date(2026, 9, 26))).toBe('Вх-2026/118');
+    // Исходящее Исх-2026/1 (демо #56) — цель связей «ответ на».
+    const outgoing = demoLetters.filter((l) => l.direction === 'outgoing');
+    expect(outgoing).toHaveLength(1);
+    expect(outgoing[0]?.regNumber).toBe('Исх-2026/1');
+    expect(nextLetterNumber('outgoing', new Date(2026, 9, 26))).toBe('Исх-2026/2');
+  });
+
+  it('почтовые письма #56: конверт, авто-связь, подсказки и флаги', () => {
+    const bySubject = (part: string) => demoLetters.find((l) => l.subject?.includes(part))!;
+    // Авто-связь по цепочке — бейдж очереди, подсказки в карточке нет.
+    const reply = bySubject('RE: Договор-оферта');
+    expect(reply.replyTo?.regNumber).toBe('Исх-2026/1');
+    expect(letterDetailOf(reply, registrar).replySuggestion).toBeNull();
+    // Подсказка по теме «на № 1 от …» — только пока связи нет.
+    const dopusk = bySubject('О допуске');
+    expect(dopusk.replyTo).toBeNull();
+    expect(letterDetailOf(dopusk, registrar).replySuggestion?.regNumber).toBe('Исх-2026/1');
+    // Подстановка контрагента: единственный контакт с адресом (Р6).
+    expect(letterDetailOf(reply, registrar).counterpartySuggestion).toMatchObject({
+      counterpartyId: expect.any(String),
+      signerId: expect.any(String),
+    });
+    const noMatch = bySubject('Приглашение');
+    expect(letterDetailOf(noMatch, registrar).counterpartySuggestion).toBeNull();
+    // Флаги приёма: битое письмо и обрезанное хранение.
+    expect(bySubject('Счёт на оплату').mail?.parseIssue).toBe(true);
+    expect(bySubject('Коммерческое предложение').mail?.storageIncomplete).toBe(true);
+    // Inline-картинка с contentId — в счётчик файлов не входит (Р9):
+    // считаются тело и winmail.dat.
+    const kp = bySubject('Коммерческое предложение');
+    expect(kp.attachments.some((a) => a.inline && a.contentId === 'logo@psm-partner')).toBe(true);
+    expect(letterListItemOf(kp).attachmentCount).toBe(2);
   });
 
   it('кнопки нового письма — только у держателя права регистрации', () => {

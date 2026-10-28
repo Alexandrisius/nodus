@@ -44,6 +44,13 @@ export const notificationKindSchema = z.enum([
   /** Работа принята: «Утверждение» → «Итог» с исходом «выполнена» —
    *  исполнителю (ADR-0020, дополнение 2). */
   'task.approved',
+  /** Письмо принято из общего ящика — держателям `correspondence.register`
+   *  (#56, В4: Вике нужно реагировать быстро). */
+  'letter.arrived',
+  /** Общий ящик не читается после нескольких неудачных попыток (#56, В4). */
+  'mail.sync_failed',
+  /** Исходящее письмо не отправлено (#56, Р7 → #464). */
+  'letter.send_failed',
 ]);
 export type NotificationKind = z.infer<typeof notificationKindSchema>;
 
@@ -53,6 +60,8 @@ export const notificationSourceSchema = z.enum([
   'task',
   'letter',
   'workflow',
+  /** Ящик приёма почты (#56): клика нет — источник «почта молчит». */
+  'mail',
 ]);
 export type NotificationSource = z.infer<typeof notificationSourceSchema>;
 

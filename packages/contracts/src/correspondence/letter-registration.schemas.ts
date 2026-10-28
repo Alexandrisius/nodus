@@ -20,11 +20,14 @@ export const LETTER_LIMITS = {
   subject: 500,
   /** Файлов при ручном создании (скан + приложения). */
   files: 20,
+  /** Вложений письма почты (#56, Р12): сверх — не сохраняются, письмо
+   *  помечается `storageIncomplete`. */
+  mailFiles: 50,
+  /** Идентификаторов References цепочки в построении «ответ на» (Р5):
+   *  парсер отдаёт список целиком, кап берёт threading (свежие ID). */
+  mailReferences: 100,
   /** Байт одного файла ручного создания (лимит вложений портала). */
   fileBytes: 100 * 1024 * 1024,
-  /** Байт HTML/текстового тела, которое веб показывает в песочнице; больше —
-   *  карточка скачивания (Р9). */
-  bodyPreviewBytes: 2 * 1024 * 1024,
   /** Поиск по спискам писем. */
   search: 128,
   /** Адресатов «Принимают решения» в выдаче `/letters/resolvers`. */
@@ -34,7 +37,9 @@ export const LETTER_LIMITS = {
 } as const;
 
 /** Ввод регистрации (`form.registration` тела перехода, Р1): адресат
- *  обязателен (В1), подписант — контакт корреспондента или пусто. */
+ *  обязателен (В1), подписант — контакт корреспондента или пусто.
+ *  `replyToLetterId` — подтверждение подсказки «ответ на» галочкой (#56,
+ *  Р5): ровно свежая подсказка сервера, произвольные связи — #461. */
 export const letterRegistrationInputSchema = z
   .object({
     counterpartyId: z.uuid(),
@@ -46,12 +51,18 @@ export const letterRegistrationInputSchema = z
     projectId: z.uuid().nullable(),
     addresseeId: z.uuid(),
     responseDeadline: z.iso.date().nullable(),
+    replyToLetterId: z.uuid().nullable().optional(),
     customFields: customFieldValuesInputSchema.optional(),
   })
   .strict();
 export type LetterRegistrationInput = z.infer<typeof letterRegistrationInputSchema>;
 
-/** Поле формы регистрации (ключ подсветки и `details.field` ответа 422). */
+/** Поле формы регистрации (ключ подсветки и `details.field` ответа 422).
+ *  `mainDocument` — не поле ввода, а пропуск «основной документ»
+ *  («Основной документ письма» #56): сервер отказывает 422 с этим ключом,
+ *  когда у письма есть файлы-кандидаты, а ни один не выбран звёздочкой;
+ *  выбор — отдельным `POST /letters/:id/main-document`, в теле регистрации
+ *  не передаётся. */
 export const letterRegistrationFieldSchema = z.enum([
   'counterpartyId',
   'signerId',
@@ -62,9 +73,21 @@ export const letterRegistrationFieldSchema = z.enum([
   'projectId',
   'addresseeId',
   'responseDeadline',
+  'replyToLetterId',
   'customFields',
+  'mainDocument',
 ]);
 export type LetterRegistrationField = z.infer<typeof letterRegistrationFieldSchema>;
+
+/** Причина отказа `422 LETTER_RELATION_INVALID` (подтверждение связи
+ *  «ответ на», #56, Р5): цель не найдена/не видна, не исходящее
+ *  зарегистрированное письмо, не совпадает со свежей подсказкой. */
+export const letterRelationReasonSchema = z.enum([
+  'not_found',
+  'not_outgoing_registered',
+  'suggestion_mismatch',
+]);
+export type LetterRelationReason = z.infer<typeof letterRelationReasonSchema>;
 
 /** Причина отказа поля (`422 LETTER_REGISTRATION_INVALID`, `details {field,
  *  reason}`): пусто, неверный формат, дата в будущем/прошлом, ссылка не

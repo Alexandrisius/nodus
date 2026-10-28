@@ -39,8 +39,12 @@ export interface RegistrationValues {
   subject: string;
   receiptMethodId: string;
   projectId: string | null;
-  addresseeId: string;
+  /** До регистрации адресата может не быть (редизайн #56: поле заполняется
+   *  по месту в карточке); регистрация требует его заполненным. */
+  addresseeId: string | null;
   responseDeadline: string | null;
+  /** Подтверждение подсказки «ответ на» (#56, Р5): семантика — в апликере. */
+  replyToLetterId: string | null;
 }
 
 /** Изменение поля для события/истории (значения — сырые: id, ISO-дата). */
@@ -112,15 +116,18 @@ export class LetterFieldsValidator {
         projectId: value.projectId,
         addresseeId: value.addresseeId,
         responseDeadline: value.responseDeadline,
+        replyToLetterId: value.replyToLetterId ?? null,
       },
       customFields,
     };
   }
 
   /**
-   * Правка (В3): проверяются только переданные поля; адресат и номер не
-   * меняются. Смена корреспондента без подписанта сбрасывает подписанта,
-   * если он больше не контакт нового корреспондента.
+   * Правка (В3; редизайн #56 — и незарегистрированного письма): проверяются
+   * только переданные поля; номер не меняется вовсе, адресат — только до
+   * регистрации (этот инвариант держит сервис). Смена корреспондента без
+   * подписанта сбрасывает подписанта, если он больше не контакт нового
+   * корреспондента.
    */
   async patch(
     current: RegistrationValues,
@@ -168,6 +175,10 @@ export class LetterFieldsValidator {
       await this.assertReceiptMethod(body.receiptMethodId);
       set('receiptMethodId', body.receiptMethodId);
     }
+    if (body.addresseeId !== undefined) {
+      await this.assertAddressee(body.addresseeId);
+      set('addresseeId', body.addresseeId);
+    }
 
     const data: Record<string, unknown> = {};
     for (const change of changes) {
@@ -202,8 +213,7 @@ export class LetterFieldsValidator {
       if (!contact) fail({ field: 'signerId', reason: 'not_of_counterparty' });
     }
     await this.assertReceiptMethod(value.receiptMethodId);
-    const active = await this.profiles.filterActiveUserIds([value.addresseeId]);
-    if (active.length === 0) fail({ field: 'addresseeId', reason: 'inactive' });
+    await this.assertAddressee(value.addresseeId);
     if (value.responseDeadline && value.responseDeadline.length > 10) {
       fail({ field: 'responseDeadline', reason: 'invalid' });
     }
@@ -223,6 +233,14 @@ export class LetterFieldsValidator {
     );
     const item = dictionaryId ? await this.dictionaries.activeItemRef(dictionaryId, itemId) : null;
     if (!item) fail({ field: 'receiptMethodId', reason: 'not_found' });
+  }
+
+  /** Адресат — действующий сотрудник (как при регистрации); null — очистить
+   *  поле до регистрации, окно «Зарегистрировать» поймает пустое. */
+  private async assertAddressee(addresseeId: string | null): Promise<void> {
+    if (addresseeId === null) return;
+    const active = await this.profiles.filterActiveUserIds([addresseeId]);
+    if (active.length === 0) fail({ field: 'addresseeId', reason: 'inactive' });
   }
 }
 

@@ -49,11 +49,6 @@ export function parseRuDate(text: string): string | null {
   return `${year}-${pad(month)}-${pad(day)}`;
 }
 
-/** Подсказка номера до регистрации: «Вх-2026/…» — точный выдаст сервер. */
-export function numberPreview(prefix: string, at = new Date()): string {
-  return `${prefix}-${at.getFullYear()}/…`;
-}
-
 /** Время поступления в очереди: сегодня — «09:41», иначе — «24 окт, 16:40». */
 export function receivedLabel(iso: string, now = new Date()): string {
   const at = new Date(iso);

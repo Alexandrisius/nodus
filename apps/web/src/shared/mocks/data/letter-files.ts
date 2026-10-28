@@ -27,6 +27,8 @@ export function demoAttachment(
   mime: string,
   size: number,
   pdfAsset: string | null = null,
+  contentId: string | null = null,
+  inline = false,
 ): LetterAttachment {
   return {
     id: laid(n),
@@ -35,6 +37,8 @@ export function demoAttachment(
     name,
     mime,
     size,
+    contentId,
+    inline,
     url: asset.startsWith('/') ? asset : `${DEMO}${asset}`,
     pdfUrl: pdfAsset ? `${DEMO}${pdfAsset}` : null,
     previewKind: previewKindOf(name, mime),
@@ -173,5 +177,60 @@ export const newLetterFiles = {
     'new-psm-grafik-r2.pdf',
     PDF,
     73703,
+  ),
+};
+
+/** Почтовые письма #56 (lid 27…31) + исходящее lid 30. */
+export const mailLetterFiles = {
+  /** lid(27): ответ на исходящее — PDF-копия текста + подпись .p7s (метка).
+   *  Текст письма в продукте существует только PDF-копией (#56). */
+  replyBody: demoAttachment(30, 'body_pdf', 'Текст письма.pdf', 'in-110-tehsnab-kp.pdf', PDF, 546),
+  replySignature: demoAttachment(
+    31,
+    'attachment',
+    'Подпись 0359-КЖ-152.p7s',
+    'new-signature.p7s',
+    'application/pkcs7-signature',
+    63,
+  ),
+  /** lid(28): «на № 1 от …» — PDF-копия текста. */
+  dopuskBody: demoAttachment(32, 'body_pdf', 'Текст письма.pdf', 'in-110-tehsnab-kp.pdf', PDF, 598),
+  /** lid(29): КП с inline-логотипом (cid), winmail.dat (метка Outlook);
+   *  текст — PDF-копией (роль body_pdf), логотип — inline-картинка копии. */
+  partnerHtml: demoAttachment(
+    33,
+    'body_pdf',
+    'Текст письма.pdf',
+    'in-110-tehsnab-kp.pdf',
+    PDF,
+    1560,
+  ),
+  partnerLogo: demoAttachment(
+    34,
+    'attachment',
+    'лого.png',
+    'new-partner-logo.png',
+    'image/png',
+    282,
+    null,
+    'logo@psm-partner',
+    true,
+  ),
+  partnerWinmail: demoAttachment(
+    35,
+    'attachment',
+    'winmail.dat',
+    'new-partner-winmail.dat',
+    'application/ms-tnef',
+    40,
+  ),
+  /** lid(30): главный документ исходящего Исх-2026/1. */
+  outgoingOffer: demoAttachment(
+    36,
+    'main',
+    'Оферта 131-10.pdf',
+    'in-116-stroyzakazchik-dogovor.pdf',
+    PDF,
+    57379,
   ),
 };

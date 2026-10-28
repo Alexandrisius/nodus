@@ -58,4 +58,12 @@ describe('вкладки карточки письма (#55)', () => {
     expect(state.files).toEqual([]);
     expect(state.active).toBe('body');
   });
+
+  it('несжимаемые «Письмо»/«Чат» не занимают слот вложений (#56)', () => {
+    let state = openFileTab(initialTabs('body'), 'f1');
+    expect(state.files).toEqual(['f1']);
+    state = activateTab(state, 'chat');
+    expect(state.active).toBe('chat');
+    expect(closeFileTab(state, 'f1').files).toEqual([]);
+  });
 });

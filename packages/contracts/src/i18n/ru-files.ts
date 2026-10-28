@@ -25,6 +25,8 @@ export const filesStrings = {
   pdfLoading: 'Загружаем документ…',
   pdfOpenError: 'Не удалось открыть документ',
   pdfPageOf: 'из',
+  /** Текстовая читалка (txt/log/csv/json…): сбой чтения подписанной ссылки. */
+  textOpenError: 'Не удалось прочитать файл',
   /** Ария кнопок масштаба pdf.js. */
   zoomIn: 'Увеличить',
   zoomOut: 'Уменьшить',

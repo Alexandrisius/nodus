@@ -18,6 +18,7 @@ import {
   letterDetailOf,
   letterHistory,
   letterListItemOf,
+  viewedLetterIds,
   type DemoLetter,
 } from '../../../../shared/mocks/data/letters.js';
 import {
@@ -71,7 +72,14 @@ export const lettersQueryHandlers = [
       .filter((letter) => matchesSearch(letter, search))
       .sort(byDesc(box === 'new' ? 'receivedAt' : 'registeredAt'));
     return HttpResponse.json(
-      page<LetterListItem>(items.map(letterListItemOf), cursor, limit ?? 50),
+      page<LetterListItem>(
+        // «Я открывал» — личный признак (редизайн #56): точка в «Новых».
+        items.map((letter) =>
+          letterListItemOf(letter, viewedLetterIds.has(letter.id) || letter.registeredAt !== null),
+        ),
+        cursor,
+        limit ?? 50,
+      ),
     );
   }),
 

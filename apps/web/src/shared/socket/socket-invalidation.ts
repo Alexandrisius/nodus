@@ -13,6 +13,7 @@ import {
   applyReactionEvent,
   applySentMessage,
 } from '../chat/ws-apply.js';
+import { lettersKeys } from '../api/letters-keys.js';
 import { notificationsKeys } from '../notifications-keys.js';
 import { bumpCommentsOnce, useCommentsLive } from '../tasks/comments-live.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
@@ -196,7 +197,20 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
             batcher.push(stickerKeys.pack(payload.packId), 'feed');
           }
           return;
-        case 'notification.dispatch_requested':
+        case 'notification.dispatch_requested': {
+          batcher.push(notificationsKeys.all, 'feed');
+          // Приём почты (#56, вердикт владельца 28.10): будильник держателям
+          // `correspondence.register` приходит в их user-комнату — очередь
+          // «Новые» обновляется сама, без F5 и «пришло через несколько минут».
+          const snapshot = payload.snapshot as { kind?: unknown; sourceId?: unknown } | undefined;
+          if (snapshot?.kind === 'letter.arrived') {
+            batcher.push(lettersKeys.lists(), 'feed');
+            if (typeof snapshot.sourceId === 'string') {
+              batcher.push(lettersKeys.detail(snapshot.sourceId), 'feed');
+            }
+          }
+          return;
+        }
         case 'notification.read':
           batcher.push(notificationsKeys.all, 'feed');
           return;

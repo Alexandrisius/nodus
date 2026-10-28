@@ -128,6 +128,8 @@ describe('правка регистрационных данных (#55, В3)', 
     projectId: null,
     addresseeId: ADDRESSEE_ID,
     responseDeadline: null,
+    // Связи «ответ на» правка не касается (#56) — поле для типа.
+    replyToLetterId: null,
   };
 
   it('меняет только переданные поля и пишет изменения', async () => {

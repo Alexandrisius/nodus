@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { api, apiUpload } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import type { LettersPages } from '../../../shared/api/letters-list.js';
+import { letterWithMainDocument } from '../lib/letter-main-document.js';
 import { chatKeys } from '../../../shared/chat/chat-keys.js';
 import {
   alreadyRegisteredNumber,
@@ -67,6 +68,40 @@ export function useExecuteLetterTransition() {
     onError: (error) => {
       if (registrationIssueOf(error) || alreadyRegisteredNumber(error) !== null) return;
       toast.error(letterErrorText(error));
+    },
+  });
+}
+
+/** Выбор основного документа звездой («Основной документ письма» #56):
+ *  вкладка «Письмо» меняется мгновенно (I4), ошибка — откат снапшотом. */
+export function useSetMainDocument(id: string) {
+  const queryClient = useQueryClient();
+  const detailKey = lettersKeys.detail(id);
+  return useMutation({
+    mutationFn: (attachmentId: string) =>
+      api<LetterDetail>(`/letters/${id}/main-document`, {
+        method: 'POST',
+        body: { attachmentId },
+      }),
+    onMutate: async (attachmentId) => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const previous = queryClient.getQueryData<LetterDetail>(detailKey);
+      const previousListItem = snapshotLetterInList(queryClient, id);
+      if (previous) {
+        const next = letterWithMainDocument(previous, attachmentId);
+        queryClient.setQueryData(detailKey, next);
+        syncLetterInLists(queryClient, id, listItemOf(next));
+      }
+      return { previous, previousListItem };
+    },
+    onError: (error, _attachmentId, context) => {
+      if (context?.previous) queryClient.setQueryData(detailKey, context.previous);
+      restoreLetterInLists(queryClient, id, context?.previousListItem ?? null);
+      toast.error(letterErrorText(error));
+    },
+    onSuccess: (letter) => {
+      applyLetter(queryClient, letter);
+      void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
     },
   });
 }
@@ -133,7 +168,8 @@ export function useDeleteSpamLetter() {
   });
 }
 
-/** «Присоединиться к обсуждению» (Р10): участник со звуком, чат открывается. */
+/** «Присоединиться к обсуждению» (Р10; редизайн #56 — канцелярия может
+ *  начать обсуждение и до регистрации): участник со звуком, чат открывается. */
 export function useJoinLetter(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -143,6 +179,23 @@ export function useJoinLetter(id: string) {
       void queryClient.invalidateQueries({ queryKey: chatKeys.byLetter(id) });
       void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
       toast.success(ui.letters.card.joinedToast);
+    },
+    onError: (error) => toast.error(letterErrorText(error)),
+  });
+}
+
+/** Пригласить коллегу в обсуждение (редизайн #56): право регистрации,
+ *  любое состояние письма; состав беседы решает сервер — пессимистично. */
+export function useInviteLetterParticipant(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userIds: string[]) =>
+      api<LetterDetail>(`/letters/${id}/participants`, { method: 'POST', body: { userIds } }),
+    onSuccess: (letter) => {
+      applyLetter(queryClient, letter);
+      void queryClient.invalidateQueries({ queryKey: chatKeys.byLetter(id) });
+      void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
+      toast.success(ui.letters.card.invitedToast);
     },
     onError: (error) => toast.error(letterErrorText(error)),
   });

@@ -9,6 +9,10 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Spinner } from '@nodus/ui/components/spinner';
 
+/** Тёмный показ PDF (тема портала = тёмный документ, вердикт владельца
+ *  28.10): канвас страницы инвертируется CSS-правилом темы в globals.css —
+ *  shared не тянет app (направление слоёв). */
+
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /** Масштаб рендера страницы (canvas-пикселей на CSS-пиксель; ×2 — чётко на
@@ -32,12 +36,20 @@ export function PdfViewer({
   url,
   fileName,
   fit,
+  onFailed,
 }: {
   url: string;
   fileName: string;
   fit?: 'width';
+  /** Документ не открылся (битый файл, 404): хост решает, чем заменить
+   *  тупик «Не удалось открыть документ» (например, карточкой скачивания). */
+  onFailed?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Колбэк в ref: инлайн-стрелка хоста не должна перезапускать загрузку PDF
+  // на каждый рендер (зум/страница).
+  const onFailedRef = useRef(onFailed);
+  onFailedRef.current = onFailed;
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -51,7 +63,10 @@ export function PdfViewer({
         if (!cancelled) setDoc(loaded);
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) {
+          setFailed(true);
+          onFailedRef.current?.();
+        }
       });
     return () => {
       cancelled = true;

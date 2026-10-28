@@ -95,6 +95,9 @@ services:
     networks:
       nodus_net:
         aliases: [nodus-api]
+      # Egress-изоляция конвертера (#56, Р10): api ходит в Gotenberg только
+      # по внутренней сети без выхода наружу.
+      nodus_internal:
 
   gateway:
     build:
@@ -299,13 +302,37 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
     restart: unless-stopped
-    # Первый потребитель — конвейер производных #139: прод-api ходит по
-    # docker-сети (GOTENBERG_URL=http://gotenberg:3000). Наружу — только
-    # loopback-бинд для песочницы live-stack (api на хосте), не в LAN
-    # (SSRF-аудит #123 сохранён).
+    # Вторая линия обороны конвертера (security #56): Chromium-роуту разрешены
+    # только локальные схемы и рабочая папка формы — чужие http(s)/file:// в
+    # недоверенном HTML письма (включая file:///etc/…) не открываются вовсе.
+    command:
+      - gotenberg
+      - --chromium-allow-list=about:*;blob:*;data:*;file:*/tmp/*;fontsize:*
+    # Конвейер производных #139; офисные вложения ВНЕШНИХ отправителей
+    # приходят почтой (#56) — SSRF-поверхность конвертера закрыта
+    # egress-изоляцией: ТОЛЬКО внутренняя сеть без выхода наружу и без
+    # опубликованных портов (Р10, долг security-ревью #55; Docker на
+    # internal-сети не публикует порты и не пускает хост — проба #56).
+    # Прод-api ходит по ней: GOTENBERG_URL=http://gotenberg:3000.
+    networks: [nodus_internal]
+
+  # Эфемерный конвертер песочницы live-stack (план-Б #56, Р10): api песочницы
+  # живёт на хосте, до internal-сети не достучаться — отдельный экземпляр с
+  # loopback-портом поднимается профилем sandbox вместе с live-stack
+  # (scripts/live-stack.mjs), живёт только пока песочница. Изоляция прода
+  # не ослабляется: прод-конвертер остаётся без egress и без портов.
+  gotenberg-sandbox:
+    image: gotenberg/gotenberg:8
+    container_name: nodus_gotenberg_sandbox
+    restart: unless-stopped
+    # Тот же allow-list, что у прода (security #56) — единая защита конвертера.
+    command:
+      - gotenberg
+      - --chromium-allow-list=about:*;blob:*;data:*;file:*/tmp/*;fontsize:*
     ports:
       - '127.0.0.1:${NODUS_GOTENBERG_PORT:-3100}:3000'
     networks: [nodus_net]
+    profiles: [sandbox]
 
   # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.
   # Токен — из Cloudflare Zero Trust dashboard (см. docs/runbooks/repo-bootstrap.md).
@@ -322,6 +349,11 @@ services:
 networks:
   nodus_net:
     name: nodus_net
+  # Внутренний контур без выхода в интернет (#56, Р10): конвертер чужих
+  # документов не может ходить наружу; входящие извне недоступны.
+  nodus_internal:
+    name: nodus_internal
+    internal: true
 
 volumes:
   nodus_pgdata:

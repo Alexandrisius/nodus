@@ -1,0 +1,66 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { LetterChatReaderProvider } from './letter-chat-reader.provider.js';
+
+const LETTER = '00000000-0000-4000-8000-000000000301';
+const ADDRESSEE = '00000000-0000-4000-8000-000000000302';
+const REGISTRAR = '00000000-0000-4000-8000-000000000303';
+const COLLEAGUE = '00000000-0000-4000-8000-000000000304';
+
+function setup(row: { addresseeId: string | null; registeredAt: Date | null } | null) {
+  const letters = {
+    chatRoster: vi.fn(async () => row),
+    participants: vi.fn(
+      async (): Promise<{ userId: string; role: string; createdAt: Date }[]> => [],
+    ),
+  };
+  const provider = new LetterChatReaderProvider(letters as never);
+  return { provider, letters };
+}
+
+const participant = (userId: string, createdAt: Date) => ({
+  userId,
+  role: 'participant',
+  createdAt,
+});
+
+describe('состав беседы письма (#55, Р10; редизайн #56)', () => {
+  it('зарегистрированное: адресат — владелец, участники — члены', async () => {
+    const { provider, letters } = setup({ addresseeId: ADDRESSEE, registeredAt: new Date() });
+    letters.participants.mockResolvedValue([participant(REGISTRAR, new Date())]);
+    const roster = await provider.roster(LETTER);
+    expect(roster).toEqual({
+      ownerId: ADDRESSEE,
+      members: [{ userId: REGISTRAR, muted: false }],
+    });
+  });
+
+  it('незарегистрированное с участниками: владелец — создатель (первый по времени)', async () => {
+    const { provider, letters } = setup({ addresseeId: null, registeredAt: null });
+    // Репозиторий отдаёт по createdAt asc — создатель обсуждения первый.
+    letters.participants.mockResolvedValue([
+      participant(REGISTRAR, new Date('2026-10-28T08:00:00Z')),
+      participant(COLLEAGUE, new Date('2026-10-28T09:00:00Z')),
+    ]);
+    const roster = await provider.roster(LETTER);
+    expect(roster).toEqual({
+      ownerId: REGISTRAR,
+      members: [
+        { userId: REGISTRAR, muted: false },
+        { userId: COLLEAGUE, muted: false },
+      ],
+    });
+  });
+
+  it('незарегистрированное без участников и без письма — null', async () => {
+    const empty = setup({ addresseeId: null, registeredAt: null });
+    expect(await empty.provider.roster(LETTER)).toBeNull();
+    const missing = setup(null);
+    expect(await missing.provider.roster(LETTER)).toBeNull();
+  });
+
+  it('зарегистрированное без адресата — null', async () => {
+    const { provider } = setup({ addresseeId: null, registeredAt: new Date() });
+    expect(await provider.roster(LETTER)).toBeNull();
+  });
+});

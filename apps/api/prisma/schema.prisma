@@ -160,6 +160,7 @@ model User {
 
   roles               UserRole[]
   sessions            Session[]
+  letterViews         LetterView[]
   headedDepartments   Department[] @relation("DepartmentHead")
   deputiedDepartments Department[] @relation("DepartmentDeputy")
 
@@ -1438,6 +1439,8 @@ model ContactPerson {
   counterparty Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
 
   @@index([counterpartyId, fullName, id])
+  /// Подстановка контрагента по адресу отправителя письма (#56, Р6).
+  @@index([email])
   @@map("contact_persons")
 }
 
@@ -1576,8 +1579,33 @@ model Letter {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
+  // ===== Почтовый конверт (#56, ADR-0035; null у ручных писем по смыслу
+  // полей: адрес/Message-ID пусты, флаги не горят). =====
+  /// Message-ID конверта: дедуп повторной доставки и ключ цепочки «ответ
+  /// на»; частичный unique — в миграции. null — письмо без него.
+  mailMessageId String? @map("mail_message_id")
+  /// In-Reply-To конверта (один ID; диагностика цепочки).
+  mailInReplyTo String? @map("mail_in_reply_to")
+  /// References конверта — список ID предков (кап 100 на приёме).
+  mailReferences Json?   @map("mail_references")
+  mailFromAddress String? @map("mail_from_address")
+  mailFromName    String? @map("mail_from_name")
+  /// Письмо не разобрано целиком — реквизиты и файлы неполные (анти-яд).
+  mailParseIssue        Boolean @default(false) @map("mail_parse_issue")
+  /// Часть письма не сохранена (исходник/вложения сверх лимита) — Р12.
+  mailStorageIncomplete Boolean @default(false) @map("mail_storage_incomplete")
+  /// PDF-копия тела не создана (конвертер отказал после ретраев — «Основной
+  /// документ письма» #56): кандидат «текст-PDF» недоступен, письмо живёт.
+  mailBodyPdfIssue      Boolean @default(false) @map("mail_body_pdf_issue")
+  /// Надгробие спама (Р13): файлы снесены, строка живёт ради Message-ID —
+  /// переимпорт удалённого не возвращает его в «Новые». Списки/GET фильтруют.
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
   attachments  LetterAttachment[]
   participants LetterParticipant[]
+  views        LetterView[]
+  relations    LetterRelation[] @relation("LetterRelationsFrom")
+  replyToLink  LetterRelation[] @relation("LetterRelationsTo")
 
   @@unique([regSeriesId, regYear, regSeq])
   /// Очередь «Новые» и реестр зарегистрированных (keyset, id — tiebreak).
@@ -1592,16 +1620,24 @@ model Letter {
 }
 
 /// Файл письма. Роль: main — основной документ («Письмо» во вьювере), body —
-/// HTML/текст тела, attachment — приложение, source — исходник почты (#56).
-/// Частичные unique «один main и один body на письмо» — в миграции.
+/// HTML/текст тела, body_pdf — PDF-копия тела («Основной документ письма»
+/// #56: системный кандидат, роль неизменна — главным становится де-факто,
+/// пока main не выбран), attachment — приложение, source — исходник почты
+/// (#56). Частичные unique «один main, один body и один body_pdf на письмо»
+/// — в миграции.
 model LetterAttachment {
   id        String   @id @default(uuid()) @db.Uuid
   letterId  String   @map("letter_id") @db.Uuid
   /// Файл модуля files — plain UUID без FK (I3).
   fileId    String   @map("file_id") @db.Uuid
-  /// main | body | attachment | source (CHECK в миграции).
+  /// main | body | body_pdf | attachment | source (CHECK в миграции).
   role      String
   sortOrder Int      @default(0) @map("sort_order")
+  /// Content-ID MIME-части (#56): связывает inline-картинку HTML-тела с
+  /// вложением (cid: резолв на показе); null — обычное вложение.
+  contentId String? @map("content_id")
+  /// Inline-часть (картинка в HTML-теле): из блока «Файлы» скрыта.
+  inline    Boolean @default(false)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   letter Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
@@ -1625,4 +1661,64 @@ model LetterParticipant {
   @@id([letterId, userId])
   @@index([userId])
   @@map("letter_participants")
+}
+
+/// Личный признак «просмотрено» (редизайн #56): строка на сотрудника —
+/// индикатор «я ещё не открывал» гаснет при открытии карточки. Общего
+/// счётчика «никто не смотрел» нет (решение владельца 28.10).
+model LetterView {
+  letterId  String   @map("letter_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.Timestamptz()
+
+  letter Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([letterId, userId])
+  @@index([userId])
+  @@map("letter_views")
+}
+
+/// Связь письма с письмом (#56, Р5; UI связей — #461): сейчас единственный
+/// вид — «ответ на» (kind='reply_to'), не больше одного на письмо (частичный
+/// unique в миграции); source: auto — почтовая цепочка, manual — галочка Вики.
+model LetterRelation {
+  id              String   @id @default(uuid()) @db.Uuid
+  letterId        String   @map("letter_id") @db.Uuid
+  relatedLetterId String   @map("related_letter_id") @db.Uuid
+  /// reply_to (CHECK в миграции; nested_in и другие — #461).
+  kind            String
+  /// auto | manual (CHECK в миграции).
+  source          String
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  letter        Letter @relation("LetterRelationsFrom", fields: [letterId], references: [id], onDelete: Cascade)
+  relatedLetter Letter @relation("LetterRelationsTo", fields: [relatedLetterId], references: [id], onDelete: Cascade)
+
+  @@index([letterId])
+  @@index([relatedLetterId])
+  @@map("letter_relations")
+}
+
+/// Ящик-источник почты (#56, ADR-0035; ADR-0027 «ящики, курсор
+/// UIDVALIDITY/UID»): курсор и аккумуляторы цикла приёма. Один ящик до #477
+/// (код 'chancery' сидируется миграцией); personal — там же.
+model MailSource {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Системный код ящика ('chancery') — адресует события sync_failed.
+  code      String   @unique
+  /// UIDVALIDITY INBOX: смена — полный переобход под дедупом Message-ID.
+  uidValidity BigInt? @map("uid_validity")
+  /// Курсор: обработаны UID ≤ lastUid; null/0 при первом запуске = max UID.
+  lastUid      BigInt? @map("last_uid")
+  /// Аккумулятор порога (Р4): ≥3 неудачных циклов подряд — уведомление.
+  consecutiveFailures Int      @default(0) @map("consecutive_failures")
+  /// Троттлинг уведомления о молчании ящика: раз в 24 ч.
+  lastNotifiedAt DateTime? @map("last_notified_at") @db.Timestamptz()
+  lastError      String?   @map("last_error")
+  lastSyncAt     DateTime? @map("last_sync_at") @db.Timestamptz()
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("mail_sources")
 }

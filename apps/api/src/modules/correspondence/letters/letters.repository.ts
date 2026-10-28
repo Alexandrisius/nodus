@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { LetterBox } from '@nodus/contracts';
+import type { LetterBox, LetterRef } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
@@ -21,8 +21,10 @@ export function listOrderOf(box: LetterBox | undefined): 'receivedAt' | 'registe
 
 /**
  * Единственная точка доступа к таблицам модуля (#55): `letters`,
- * `letter_attachments`, `letter_participants`. Чтения — вне транзакций,
- * записи — в транзакции вызывающего (переход движка, создание, правка).
+ * `letter_attachments`, `letter_participants`, `letter_views` (лист целей
+ * оправдывает > 300 строк — одна ответственность «хранилище писем»).
+ * Чтения — вне транзакций, записи — в транзакции вызывающего (переход
+ * движка, создание, правка).
  */
 @Injectable()
 export class LettersRepository {
@@ -73,21 +75,48 @@ export class LettersRepository {
     });
   }
 
-  /** Участники одного письма (деталь, состав чата). */
-  participants(letterId: string): Promise<{ userId: string; role: string }[]> {
+  /** Участники одного письма (деталь, состав чата) — по времени прихода:
+   *  первый участник незарегистрированного обсуждения — его создатель. */
+  participants(letterId: string): Promise<{ userId: string; role: string; createdAt: Date }[]> {
     return this.prisma.letterParticipant.findMany({
       where: { letterId },
-      select: { userId: true, role: true },
+      orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }],
+      select: { userId: true, role: true, createdAt: true },
     });
   }
 
-  /** Число файлов письма по роли `source` исключено (контракт DTO). */
+  /** Личный признак «просмотрено» (редизайн #56): вставка идемпотентна —
+   *  повторное открытие не двигает время первого просмотра. */
+  async markViewed(letterId: string, userId: string): Promise<void> {
+    await this.prisma.letterView.createMany({
+      data: [{ letterId, userId }],
+      skipDuplicates: true,
+    });
+  }
+
+  /** Просмотренные сотрудником письма страницы (индикатор «я не открывал»). */
+  async viewedLetterIds(userId: string, letterIds: readonly string[]): Promise<Set<string>> {
+    if (letterIds.length === 0) return new Set();
+    const rows = await this.prisma.letterView.findMany({
+      where: { userId, letterId: { in: [...letterIds] } },
+      select: { letterId: true },
+    });
+    return new Set(rows.map((row) => row.letterId));
+  }
+
+  /** Скрепка в списке — ТОЛЬКО настоящие вложения: текст письма (body),
+   *  главный документ (main), исходник (source) и inline-картинки — части
+   *  письма, а не приложения (вердикт владельца 28.10). */
   async attachmentCounts(letterIds: readonly string[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
     if (letterIds.length === 0) return counts;
     const rows = await this.prisma.letterAttachment.groupBy({
       by: ['letterId'],
-      where: { letterId: { in: [...letterIds] }, role: { not: 'source' } },
+      where: {
+        letterId: { in: [...letterIds] },
+        role: 'attachment',
+        inline: false,
+      },
       _count: { _all: true },
     });
     for (const row of rows) counts.set(row.letterId, row._count._all);
@@ -102,6 +131,62 @@ export class LettersRepository {
     });
   }
 
+  // ===== «Основной документ письма» (#56): PDF-копия тела + выбор звездой =====
+
+  /** Копия тела уже есть (проверка гонки внутри транзакции вставки). */
+  hasBodyPdf(tx: TransactionClient, letterId: string): Promise<boolean> {
+    return tx.letterAttachment
+      .findFirst({ where: { letterId, role: 'body_pdf' }, select: { id: true } })
+      .then(Boolean);
+  }
+
+  /** Вставка PDF-копии тела (роль body_pdf; частичный unique — одна на
+   *  письмо, гонка постановок гасится вызывающим). */
+  async addBodyPdf(
+    tx: TransactionClient,
+    letterId: string,
+    data: { fileId: string; sortOrder: number },
+  ): Promise<void> {
+    await tx.letterAttachment.create({
+      data: { letterId, fileId: data.fileId, role: 'body_pdf', sortOrder: data.sortOrder },
+    });
+  }
+
+  /** Backfill конвертации: живые почтовые письма с телом, но без PDF-копии
+   *  (приняты до конвейера или при отказавшем конвертере). */
+  async bodyPdfBacklog(): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT l.id FROM letters l
+      JOIN letter_attachments body ON body.letter_id = l.id AND body.role = 'body'
+      WHERE l.deleted_at IS NULL AND l.mail_parse_issue = false
+        AND NOT EXISTS (
+          SELECT 1 FROM letter_attachments pdf
+          WHERE pdf.letter_id = l.id AND pdf.role = 'body_pdf'
+        )`;
+    return rows.map((row) => row.id);
+  }
+
+  /** Выбор основного документа звездой: новые роли за один раз —
+   *  promoting становится main, прежний main (если был) — приложением. */
+  async setMainRoles(
+    tx: TransactionClient,
+    letterId: string,
+    changes: { promoteId?: string; demoteIds: readonly string[] },
+  ): Promise<void> {
+    if (changes.demoteIds.length > 0) {
+      await tx.letterAttachment.updateMany({
+        where: { letterId, id: { in: [...changes.demoteIds] } },
+        data: { role: 'attachment' },
+      });
+    }
+    if (changes.promoteId) {
+      await tx.letterAttachment.update({
+        where: { id: changes.promoteId },
+        data: { role: 'main' },
+      });
+    }
+  }
+
   create(tx: TransactionClient, data: Prisma.LetterUncheckedCreateInput) {
     return tx.letter.create({ data });
   }
@@ -112,10 +197,6 @@ export class LettersRepository {
     data: Prisma.LetterUncheckedUpdateInput,
   ): Promise<void> {
     await tx.letter.update({ where: { id }, data });
-  }
-
-  async delete(tx: TransactionClient, id: string): Promise<void> {
-    await tx.letter.delete({ where: { id } });
   }
 
   /** Письма, в которых лежит файл, — видимость для контрибьютора прав
@@ -163,6 +244,105 @@ export class LettersRepository {
       where: { id: { in: [...ids] } },
       select: { id: true, regNumber: true, subject: true },
     });
+  }
+
+  // ===== Связи «ответ на» (#56, Р5; таблица letter_relations) =====
+
+  /** Связи «ответ на» страницы списков: бейдж очереди «Новые». */
+  async replyTos(letterIds: readonly string[]): Promise<Map<string, LetterRef>> {
+    if (letterIds.length === 0) return new Map();
+    const rows = await this.prisma.letterRelation.findMany({
+      where: { letterId: { in: [...letterIds] }, kind: 'reply_to' },
+      select: {
+        letterId: true,
+        relatedLetter: { select: { id: true, regNumber: true, subject: true } },
+      },
+    });
+    return new Map(rows.map((row) => [row.letterId, row.relatedLetter]));
+  }
+
+  /** Связь «ответ на» письма или null (карточка). */
+  async replyTo(letterId: string): Promise<LetterRef | null> {
+    const row = await this.prisma.letterRelation.findFirst({
+      where: { letterId, kind: 'reply_to' },
+      select: { relatedLetter: { select: { id: true, regNumber: true, subject: true } } },
+    });
+    return row?.relatedLetter ?? null;
+  }
+
+  /** Вставка связи идемпотентна (частичный unique «один reply_to») — в
+   *  транзакции создания/регистрации письма. true — вставили. */
+  async linkReplyTo(
+    tx: TransactionClient,
+    letterId: string,
+    relatedLetterId: string,
+    source: 'auto' | 'manual',
+  ): Promise<boolean> {
+    const existing = await tx.letterRelation.findFirst({
+      where: { letterId, kind: 'reply_to' },
+      select: { id: true },
+    });
+    if (existing) return false;
+    await tx.letterRelation.create({
+      data: { letterId, relatedLetterId, kind: 'reply_to', source },
+    });
+    return true;
+  }
+
+  /** Цель связи по id (валидация подтверждения, Р5): живое письмо с
+   *  направлением и регистрацией — в транзакции регистрации. */
+  replyTargetById(tx: TransactionClient, id: string) {
+    return tx.letter.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, direction: true, registeredAt: true },
+    });
+  }
+
+  /** Есть ли у письма уже связь «ответ на» (в транзакции регистрации). */
+  hasReplyTo(tx: TransactionClient, letterId: string): Promise<boolean> {
+    return tx.letterRelation
+      .findFirst({ where: { letterId, kind: 'reply_to' }, select: { id: true } })
+      .then(Boolean);
+  }
+
+  /** Живые письма по Message-ID (надгробия спама исключены — авто-связь не
+   *  цепляется к удалённому). Цель «ответ на» — зарегистрированное исходящее
+   *  (контракт списка; security-ревью #56: подделка References не тянет
+   *  связь на чужое входящее). */
+  findByMailMessageIds(messageIds: readonly string[]) {
+    if (messageIds.length === 0) return Promise.resolve([]);
+    return this.prisma.letter.findMany({
+      where: {
+        mailMessageId: { in: [...messageIds] },
+        deletedAt: null,
+        direction: 'outgoing',
+        registeredAt: { not: null },
+      },
+      select: { id: true, regNumber: true, subject: true, mailMessageId: true },
+    });
+  }
+
+  /** Существует ли письмо с Message-ID — дедуп приёма (Р3): надгробие тоже
+   *  «существует» (удалённый спам не возвращается). */
+  mailMessageIdTaken(messageId: string): Promise<boolean> {
+    return this.prisma.letter
+      .findFirst({ where: { mailMessageId: messageId }, select: { id: true } })
+      .then(Boolean);
+  }
+
+  /** Зарегистрированное исходящее по номеру «Исх-ГГГГ/N» — нечёткая
+   *  подсказка «ответ на» по теме (Р5). */
+  findRegisteredOutgoingByNumber(regNumber: string): Promise<LetterRef | null> {
+    return this.prisma.letter.findFirst({
+      where: { regNumber, direction: 'outgoing', registeredAt: { not: null }, deletedAt: null },
+      select: { id: true, regNumber: true, subject: true },
+    });
+  }
+
+  /** Надгробие спама (Р13): строка живёт, файлы и вложения снесены. */
+  async tombstone(tx: TransactionClient, id: string): Promise<void> {
+    await tx.letterAttachment.deleteMany({ where: { letterId: id } });
+    await tx.letter.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   /** Счётчики стадий (диалог публикации, мета списка). */

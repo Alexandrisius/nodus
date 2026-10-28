@@ -129,15 +129,18 @@ export class LetterHistoryService {
     const counterpartyIds = idsOf(changes, 'counterpartyId');
     const signerIds = idsOf(changes, 'signerId');
     const receiptIds = idsOf(changes, 'receiptMethodId');
-    const [counterparties, contacts, receipts] = await Promise.all([
+    const addresseeIds = idsOf(changes, 'addresseeId');
+    const [counterparties, contacts, receipts, users] = await Promise.all([
       this.counterparties.refs(counterpartyIds),
       this.counterparties.contactRefs(signerIds),
       this.dictionaries.itemRefs(receiptIds),
+      this.profiles.findRefs(addresseeIds),
     ]);
     const names = new Map<string, string>([
       ...counterparties.map((ref) => [ref.id, ref.name] as const),
       ...contacts.map((ref) => [ref.id, ref.fullName] as const),
       ...receipts.map((ref) => [ref.id, ref.name] as const),
+      ...users.map((ref) => [ref.id, ref.displayName] as const),
     ]);
     return changes.map((change) => ({
       field: change.field,
@@ -151,8 +154,11 @@ function idsOf(changes: readonly RawChange[], field: string): string[] {
   const ids = new Set<string>();
   for (const change of changes) {
     if (change.field !== field) continue;
-    if (typeof change.from === 'string') ids.add(change.from);
-    if (typeof change.to === 'string') ids.add(change.to);
+    // Пустая строка — «пусто» (валидатор патча пишет `row.x ?? ''` в
+    // незарегистрированном письме): в refs она не идёт — Prisma падает на
+    // uuid '' (приёмка 28.10, история 500), показ — «пусто» в display.
+    if (typeof change.from === 'string' && change.from !== '') ids.add(change.from);
+    if (typeof change.to === 'string' && change.to !== '') ids.add(change.to);
   }
   return [...ids];
 }

@@ -42,4 +42,11 @@ export class CounterpartyReaderProvider implements CounterpartyReader {
   searchIds(query: string, limit: number): Promise<string[]> {
     return this.counterparties.searchIds(query, limit);
   }
+
+  async findContactsByEmail(
+    email: string,
+  ): Promise<{ counterpartyId: string; contactId: string }[]> {
+    const rows = await this.contacts.findByEmail(email);
+    return rows.map((row) => ({ counterpartyId: row.counterpartyId, contactId: row.id }));
+  }
 }

@@ -6,9 +6,11 @@ import type {
   LetterAttachment,
   LetterBody,
   LetterBox,
+  LetterCounterpartySuggestion,
   LetterDetail,
   LetterDirection,
   LetterListItem,
+  LetterMailInfo,
   LetterRef,
   LetterSource,
   ProjectRef,
@@ -18,6 +20,7 @@ import type {
 } from '@nodus/contracts';
 import { isFinalState, Permission } from '@nodus/contracts';
 
+import { demoCounterparties } from './counterparties.js';
 import { letterProcessTypes } from './letter-catalog.js';
 
 /** Запись письма мок-сервера (#55): поля `LetterDetail` без вычисляемых
@@ -43,6 +46,12 @@ export interface DemoLetter {
   responseDeadline: string | null;
   signer: ContactRef | null;
   registrar: UserRef | null;
+  /** Конверт почты (#56); null — внесено вручную. */
+  mail: LetterMailInfo | null;
+  /** Авто-связь «ответ на» по цепочке (Р5); подтверждённая галочкой — сюда же. */
+  replyTo: LetterRef | null;
+  /** Нечёткая подсказка по теме (Р5); показывается, пока replyTo нет. */
+  replySuggestion: LetterRef | null;
   attachments: LetterAttachment[];
   body: LetterBody;
   customFields: CustomFieldValues;
@@ -85,7 +94,10 @@ export function letterRefOf(letter: DemoLetter): LetterRef {
   return { id: letter.id, regNumber: letter.regNumber, subject: letter.subject };
 }
 
-export function letterListItemOf(letter: DemoLetter): LetterListItem {
+export function letterListItemOf(
+  letter: DemoLetter,
+  viewed = letter.registeredAt !== null,
+): LetterListItem {
   return {
     id: letter.id,
     typeId: letter.typeId,
@@ -96,6 +108,8 @@ export function letterListItemOf(letter: DemoLetter): LetterListItem {
     registeredAt: letter.registeredAt,
     receivedAt: letter.receivedAt,
     source: letter.source,
+    mailFromName: letter.mail?.fromName ?? null,
+    mailFromAddress: letter.mail?.fromAddress ?? null,
     subject: letter.subject,
     counterparty: letter.counterparty,
     theirNumber: letter.theirNumber,
@@ -104,18 +118,38 @@ export function letterListItemOf(letter: DemoLetter): LetterListItem {
     project: letter.project,
     addressee: letter.addressee,
     responseDeadline: letter.responseDeadline,
-    attachmentCount: letter.attachments.filter((a) => a.role !== 'source').length,
+    replyTo: letter.replyTo,
+    attachmentCount: letter.attachments.filter((a) => a.role !== 'source' && !a.inline).length,
+    viewed,
   };
 }
 
+/** Подстановка по адресу отправителя (Р6): ровно один активный контакт
+ *  справочника с таким адресом — как серверный COUNTERPARTY_READER. */
+export function counterpartySuggestionOf(letter: DemoLetter): LetterCounterpartySuggestion | null {
+  if (!letter.mail) return null;
+  const email = letter.mail.fromAddress.trim().toLowerCase();
+  const matches = demoCounterparties
+    .filter((card) => !card.archivedAt)
+    .flatMap((card) =>
+      card.contactPersons
+        .filter((person) => !person.archivedAt && person.email?.trim().toLowerCase() === email)
+        .map((person) => ({ counterpartyId: card.id, signerId: person.id })),
+    );
+  return matches.length === 1 ? matches[0]! : null;
+}
+
 function accessOf(letter: DemoLetter, actor: LetterActor): LetterAccess {
+  // Зеркало серверного letter-access (редизайн #56): правка реквизитов —
+  // канцелярия (и незарегистрированного — форма по месту в карточке),
+  // «Присоединиться» — канцелярия может начать обсуждение до регистрации.
   const register = canRegisterLetters(actor);
-  const open = !isFinalState(letter.stage.systemState);
+  const registered = letter.registeredAt !== null;
   const isParticipant = letterMemberIds(letter).includes(actor.id);
   return {
-    canEdit: register && letter.registeredAt !== null && open,
-    canDeleteSpam: register && boxOf(letter) === 'new',
-    canJoin: !isParticipant && open,
+    canEdit: register,
+    canDeleteSpam: !registered && !isFinalState(letter.stage.systemState) && register,
+    canJoin: !isParticipant && (registered || register),
     isParticipant,
   };
 }
@@ -123,10 +157,14 @@ function accessOf(letter: DemoLetter, actor: LetterActor): LetterAccess {
 export function letterDetailOf(letter: DemoLetter, actor: LetterActor): LetterDetail {
   const type = letterProcessTypes.find((t) => t.id === letter.typeId) ?? letterProcessTypes[0]!;
   return {
-    ...letterListItemOf(letter),
+    ...letterListItemOf(letter, true),
     type: { id: type.id, code: type.code, name: type.name, category: type.category },
     signer: letter.signer,
     registrar: letter.registrar,
+    mail: letter.mail,
+    // Подсказка живёт, пока связь не поставлена (авто или галочкой).
+    replySuggestion: letter.replyTo ? null : letter.replySuggestion,
+    counterpartySuggestion: counterpartySuggestionOf(letter),
     attachments: letter.attachments,
     body: letter.body,
     customFields: letter.customFields,

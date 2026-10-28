@@ -1,17 +1,10 @@
-import { FileX2, ImageOff } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { FileX2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { LetterAttachment, LetterDetail } from '@nodus/contracts';
-import { LETTER_LIMITS, ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
-import { Spinner } from '@nodus/ui/components/spinner';
+import { ui } from '@nodus/contracts';
 
-import { LinkifiedText } from '../../../shared/chat/message-text.js';
-import { DownloadCard } from '../../../shared/files/download-card.js';
 import { FileViewerBody } from '../../../shared/files/file-viewer-body.js';
 import type { ViewerTarget } from '../../../shared/files/viewer-store.js';
-import { SandboxedHtml } from '../../../shared/html/sandboxed-html.js';
-import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
-import { useLetterBodyText } from '../api/letters-queries.js';
 
 /** Цель общего просмотрщика по вложению письма. */
 export function viewerTargetOf(attachment: LetterAttachment): ViewerTarget {
@@ -25,14 +18,12 @@ export function viewerTargetOf(attachment: LetterAttachment): ViewerTarget {
   };
 }
 
-const isTextBody = (a: LetterAttachment) =>
-  a.role === 'body' || a.mime === 'text/html' || a.mime === 'text/plain';
-
 /**
- * Тело письма и его вложения (#55, Р8): главный документ — общим
- * просмотрщиком по ширине панели; HTML — песочница с «Показать
- * изображения»; text/plain — читательской колонкой со ссылками. При главном
- * документе И тексте почты — переключатель «Документ / Текст письма».
+ * Вкладка «Письмо» (#55, Р8; «Основной документ письма» #56): документ во
+ * вьювере по ширине панели — выбор канцелярии (звезда) или PDF-копия текста
+ * письма. Текст почты сам по себе НЕ показывается нигде — только PDF-копией
+ * (вердикт владельца 28.10: «текст письма только pdf всегда»); конвертация
+ * в полёте или отказала — пусто, отказ подсвечен флагом в полях карточки.
  * `attachmentId` — конкретное вложение (вкладка карточки).
  */
 export function LetterBodyView({
@@ -42,10 +33,9 @@ export function LetterBodyView({
 }: {
   letter: LetterDetail;
   attachmentId?: string;
-  /** Пустое тело: конвейер — «Документ не приложен», карточка — своё. */
+  /** Пустое тело: карточка — своё. */
   empty?: ReactNode;
 }) {
-  const [mode, setMode] = useState<'document' | 'text'>('document');
   const byId = (id: string) => letter.attachments.find((a) => a.id === id);
 
   if (attachmentId) {
@@ -57,101 +47,11 @@ export function LetterBodyView({
   }
   const main = byId(letter.body.attachmentId);
   if (!main) return <>{empty ?? <BodyEmpty title={ui.letters.body.none} />}</>;
-  const text = letter.body.kind === 'document' ? letter.attachments.find(isTextBody) : undefined;
-  if (!text) return <AttachmentView attachment={main} />;
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center justify-center border-b border-border px-3">
-        <SegmentedControl
-          size="sm"
-          value={mode}
-          onChange={setMode}
-          ariaLabel={ui.letters.card.tabsLabel}
-          activeClassName="bg-accent text-foreground"
-          className="w-64"
-          options={[
-            { value: 'document', label: ui.letters.body.document },
-            { value: 'text', label: ui.letters.card.tabText },
-          ]}
-        />
-      </div>
-      <div className="min-h-0 flex-1">
-        <AttachmentView key={mode} attachment={mode === 'document' ? main : text} />
-      </div>
-    </div>
-  );
+  return <AttachmentView attachment={main} />;
 }
 
 function AttachmentView({ attachment }: { attachment: LetterAttachment }) {
-  if (isTextBody(attachment)) return <TextBody attachment={attachment} />;
   return <FileViewerBody key={attachment.fileId} target={viewerTargetOf(attachment)} fit="width" />;
-}
-
-function TextBody({ attachment }: { attachment: LetterAttachment }) {
-  const query = useLetterBodyText(attachment);
-  const [allowImages, setAllowImages] = useState(false);
-  const [blocked, setBlocked] = useState(0);
-
-  // Больше 2 МБ — не читаем в память вкладки: карточка скачивания (Р9).
-  if (attachment.size > LETTER_LIMITS.bodyPreviewBytes || query.data?.kind === 'too_large') {
-    return (
-      <DownloadCard
-        name={attachment.name}
-        size={attachment.size}
-        url={attachment.url}
-        reason="too_large"
-      />
-    );
-  }
-  if (query.isError) return <BodyEmpty title={ui.letters.body.loadError} />;
-  if (!query.data) {
-    return (
-      <div className="grid size-full place-items-center">
-        <Spinner className="size-5" />
-      </div>
-    );
-  }
-
-  if (attachment.mime === 'text/html') {
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        {blocked > 0 && !allowImages ? (
-          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-4 text-xs text-muted-foreground">
-            <ImageOff className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-            <span className="min-w-0 truncate">
-              {ui.letters.body.imagesBlocked}{' '}
-              <span className="font-mono tabular-nums">{blocked}</span>
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-7 shrink-0"
-              onClick={() => setAllowImages(true)}
-            >
-              {ui.letters.body.showImages}
-            </Button>
-          </div>
-        ) : null}
-        <div className="min-h-0 flex-1">
-          <SandboxedHtml
-            html={query.data.text}
-            allowRemoteImages={allowImages}
-            onBlockedImages={setBlocked}
-            title={ui.letters.body.frameTitle}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full overflow-y-auto px-6 py-5">
-      <div className="mx-auto max-w-3xl text-sm leading-relaxed whitespace-pre-wrap text-foreground wrap-anywhere">
-        <LinkifiedText text={query.data.text} />
-      </div>
-    </div>
-  );
 }
 
 export function BodyEmpty({ title, hint }: { title: string; hint?: string }) {

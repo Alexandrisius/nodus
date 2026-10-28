@@ -23,12 +23,29 @@ export function AddresseeField({
   id,
   invalid,
   describedBy,
+  autoFocus = false,
+  placeholder = ui.letters.form.addresseePlaceholder,
+  ariaLabel = ui.letters.fields.addressee,
+  onDismiss,
+  openOnFocus = true,
 }: {
   value: UserRef | null;
   onChange: (user: UserRef | null) => void;
   id?: string;
   invalid?: boolean;
   describedBy?: string;
+  /** Правка по месту в карточке: фокус в поле открывает список сразу. */
+  autoFocus?: boolean;
+  /** Подсказка поля: у приглашения в обсуждение свой смысл выбора (#56). */
+  placeholder?: string;
+  ariaLabel?: string;
+  /** Закрытие без выбора (клик мимо, Escape) — правка по месту в карточке
+   *  закрывает поле, как у подписанта (приёмка 28.10). */
+  onDismiss?: () => void;
+  /** Раскрывать ли список на авто-фокусе: окно приглашения открывает список
+   *  только по клику/вводу — авто-фокус диалога распахивал его «в воздухе»
+   *  до отрисовки самого окна (приёмка 28.10). */
+  openOnFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -95,7 +112,10 @@ export function AddresseeField({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setText('');
+        if (!next) {
+          setText('');
+          onDismiss?.();
+        }
       }}
     >
       <PopoverAnchor asChild>
@@ -103,14 +123,15 @@ export function AddresseeField({
           <Input
             id={id}
             value={open ? text : value ? withoutPatronymic(value.displayName) : ''}
-            placeholder={ui.letters.form.addresseePlaceholder}
-            aria-label={ui.letters.fields.addressee}
+            placeholder={placeholder}
+            aria-label={ariaLabel}
             aria-invalid={invalid || undefined}
             aria-describedby={describedBy}
             aria-expanded={open}
             aria-autocomplete="list"
             role="combobox"
             autoComplete="off"
+            autoFocus={autoFocus || undefined}
             onChange={(e) => {
               setText(e.target.value);
               setOpen(true);
@@ -119,7 +140,7 @@ export function AddresseeField({
               fromPointer.current = true;
             }}
             onFocus={() => {
-              if (!fromPointer.current) setOpen(true);
+              if (openOnFocus && !fromPointer.current) setOpen(true);
             }}
             onClick={() => {
               fromPointer.current = false;
@@ -162,12 +183,7 @@ export function AddresseeField({
         className="w-(--radix-popover-anchor-width) p-1"
       >
         {/* Фиксированная высота зоны списка — поповер не прыгает при поиске. */}
-        <div
-          ref={listRef}
-          role="listbox"
-          aria-label={ui.letters.fields.addressee}
-          className="h-64 overflow-y-auto"
-        >
+        <div ref={listRef} role="listbox" aria-label={ariaLabel} className="h-64 overflow-y-auto">
           {top.length > 0 ? <GroupTitle label={ui.letters.form.resolversGroup} /> : null}
           {top.map((user, index) => renderOption(user, index))}
           {rest.length > 0 ? <GroupTitle label={ui.letters.form.allEmployeesGroup} /> : null}

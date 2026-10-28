@@ -32,8 +32,17 @@ export const letterSourceSchema = z.enum(['manual', 'mail']);
 export type LetterSource = z.infer<typeof letterSourceSchema>;
 
 /** Роль файла письма (Р8): главный документ (скан, PDF письма) — один,
- *  тело письма почты (HTML/текст) — одно, приложения, исходник (.eml, #56). */
-export const letterAttachmentRoleSchema = z.enum(['main', 'body', 'attachment', 'source']);
+ *  тело письма почты (HTML/текст) — одно, PDF-копия тела («Основной документ
+ *  письма» #56: системный кандидат, рождается конвертацией Gotenberg, роль
+ *  неизменна — главным становится де-факто, когда `main` не выбран),
+ *  приложения, исходник (.eml, #56). */
+export const letterAttachmentRoleSchema = z.enum([
+  'main',
+  'body',
+  'body_pdf',
+  'attachment',
+  'source',
+]);
 export type LetterAttachmentRole = z.infer<typeof letterAttachmentRoleSchema>;
 
 export const letterAttachmentSchema = z.object({
@@ -44,6 +53,11 @@ export const letterAttachmentSchema = z.object({
   name: z.string().min(1),
   mime: z.string().min(1),
   size: z.number().int().min(0),
+  /** Content-ID MIME-части (#56): связывает inline-картинку HTML-тела с
+   *  вложением (cid: резолв на показе); null — обычное вложение. */
+  contentId: z.string().min(1).nullable(),
+  /** Inline-часть письма (картинка в HTML-теле): из блока «Файлы» скрыта. */
+  inline: z.boolean(),
   /** Подписанная ссылка содержимого (выдаётся только после проверки
    *  видимости письма). */
   url: z.string().min(1),
@@ -57,10 +71,12 @@ export type LetterAttachment = z.infer<typeof letterAttachmentSchema>;
 
 /** Что показывает вкладка «Тело» (Р8): главный документ во вьювере, иначе
  *  тело почты (HTML — песочница, text/plain — текст), иначе пусто. */
+/** Что показывает вкладка «Письмо»: документ во вьювере, иначе пусто.
+ *  Текст письма существует в продукте ТОЛЬКО PDF-копией — HTML/текстовые
+ *  варианты тела убраны (вердикт владельца 28.10: «текст письма только pdf
+ *  всегда», «Основной документ письма» #56). */
 export const letterBodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('document'), attachmentId: z.uuid() }),
-  z.object({ kind: z.literal('html'), attachmentId: z.uuid() }),
-  z.object({ kind: z.literal('text'), attachmentId: z.uuid() }),
   z.object({ kind: z.literal('none') }),
 ]);
 export type LetterBody = z.infer<typeof letterBodySchema>;
@@ -96,6 +112,10 @@ export const letterListItemSchema = z.object({
   /** Поступило в систему (почта — время приёма, вручную — создания). */
   receivedAt: z.iso.datetime(),
   source: letterSourceSchema,
+  /** Отправитель почтового конверта (#56, Р9): строка очереди «Новые»
+   *  показывает «Имя <адрес>»; у ручного письма — null («внесено вручную»). */
+  mailFromName: z.string().nullable(),
+  mailFromAddress: z.string().min(3).nullable(),
   /** Тема: у почты — из письма, у бумажного скана до регистрации — пусто. */
   subject: z.string().nullable(),
   /** Корреспондент — ссылка на справочник контрагентов (I15); до
@@ -109,8 +129,14 @@ export const letterListItemSchema = z.object({
   addressee: userRefSchema.nullable(),
   /** Срок ответа (ISO-дата); по умолчанию не ставится. */
   responseDeadline: z.iso.date().nullable(),
+  /** Авто-связь «ответ на» по почтовой цепочке (#56, Р5): предок-исходящее
+   *  (registered) или null. */
+  replyTo: letterRefSchema.nullable(),
   /** Файлов письма (без исходника .eml). */
   attachmentCount: z.number().int().min(0),
+  /** Личный признак «я открывал» (редизайн #56): гаснет в списке «Новые»
+   *  после POST /letters/:id/view; в карточке всегда true. */
+  viewed: z.boolean(),
 });
 export type LetterListItem = z.infer<typeof letterListItemSchema>;
 
@@ -126,11 +152,47 @@ export const letterAccessSchema = z.object({
 });
 export type LetterAccess = z.infer<typeof letterAccessSchema>;
 
+/** Почтовые реквизиты письма (заголовки конверта, #56); null — вручную. */
+export const letterMailInfoSchema = z.object({
+  fromAddress: z.string().min(3),
+  fromName: z.string().nullable(),
+  /** Message-ID конверта (дедуп и связи цепочки); null — письмо без него. */
+  messageId: z.string().nullable(),
+  /** Письмо не разобрано целиком — реквизиты и файлы неполные (битое
+   *  письмо не блокирует очередь — анти-яд). */
+  parseIssue: z.boolean(),
+  /** Часть письма не сохранена (исходник сверх потолка, вложения сверх
+   *  лимита) — карточка помечает. */
+  storageIncomplete: z.boolean(),
+  /** PDF-копия тела не создана (конвертер недоступен/отказал после ретраев —
+   *  «Основной документ письма» #56): кандидат «текст-PDF» недоступен, текст
+   *  читается вкладкой «Текст письма». */
+  bodyPdfIssue: z.boolean(),
+});
+export type LetterMailInfo = z.infer<typeof letterMailInfoSchema>;
+
+/** Подстановка контрагента по адресу отправителя (Р6, В2): ровно один
+ *  активный контакт справочника с таким адресом; подписант — этот контакт. */
+export const letterCounterpartySuggestionSchema = z.object({
+  counterpartyId: z.uuid(),
+  signerId: z.uuid(),
+});
+export type LetterCounterpartySuggestion = z.infer<typeof letterCounterpartySuggestionSchema>;
+
 export const letterDetailSchema = letterListItemSchema.extend({
   type: processTypeRefSchema,
   /** Подписант — контакт корреспондента. */
   signer: contactRefSchema.nullable(),
   registrar: userRefSchema.nullable(),
+  /** Почтовые реквизиты (#56); null — бумажное письмо, внесённое вручную. */
+  mail: letterMailInfoSchema.nullable(),
+  /** Нечёткая подсказка связи (тема «на № N от ДД.ММ.ГГГГ», Р5): приходит,
+   *  только если авто-связи по цепочке нет; регистратор подтверждает
+   *  галочкой в форме. */
+  replySuggestion: letterRefSchema.nullable(),
+  /** Контрагент и подписант по адресу отправителя (Р6, В2); null — адреса
+   *  нет в справочнике или совпадений несколько. */
+  counterpartySuggestion: letterCounterpartySuggestionSchema.nullable(),
   attachments: z.array(letterAttachmentSchema),
   body: letterBodySchema,
   /** Атрибуты области `letter`, привязанные к типу (ADR-0029). */
@@ -165,10 +227,12 @@ export const createLetterFieldsSchema = z.object({
 });
 export type CreateLetterFields = z.infer<typeof createLetterFieldsSchema>;
 
-/** `PATCH /letters/:id` — правка регистрационных данных зарегистрированного
- *  письма канцелярией (В3, Р11): адресат и номер так не меняются. Явные
- *  необязательные поля без `.default()` (gotcha Zod 4: умолчания в патче
- *  перетирали бы непереданное); `null` — очистить необязательное. */
+/** `PATCH /letters/:id` — правка реквизитов письма канцелярией (В3, Р11;
+ * редизайн #56 — и незарегистрированного по месту в карточке): номер так не
+ * меняется никогда; адресат — только до регистрации (после —
+ * LETTER_NOT_EDITABLE). Явные необязательные поля без `.default()` (gotcha
+ * Zod 4: умолчания в патче перетирали бы непереданное); `null` — очистить
+ * необязательное. */
 export const updateLetterBodySchema = z
   .object({
     counterpartyId: z.uuid().optional(),
@@ -178,12 +242,33 @@ export const updateLetterBodySchema = z
     subject: z.string().trim().min(1).max(LETTER_LIMITS.subject).optional(),
     receiptMethodId: z.uuid().optional(),
     projectId: z.uuid().nullable().optional(),
+    /** Адресат: только незарегистрированное письмо (редизайн #56 — поля
+     *  заполняются по месту в карточке до регистрации). */
+    addresseeId: z.uuid().nullable().optional(),
     responseDeadline: z.iso.date().nullable().optional(),
     customFields: customFieldValuesPatchSchema.optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 export type UpdateLetterBody = z.infer<typeof updateLetterBodySchema>;
+
+/** `POST /letters/:id/participants` — пригласить коллег в обсуждение
+ *  (редизайн #56; множественный выбор — приёмка 28.10): только держатель
+ *  `correspondence.register`, письмо в любом состоянии, 1–20 сотрудников,
+ *  повторные приглашения идемпотентны. */
+export const addLetterParticipantBodySchema = z
+  .object({ userIds: z.array(z.uuid()).min(1).max(20) })
+  .strict();
+export type AddLetterParticipantBody = z.infer<typeof addLetterParticipantBodySchema>;
+
+/** `POST /letters/:id/main-document` — выбор основного документа письма
+ *  («Основной документ письма» #56): канцелярия до регистрации помечает
+ *  звёздочкой один из файлов-кандидатов (вложение или PDF-копию тела) —
+ *  этот документ открывает вкладка «Письмо» и получает номер при
+ *  регистрации. После регистрации выбор заморожен (LETTER_NOT_EDITABLE).
+ *  Повтор того же выбора — не ошибка (идемпотентность). */
+export const setLetterMainDocumentBodySchema = z.object({ attachmentId: z.uuid() }).strict();
+export type SetLetterMainDocumentBody = z.infer<typeof setLetterMainDocumentBodySchema>;
 
 /** Изменение поля в истории (`letter_updated`): ключ — системное поле
  *  (`counterpartyId`, `theirDate`, …) или атрибут `cf.<uuid>`; значения —

@@ -33,6 +33,8 @@ function detail(patch: Partial<LetterDetail> = {}): LetterDetail {
     registeredAt: '2026-10-22T08:45:00.000Z',
     receivedAt: '2026-10-22T07:45:00.000Z',
     source: 'mail',
+    mailFromName: 'Лукашевич Анна Викторовна',
+    mailFromAddress: 'a.lukashevich@galurgiya.by',
     subject: 'Замечания по разделу КЖ',
     counterparty: { id: 'd0000000-0000-4000-8000-000000000001', name: 'АО «Галургия»' },
     theirNumber: '0359-КЖ/147',
@@ -41,7 +43,10 @@ function detail(patch: Partial<LetterDetail> = {}): LetterDetail {
     project: null,
     addressee: null,
     responseDeadline: null,
+    replyTo: null,
     attachmentCount: 1,
+    // Карточка открыта — «я открывал» (редизайн #56).
+    viewed: true,
     type: {
       id: '20000000-0000-4000-8000-000000000910',
       code: 'letter-incoming',
@@ -50,6 +55,16 @@ function detail(patch: Partial<LetterDetail> = {}): LetterDetail {
     },
     signer: null,
     registrar: null,
+    mail: {
+      fromAddress: 'a.lukashevich@galurgiya.by',
+      fromName: 'Лукашевич Анна Викторовна',
+      messageId: '<kzh-147@galurgiya.by>',
+      parseIssue: false,
+      storageIncomplete: false,
+      bodyPdfIssue: false,
+    },
+    replySuggestion: null,
+    counterpartySuggestion: null,
     attachments: [],
     body: { kind: 'none' },
     customFields: {},
@@ -58,6 +73,17 @@ function detail(patch: Partial<LetterDetail> = {}): LetterDetail {
     ...patch,
   };
 }
+
+/** Незарегистрированное письмо очереди «Новые». */
+const unregistered = (id: string, subject: string): LetterDetail =>
+  detail({
+    id,
+    subject,
+    regNumber: null,
+    regDate: null,
+    registeredAt: null,
+    stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
+  });
 
 const pages = (items: LetterListItem[]): LettersPages => ({
   pages: [{ items, nextCursor: null }],
@@ -84,6 +110,12 @@ function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
 }
+
+/** Строка списка писем по ключу кэша (подсветка оптимистичных правок). */
+const rowIn = (client: QueryClient, box: 'new' | 'incoming', id: string) =>
+  client
+    .getQueryData<LettersPages>(lettersKeys.list(box))
+    ?.pages[0]?.items.find((i) => i.id === id);
 
 beforeEach(() => {
   useAuthStore.setState({
@@ -113,10 +145,7 @@ describe('useUpdateLetter — правка оптимистична (#55, I4)', 
     expect(client.getQueryData<LetterDetail>(lettersKeys.detail(ID))?.theirNumber).toBe(
       '0359-КЖ/148',
     );
-    expect(
-      client.getQueryData<LettersPages>(lettersKeys.list('incoming'))?.pages[0]?.items[0]
-        ?.theirNumber,
-    ).toBe('0359-КЖ/148');
+    expect(rowIn(client, 'incoming', ID)?.theirNumber).toBe('0359-КЖ/148');
 
     await act(async () =>
       gate.resolve(json(200, detail({ theirNumber: '0359-КЖ/148', subject: 'С сервера' }))),
@@ -144,22 +173,12 @@ describe('useUpdateLetter — правка оптимистична (#55, I4)', 
     expect(client.getQueryData<LetterDetail>(lettersKeys.detail(ID))?.subject).toBe(
       'Замечания по разделу КЖ',
     );
-    expect(
-      client.getQueryData<LettersPages>(lettersKeys.list('incoming'))?.pages[0]?.items[0]?.subject,
-    ).toBe('Замечания по разделу КЖ');
+    expect(rowIn(client, 'incoming', ID)?.subject).toBe('Замечания по разделу КЖ');
   });
 });
 
 describe('useDeleteSpamLetter — удаление спама оптимистично (#55, Р12)', () => {
-  const fresh = listItemOf(
-    detail({
-      id: SPAM_ID,
-      regNumber: null,
-      regDate: null,
-      registeredAt: null,
-      stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
-    }),
-  );
+  const fresh = listItemOf(unregistered(SPAM_ID, 'Спам'));
 
   it('строка уходит из «Новых» ДО ответа; один fetch', async () => {
     const client = new QueryClient();
@@ -232,53 +251,23 @@ describe('useUpdateLetter — параллельные мутации (patterns.
     });
 
     await waitFor(() => expect(hookY.current.isSuccess).toBe(true));
-    expect(
-      client
-        .getQueryData<LettersPages>(lettersKeys.list('incoming'))
-        ?.pages[0]?.items.find((i) => i.id === letterY.id)?.subject,
-    ).toBe('Y patched');
+    expect(rowIn(client, 'incoming', letterY.id)?.subject).toBe('Y patched');
 
     await act(async () => {
       gateX.resolve(json(409, { code: 'LETTER_NOT_EDITABLE', message: 'x' }));
     });
     await waitFor(() => expect(hookX.current.isError).toBe(true));
 
-    expect(
-      client
-        .getQueryData<LettersPages>(lettersKeys.list('incoming'))
-        ?.pages[0]?.items.find((i) => i.id === letterY.id)?.subject,
-    ).toBe('Y patched');
-    expect(
-      client
-        .getQueryData<LettersPages>(lettersKeys.list('incoming'))
-        ?.pages[0]?.items.find((i) => i.id === letterX.id)?.subject,
-    ).toBe('X original');
+    expect(rowIn(client, 'incoming', letterY.id)?.subject).toBe('Y patched');
+    expect(rowIn(client, 'incoming', letterX.id)?.subject).toBe('X original');
   });
 });
 
 describe('useDeleteSpamLetter — параллельные мутации (patterns.md:108)', () => {
   it('откат удаления одного письма не затимает удаление другого', async () => {
     const client = new QueryClient();
-    const itemX = listItemOf(
-      detail({
-        id: '80000000-0000-4000-8000-000000000103',
-        subject: 'X spam',
-        regNumber: null,
-        regDate: null,
-        registeredAt: null,
-        stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
-      }),
-    );
-    const itemY = listItemOf(
-      detail({
-        id: '80000000-0000-4000-8000-000000000104',
-        subject: 'Y spam',
-        regNumber: null,
-        regDate: null,
-        registeredAt: null,
-        stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
-      }),
-    );
+    const itemX = listItemOf(unregistered('80000000-0000-4000-8000-000000000103', 'X spam'));
+    const itemY = listItemOf(unregistered('80000000-0000-4000-8000-000000000104', 'Y spam'));
     client.setQueryData(lettersKeys.list('new'), pages([itemX, itemY]));
 
     const gateX = deferred<Response>();
@@ -300,26 +289,14 @@ describe('useDeleteSpamLetter — параллельные мутации (patte
     });
 
     await waitFor(() => expect(hookY.current.isSuccess).toBe(true));
-    expect(
-      client
-        .getQueryData<LettersPages>(lettersKeys.list('new'))
-        ?.pages[0]?.items.find((i) => i.id === itemY.id),
-    ).toBeUndefined();
+    expect(rowIn(client, 'new', itemY.id)).toBeUndefined();
 
     await act(async () => {
       gateX.resolve(json(409, { code: 'LETTER_NOT_DELETABLE', message: 'x' }));
     });
     await waitFor(() => expect(hookX.current.isError).toBe(true));
 
-    expect(
-      client
-        .getQueryData<LettersPages>(lettersKeys.list('new'))
-        ?.pages[0]?.items.find((i) => i.id === itemY.id),
-    ).toBeUndefined();
-    expect(
-      client
-        .getQueryData<LettersPages>(lettersKeys.list('new'))
-        ?.pages[0]?.items.find((i) => i.id === itemX.id)?.subject,
-    ).toBe('X spam');
+    expect(rowIn(client, 'new', itemY.id)).toBeUndefined();
+    expect(rowIn(client, 'new', itemX.id)?.subject).toBe('X spam');
   });
 });

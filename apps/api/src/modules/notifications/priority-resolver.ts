@@ -54,6 +54,12 @@ export const KIND_PRIORITY: Record<NotificationKind, NotificationPriority> = {
   'task.awaiting_approval': 'medium',
   'task.cancelled': 'medium',
   'task.approved': 'medium',
+  // #56 (Р8): почтовые события канцелярии — обычный приоритет у всех:
+  // письмо пришло — Вике видно в журнале, порог — не срочный; отказы
+  // (sync/send failed) — тоже medium: срочность покажет повтор отказа.
+  'letter.arrived': 'medium',
+  'mail.sync_failed': 'medium',
+  'letter.send_failed': 'medium',
 };
 
 /** Приоритет kind при пересечении правил (urgent > mention > thread > direct > channel). */

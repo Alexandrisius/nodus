@@ -52,7 +52,7 @@ describe('чат письма (#55, Р10)', () => {
     );
   });
 
-  it('незарегистрированное письмо: roster null — беседа не создаётся', async () => {
+  it('письмо без беседы (незарегистрированное без участников): roster null', async () => {
     const { service, repo } = setup(null);
     expect(await service.sync(LETTER, OWNER)).toBeNull();
     expect(repo.findOrCreate).not.toHaveBeenCalled();

@@ -1004,3 +1004,12 @@
 [data-slot='message-scroller-item'] {
   content-visibility: visible;
 }
+
+/* Тёмный показ PDF (вердикт владельца 28.10: тёмная тема портала = тёмный
+   документ, без отдельного режима; #56/#138): канвас страницы pdf.js
+   инвертируется с возвратом оттенков (hue-rotate 180° — цвета не плывут),
+   сам файл не меняется. Best practice «ночного режима» вьюеров
+   (Okular/SumatraPDF); 0.92 — не выжигать белый в кислоту. */
+[data-theme='dark'] [data-pdf-page] canvas {
+  filter: invert(0.92) hue-rotate(180deg);
+}

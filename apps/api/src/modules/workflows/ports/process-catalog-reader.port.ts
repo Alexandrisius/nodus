@@ -45,6 +45,11 @@ export interface ProcessCatalogReader {
   /** Тип по id (живой или архивный) — настройки, смена типа, история. */
   typeById(id: string): Promise<ProcessType | null>;
 
+  /** Живой тип по системному коду (`letter-incoming`) — системные приёмы
+   *  (#56: поллер почты создаёт письма типом по умолчанию, без пользователя).
+   *  Чужая категория или архив — null. */
+  resolveTypeByCode(code: string, opts: { category: ProcessCategory }): Promise<ProcessType | null>;
+
   /** Ссылки на типы пачкой (гидратация строк DTO). `live` — только живые:
    *  привязка атрибута к архивному типу — мёртвая настройка (#432). */
   typeRefs(ids: readonly string[], opts?: { live?: boolean }): Promise<ProcessTypeRef[]>;

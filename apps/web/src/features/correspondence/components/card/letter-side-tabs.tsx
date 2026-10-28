@@ -1,4 +1,4 @@
-import { FileText, Loader2, MessageSquare, MessagesSquare, X } from 'lucide-react';
+import { FileText, History, Loader2, MessageSquare, MessagesSquare, X } from 'lucide-react';
 import { useId, type KeyboardEvent, type ReactNode } from 'react';
 import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -25,6 +25,7 @@ import {
   type LetterTabsState,
 } from '../../lib/letter-tabs.js';
 import { LetterBodyView } from '../letter-body-view.js';
+import { LetterHistory } from './letter-history.js';
 
 interface TabDef {
   id: LetterTabId;
@@ -34,9 +35,11 @@ interface TabDef {
   badge?: number;
 }
 
-/** Чат письма (Р10): участнику — обычная беседа мессенджера (композер в
- *  покое h-16 = бару действий — одна горизонталь), остальным — объяснение и
- *  «Присоединиться к обсуждению», если письмо ещё в работе. */
+/** Чат письма (Р10; редизайн #56 — обсуждение живёт и у незарегистриро-
+ *  ванного): участнику — обычная беседа мессенджера (композер в покое h-16
+ *  = бару действий — одна горизонталь), остальным — объяснение и
+ *  «Присоединиться к обсуждению» / «Начать обсуждение» (канцелярия до
+ *  регистрации), если письмо ещё в работе. */
 function LetterChatTab({
   letter,
   joining,
@@ -47,6 +50,8 @@ function LetterChatTab({
   onJoin: () => void;
 }) {
   const { data, error } = useLetterConversation(letter.id, letter.access.isParticipant);
+  const joinLabel =
+    letter.registeredAt === null ? ui.letters.card.startDiscussion : ui.letters.card.join;
 
   if (letter.access.isParticipant && data) {
     return (
@@ -83,13 +88,21 @@ function LetterChatTab({
         </EmptyHeader>
         {letter.access.canJoin ? (
           <EmptyContent>
-            <Button onClick={onJoin} disabled={joining} aria-busy={joining || undefined}>
+            {/* Outline, а не заливка: primary на экране один («Зарегистрировать»
+                в баре действий), а то же действие в баре — outline-кнопка:
+                одно действие — один вес в обоих входах. */}
+            <Button
+              variant="outline"
+              onClick={onJoin}
+              disabled={joining}
+              aria-busy={joining || undefined}
+            >
               {joining ? (
                 <Loader2 className="animate-spin" />
               ) : (
                 <MessageSquare data-icon="inline-start" />
               )}
-              {ui.letters.card.join}
+              {joinLabel}
             </Button>
           </EmptyContent>
         ) : null}
@@ -99,11 +112,13 @@ function LetterChatTab({
 }
 
 /**
- * Правая панель карточки письма (#55, U7): «Тело» и «Чат» — неснимаемые
+ * Правая панель карточки письма (#55, U7): «Письмо», «Чат» и «Текст
+ * письма» (когда текстовая часть есть — редизайн #56) — неснимаемые
  * вкладки, вложения — закрываемые (≤ 6, `letter-tabs.ts`). Содержимое
- * вкладки монтируется при первом показе и дальше живёт скрытым (`invisible`
- * + `inert`, не `display: none`): прокрутка, страница и масштаб документа
- * при возврате на вкладку на месте. ←/→ на полосе — соседняя вкладка.
+ * вкладки монтируется при первом показе и дальше живёт скрытым
+ * (`invisible` + `inert`, не `display: none`): прокрутка, страница и
+ * масштаб документа при возврате на вкладку на месте. ←/→ на полосе —
+ * соседняя вкладка.
  */
 export function LetterSideTabs({
   letter,
@@ -120,6 +135,8 @@ export function LetterSideTabs({
   joining: boolean;
   /** Панель вложений беседы (как в мессенджере) открыта — тоггл подсвечен. */
   panelOpen: boolean;
+  /** Текстовая часть письма (role body при документе) — вкладка «Текст
+   *  письма»; null — вкладки нет. */
   onActivate: (tab: LetterTabId) => void;
   onClose: (attachmentId: string) => void;
   onJoin: () => void;
@@ -136,6 +153,11 @@ export function LetterSideTabs({
       label: ui.letters.card.tabChat,
       icon: <MessageSquare className="size-3.5" />,
       badge: conversation?.unreadCount,
+    },
+    {
+      id: 'history',
+      label: ui.letters.card.history,
+      icon: <History className="size-3.5" />,
     },
     ...tabs.files.flatMap((fileId) => {
       const file = letter.attachments.find((a) => a.id === fileId);
@@ -165,6 +187,7 @@ export function LetterSideTabs({
   const panel = (tab: LetterTabId): ReactNode => {
     if (tab === 'body') return <LetterBodyView letter={letter} />;
     if (tab === 'chat') return <LetterChatTab letter={letter} joining={joining} onJoin={onJoin} />;
+    if (tab === 'history') return <LetterHistory letterId={letter.id} />;
     const fileId = fileIdOf(tab);
     return fileId ? <LetterBodyView letter={letter} attachmentId={fileId} /> : null;
   };
