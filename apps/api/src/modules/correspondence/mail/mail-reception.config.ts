@@ -63,7 +63,9 @@ export class MailReceptionConfig {
           }
         : null;
     this.pollMinutes = Math.max(1, Number(source.MAIL_POLL_MINUTES ?? 10));
-    this.fromAddress = source.MAIL_FROM_ADDRESS?.trim() || null;
+    // .env владельца использует короткое имя MAIL_FROM (контур Керio 23.10):
+    // каноническое MAIL_FROM_ADDRESS главнее, короткое — совместимость.
+    this.fromAddress = source.MAIL_FROM_ADDRESS?.trim() || source.MAIL_FROM?.trim() || null;
   }
 
   /** Приём вооружён: и флаг (проверяет сервис), и соединение настроено. */
