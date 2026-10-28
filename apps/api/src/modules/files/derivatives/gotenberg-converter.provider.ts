@@ -47,7 +47,9 @@ export class GotenbergConverterProvider implements DocumentConverter {
     form.append('marginBottom', '1.5cm');
     form.append('marginLeft', '1.5cm');
     form.append('marginRight', '1.5cm');
-    const response = await fetch(`${url}/forms/chromium/convert`, {
+    // Маршрут HTML-конвертации Gotenberg 8 — /forms/chromium/convert/html
+    // (живая проба: старый /forms/chromium/convert отвечает 404).
+    const response = await fetch(`${url}/forms/chromium/convert/html`, {
       method: 'POST',
       body: form,
     });
