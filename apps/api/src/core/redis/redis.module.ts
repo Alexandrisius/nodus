@@ -1,5 +1,7 @@
 import { Global, Module } from '@nestjs/common';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
+
+import { createRedisClient } from './redis-connection.js';
 
 /** Токен подключения Redis (конвенция ключей — `nodus:<module>:*`). */
 export const REDIS_CLIENT = 'REDIS_CLIENT';
@@ -18,7 +20,7 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
         if (!url) {
           throw new Error('REDIS_URL не задан');
         }
-        return new Redis(url, {
+        return createRedisClient(url, 'api:shared', {
           maxRetriesPerRequest: null,
           enableReadyCheck: true,
         });

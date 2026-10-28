@@ -1,6 +1,8 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+
+import { createRedisClient, duplicateRedisClient } from '../../../core/redis/redis-connection.js';
 import { PinoLogger } from 'nestjs-pino';
 import { TASK_EVENTS } from '@nodus/contracts';
 
@@ -36,7 +38,9 @@ export class OverdueScanner implements OnModuleInit, OnModuleDestroy {
     this.logger.setContext(OverdueScanner.name);
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
-    this.connection = new Redis(url, { maxRetriesPerRequest: null });
+    this.connection = createRedisClient(url, 'api:bull:task-overdue', {
+      maxRetriesPerRequest: null,
+    });
     this.queue = new Queue(OVERDUE_QUEUE, { connection: this.connection, prefix: PREFIX });
   }
 
@@ -50,7 +54,7 @@ export class OverdueScanner implements OnModuleInit, OnModuleDestroy {
       OVERDUE_QUEUE,
       async () => void (await this.runOnce()),
       {
-        connection: this.connection.duplicate(),
+        connection: duplicateRedisClient(this.connection, 'api:bull:task-overdue:worker'),
         prefix: PREFIX,
         concurrency: 1,
       },

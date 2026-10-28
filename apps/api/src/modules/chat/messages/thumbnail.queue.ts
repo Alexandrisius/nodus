@@ -1,6 +1,8 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
+
+import { createRedisClient } from '../../../core/redis/redis-connection.js';
 import { PinoLogger } from 'nestjs-pino';
 
 /** Очередь превью: ИМЯ без двоеточий (BullMQ запрещает ':' в имени — api падал
@@ -27,7 +29,9 @@ export class ThumbnailQueue implements OnModuleDestroy {
     this.logger.setContext(ThumbnailQueue.name);
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
-    this.connection = new Redis(url, { maxRetriesPerRequest: null });
+    this.connection = createRedisClient(url, 'api:bull:thumbnail', {
+      maxRetriesPerRequest: null,
+    });
     this.queue = new Queue(THUMBNAIL_QUEUE, {
       connection: this.connection,
       prefix: THUMBNAIL_QUEUE_PREFIX,
