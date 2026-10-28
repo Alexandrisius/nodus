@@ -51,10 +51,18 @@ describe('resolveViewerRoute — реестр просмотрщика (#138)', 
       kind: 'download',
       reason: 'unsupported',
     });
-    expect(resolveViewerRoute('без-расширения', 'text/plain', 1000, ON)).toMatchObject({
-      kind: 'download',
-      reason: 'unsupported',
-    });
+  });
+
+  it('текст → читалка (txt-вложение письма открывается до регистрации)', () => {
+    // mime от клиента не доверяем: решают и mime, и расширение.
+    expect(resolveViewerRoute('ФОП.txt', 'text/plain', 1000, ON).kind).toBe('text');
+    expect(resolveViewerRoute('ответ.json', 'application/json', 1000, ON).kind).toBe('text');
+    expect(resolveViewerRoute('без-расширения', 'text/plain', 1000, ON).kind).toBe('text');
+    // Таблица — офисный движок; без движка те же строки читаются текстом.
+    expect(resolveViewerRoute('выгрузка.csv', 'application/octet-stream', 1000, ON).kind).toBe(
+      'office',
+    );
+    expect(resolveViewerRoute('выгрузка.csv', 'text/csv', 1000, OFF).kind).toBe('text');
   });
 
   it('имя важнее mime: pdf-mime у офисного имени всё равно офис', () => {

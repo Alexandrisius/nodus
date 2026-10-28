@@ -1,10 +1,9 @@
-import { FilePlus2, Mail, MailCheck, ScanLine, Search } from 'lucide-react';
+import { FilePlus2, MailCheck, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Input } from '@nodus/ui/components/input';
 import { Skeleton } from '@nodus/ui/components/skeleton';
-import { cn } from '@nodus/ui/lib/utils';
 
 import { letterRows, useLettersInfinite } from '../../../../shared/api/letters-list.js';
 import { useDebouncedValue } from '../../../../shared/lib/use-debounced-value.js';
@@ -12,7 +11,6 @@ import { uiPx } from '../../../../shared/ui/ui-scale.js';
 import { useSplitWidth } from '../../../../shared/ui/use-split-width.js';
 import { useDeleteSpamLetter } from '../../api/letters-mutations.js';
 import { useLetterDetail } from '../../api/letters-queries.js';
-import { letterSubject, receivedLabel } from '../../lib/letter-format.js';
 import {
   isEditableTarget,
   neighbourId,
@@ -24,6 +22,8 @@ import { LettersEmpty, LettersLoadError } from '../letters-empty.js';
 import { LettersHeader } from '../letters-header.js';
 import { ManualLetterDialog } from '../manual-letter-dialog.js';
 import { NewLettersList } from './new-letters-list.js';
+import { PipelineAttachmentsRail } from './pipeline-attachments-rail.js';
+import { PipelineLetterHeader } from './pipeline-letter-header.js';
 import { RegistrationPanel, type RegistrationPanelControl } from './registration-panel.js';
 import { SpamConfirmDialog } from './spam-confirm-dialog.js';
 
@@ -60,9 +60,15 @@ export function NewLettersPipeline() {
   const deleteSpam = useDeleteSpamLetter();
   const [spamOpen, setSpamOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  // Вложение, открытое в центральной зоне (вердикт владельца 28.10: до
+  // регистрации файлы письма тоже должны открываться); null — само письмо.
+  const [attachmentId, setAttachmentId] = useState<string | null>(null);
 
   /** Письмо ушло из очереди (регистрация, закрытие, спам) — следующее. */
   const advanceFrom = (removedId: string) => setPicked(nextAfterRemoval(ids, removedId));
+
+  // Другое письмо — другая вкладка вложений (id чужого файла не держим).
+  useEffect(() => setAttachmentId(null), [selectedId]);
 
   // Свежие значения для слушателя клавиатуры без переподписки на каждый рендер.
   const keyState = useRef({ ids, selectedId, canSpam: false });
@@ -89,11 +95,11 @@ export function NewLettersPipeline() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Главное действие конвейера — «Зарегистрировать» в форме: шапочное
-  // «Создать» (бумага — редкий случай) тише, заливка остаётся пустому
-  // состоянию, где оно единственное.
+  // Главное действие конвейера — «Зарегистрировать» в форме; «Создать» —
+  // фирменная заливка primary, как кнопки создания в других модулях
+  // (вердикт владельца 28.10: outline читался «чёрным» в тёмной теме).
   const createButton = (
-    <Button variant="outline" onClick={() => setManualOpen(true)}>
+    <Button onClick={() => setManualOpen(true)}>
       <FilePlus2 data-icon="inline-start" />
       {ui.common.create}
     </Button>
@@ -104,7 +110,6 @@ export function NewLettersPipeline() {
       {ui.common.create}
     </Button>
   );
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <LettersHeader
@@ -187,61 +192,35 @@ export function NewLettersPipeline() {
           ) : (
             <>
               <div className="@container flex min-w-0 flex-1 flex-col border-r border-border">
-                <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+                <PipelineLetterHeader letter={letter} pending={pending} />
+                {/* Зона просмотра: слева — все файлы письма списком (при
+                    десятках вложений скроллится), справа — выбранный файл
+                    или само письмо (вердикт владельца 28.10). */}
+                <div className="flex min-h-0 flex-1">
                   {letter ? (
-                    <>
-                      {letter.source === 'manual' ? (
-                        <ScanLine
-                          className="size-4 shrink-0 text-muted-foreground"
-                          strokeWidth={1.75}
-                          aria-hidden
-                        />
-                      ) : (
-                        <Mail
-                          className="size-4 shrink-0 text-muted-foreground"
-                          strokeWidth={1.75}
-                          aria-hidden
-                        />
-                      )}
-                      <span
-                        className={cn(
-                          'min-w-0 flex-1 truncate text-sm font-medium',
-                          !letter.subject && 'text-muted-foreground',
-                        )}
-                        title={letterSubject(letter)}
-                      >
-                        {letterSubject(letter)}
-                      </span>
-                      {/* Узкая зона письма: способ поступления дублирует значок
-                          строки очереди — уступает место теме. */}
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        <span className="@max-[600px]:hidden">
-                          {ui.letters.source[letter.source]} ·{' '}
-                        </span>
-                        <span className="font-mono tabular-nums">
-                          {receivedLabel(letter.receivedAt)}
-                        </span>
-                      </span>
-                    </>
-                  ) : pending ? (
-                    <Skeleton className="h-4 w-64" />
-                  ) : null}
-                </div>
-                <div className="min-h-0 flex-1">
-                  {letter ? (
-                    <LetterBodyView
-                      key={letter.id}
+                    <PipelineAttachmentsRail
                       letter={letter}
-                      empty={
-                        <BodyEmpty
-                          title={ui.letters.pipeline.documentMissing}
-                          hint={ui.letters.pipeline.documentMissingHint}
-                        />
-                      }
+                      attachmentId={attachmentId}
+                      onSelect={setAttachmentId}
                     />
-                  ) : detail.isError ? (
-                    <BodyEmpty title={ui.letters.card.notFound} />
                   ) : null}
+                  <div className="min-h-0 min-w-0 flex-1">
+                    {letter ? (
+                      <LetterBodyView
+                        key={letter.id}
+                        letter={letter}
+                        attachmentId={attachmentId ?? undefined}
+                        empty={
+                          <BodyEmpty
+                            title={ui.letters.pipeline.documentMissing}
+                            hint={ui.letters.pipeline.documentMissingHint}
+                          />
+                        }
+                      />
+                    ) : detail.isError ? (
+                      <BodyEmpty title={ui.letters.card.notFound} />
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <div className="flex min-h-0 shrink-0 flex-col" style={{ width: uiPx(420) }}>

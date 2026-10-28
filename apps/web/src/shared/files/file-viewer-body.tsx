@@ -10,6 +10,7 @@ import { DownloadCard } from './download-card.jsx';
 import { MediaViewer } from './media-viewer.jsx';
 import { OfficeViewer } from './office-viewer.jsx';
 import { PdfViewer } from './pdf-viewer.jsx';
+import { TextViewer } from './text-viewer.js';
 import { resolveViewerRoute, type ViewerRoute } from './viewer-registry.js';
 import type { ViewerTarget } from './viewer-store.js';
 
@@ -55,6 +56,9 @@ export function FileViewerBody({
 }) {
   const queryClient = useQueryClient();
   const [engineFailed, setEngineFailed] = useState(false);
+  // Битый/пустой PDF (частый побочный артефакт тестовых данных): вместо
+  // тупика «Не удалось открыть документ» — карточка скачивания.
+  const [pdfFailed, setPdfFailed] = useState(false);
   const [sessionStale, setSessionStale] = useState(0);
   const route = useViewerRoute(target, engineFailed);
   const sessionQuery = useOfficeSession(target.fileId, mode, route?.kind === 'office');
@@ -104,15 +108,22 @@ export function FileViewerBody({
     );
   }
   if (route.kind === 'pdf') {
-    return url ? (
-      <PdfViewer url={url} fileName={target.name} fit={fit} />
+    return url && !pdfFailed ? (
+      <PdfViewer url={url} fileName={target.name} fit={fit} onFailed={() => setPdfFailed(true)} />
     ) : (
-      download('unsupported', null)
+      download('unsupported', url)
     );
   }
   if (route.kind === 'media') {
     return url ? (
       <MediaViewer url={url} mime={target.mime} name={target.name} fit={fit} autoFocus={!fit} />
+    ) : (
+      download('unsupported', null)
+    );
+  }
+  if (route.kind === 'text') {
+    return url ? (
+      <TextViewer url={url} name={target.name} size={target.size} fit={fit} />
     ) : (
       download('unsupported', null)
     );

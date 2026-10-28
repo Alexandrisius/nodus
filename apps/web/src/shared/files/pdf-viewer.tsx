@@ -32,12 +32,20 @@ export function PdfViewer({
   url,
   fileName,
   fit,
+  onFailed,
 }: {
   url: string;
   fileName: string;
   fit?: 'width';
+  /** Документ не открылся (битый файл, 404): хост решает, чем заменить
+   *  тупик «Не удалось открыть документ» (например, карточкой скачивания). */
+  onFailed?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Колбэк в ref: инлайн-стрелка хоста не должна перезапускать загрузку PDF
+  // на каждый рендер (зум/страница).
+  const onFailedRef = useRef(onFailed);
+  onFailedRef.current = onFailed;
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -51,7 +59,10 @@ export function PdfViewer({
         if (!cancelled) setDoc(loaded);
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) {
+          setFailed(true);
+          onFailedRef.current?.();
+        }
       });
     return () => {
       cancelled = true;

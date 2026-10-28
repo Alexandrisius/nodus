@@ -14,6 +14,9 @@ export type ViewerKind =
   | 'pdf'
   /** Нативные <video>/<audio>/<img>. */
   | 'media'
+  /** Текст как есть (txt/log/csv/json…; вердикт владельца 28.10 — .txt
+   *  из письма должен открываться до регистрации, а не только скачиваться). */
+  | 'text'
   /** Карточка скачивания (архивы, DWG, неизвестное, офис выключен/велик). */
   | 'download';
 
@@ -32,11 +35,39 @@ export interface ViewerRoutingOptions {
   maxViewBytes: number;
 }
 
+/** Простой текст: читалка, а не ONLYOFFICE (в письмах .txt — это лог,
+ *  подпись, выгрузка, а не документ для правки; source .eml не сюда).
+ *  CSV/TSV намеренно НЕ здесь — это таблицы, их ведёт офисный движок. */
+const PLAIN_TEXT_EXTENSIONS = new Set([
+  'txt',
+  'log',
+  'md',
+  'json',
+  'xml',
+  'yml',
+  'yaml',
+  'ini',
+  'cfg',
+  'conf',
+  'sql',
+  'js',
+  'ts',
+  'css',
+  'html',
+  'htm',
+]);
+
+const isPlainText = (name: string, mime: string): boolean =>
+  mime === 'application/json' ||
+  (mime.startsWith('text/') && mime !== 'text/csv' && mime !== 'text/tab-separated-values') ||
+  PLAIN_TEXT_EXTENSIONS.has(fileExtension(name));
+
 /**
- * Маршрут вложения. Порядок: офисная таблица по расширению имени (mime от
- * клиента не доверяем) → PDF → медиа по mime → скачивание. kind==='image'
- * из DTO маршрутизируется вызывающим (существующий лайтбокс), сюда не
- * попадает — но image-хосты (панель/дровер) могут открыть media-вьюер.
+ * Маршрут вложения. Порядок: простой текст (читалка; mime от клиента не
+ * доверяем — решают и mime, и расширение) → офисная таблица по расширению →
+ * PDF → медиа по mime → скачивание. kind==='image' из DTO маршрутизируется
+ * вызывающим (существующий лайтбокс), сюда не попадает — но image-хосты
+ * (панель/дровер) могут открыть media-вьюер.
  */
 export function resolveViewerRoute(
   name: string,
@@ -44,12 +75,17 @@ export function resolveViewerRoute(
   size: number,
   options: ViewerRoutingOptions,
 ): ViewerRoute {
+  if (isPlainText(name, mime)) return { kind: 'text', office: null, reason: null };
   const office = officeFormat(name);
   if (office) {
     if (size > options.maxViewBytes) {
       return { kind: 'download', office, reason: 'too_large' };
     }
     if (!options.officeEnabled) {
+      // Таблица без редактора читается как текст (CSV — это те же строки).
+      if (mime.startsWith('text/') || ['csv', 'tsv'].includes(fileExtension(name))) {
+        return { kind: 'text', office: null, reason: null };
+      }
       return { kind: 'download', office, reason: 'office_disabled' };
     }
     return { kind: 'office', office, reason: null };

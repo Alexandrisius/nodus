@@ -148,6 +148,8 @@ export const lettersStrings = {
   /** Карточка письма. */
   card: {
     files: 'Файлы',
+    /** Колонка файлов на регистрации (#56): все вложения списком. */
+    attachments: 'Вложения',
     history: 'История',
     historyEmpty: 'Записей пока нет',
     historyMore: 'Показать ещё',

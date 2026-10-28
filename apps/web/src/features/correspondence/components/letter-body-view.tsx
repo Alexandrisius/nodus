@@ -5,11 +5,12 @@ import { LETTER_LIMITS, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Spinner } from '@nodus/ui/components/spinner';
 
+import { useShellStore } from '../../../app/shell/shell-store.js';
 import { LinkifiedText } from '../../../shared/chat/message-text.js';
 import { DownloadCard } from '../../../shared/files/download-card.js';
 import { FileViewerBody } from '../../../shared/files/file-viewer-body.js';
 import type { ViewerTarget } from '../../../shared/files/viewer-store.js';
-import { SandboxedHtml } from '../../../shared/html/sandboxed-html.js';
+import { SandboxedHtml, emailSheetColorsFor } from '../../../shared/html/sandboxed-html.js';
 import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
 import { useLetterBodyText } from '../api/letters-queries.js';
 
@@ -25,8 +26,10 @@ export function viewerTargetOf(attachment: LetterAttachment): ViewerTarget {
   };
 }
 
-const isTextBody = (a: LetterAttachment) =>
-  a.role === 'body' || a.mime === 'text/html' || a.mime === 'text/plain';
+/** Только сама часть «тело письма» (role body): обычное вложение с mime
+ *  text/plain — это файл, а не тело, и открывается общим просмотрщиком
+ *  (вердикт владельца 28.10: .txt должен читаться, а не показывать нули). */
+const isTextBody = (a: LetterAttachment) => a.role === 'body';
 
 /** contentId → абсолютный URL вложения (Р11): резолв cid: картинок HTML-тела
  *  на показе; ссылка подписанная и того же происхождения (CSP 'self'). */
@@ -114,6 +117,8 @@ function TextBody({
   cidMap: Record<string, string>;
 }) {
   const query = useLetterBodyText(attachment);
+  const theme = useShellStore((s) => s.theme);
+  const sheet = emailSheetColorsFor(theme);
   const [allowImages, setAllowImages] = useState(false);
   const [blocked, setBlocked] = useState(0);
 
@@ -169,6 +174,8 @@ function TextBody({
             cidMap={cidMap}
             onBlockedImages={setBlocked}
             title={ui.letters.body.frameTitle}
+            theme={theme}
+            sheet={sheet}
           />
         </div>
       </div>

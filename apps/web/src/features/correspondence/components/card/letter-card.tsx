@@ -28,6 +28,7 @@ import {
   type LetterTabsState,
 } from '../../lib/letter-tabs.js';
 import { SpamConfirmDialog } from '../pipeline/spam-confirm-dialog.js';
+import { LetterSenderLine } from '../letter-sender-line.js';
 import { LetterActionBar } from './letter-action-bar.js';
 import { LetterAttributes } from './letter-attributes.js';
 import { LetterCardChainBar } from './letter-card-chain-bar.js';
@@ -135,6 +136,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
         >
           <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-4xl pb-4">
+              <LetterSenderLine letter={letter} showTime className="mb-5" />
               <LetterFieldsBoard letter={letter} />
               <LetterAttributes letter={letter} />
               <LetterFilesBlock letter={letter} activeId={activeFileId} onOpen={openAttachment} />
