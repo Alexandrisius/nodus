@@ -61,6 +61,7 @@ import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { ErrorCode } from '@nodus/contracts';
 import { LetterHistoryService } from '../history/letter-history.service.js';
+import { LettersMainDocumentService } from './letters-main-document.service.js';
 import { LettersMutationService } from './letters-mutation.service.js';
 import { LettersQueryService } from './letters-query.service.js';
 import { readLetterMultipart } from './letter-upload.js';
@@ -88,6 +89,7 @@ export class LettersController {
   constructor(
     private readonly query: LettersQueryService,
     private readonly mutations: LettersMutationService,
+    private readonly mainDocument: LettersMainDocumentService,
     private readonly transitions: LetterTransitionsService,
     private readonly history: LetterHistoryService,
   ) {}
@@ -183,7 +185,7 @@ export class LettersController {
     })
     body: SetLetterMainDocumentBody,
   ): Promise<LetterDetail> {
-    return this.mutations.setMainDocument(user, id, body.attachmentId);
+    return this.mainDocument.set(user, id, body.attachmentId);
   }
 
   @Post(':id/view')

@@ -12,6 +12,7 @@ import { LetterHistoryService } from './history/letter-history.service.js';
 import { LetterDtoMapper } from './letters/letter-dto.mapper.js';
 import { LetterFieldsValidator } from './letters/letter-fields.validator.js';
 import { LettersController } from './letters/letters.controller.js';
+import { LettersMainDocumentService } from './letters/letters-main-document.service.js';
 import { LettersMutationService } from './letters/letters-mutation.service.js';
 import { LettersQueryService } from './letters/letters-query.service.js';
 import { LettersRepository } from './letters/letters.repository.js';
@@ -65,6 +66,7 @@ import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
     LetterStageMover,
     LetterWorkflowAdapter,
     LettersMutationService,
+    LettersMainDocumentService,
     LetterTransitionsService,
     LetterHistoryService,
     // Доменный цикл приёма почты (#56): живёт здесь — зависим от сервисов писем

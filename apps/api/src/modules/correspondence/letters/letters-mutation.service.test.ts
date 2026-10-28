@@ -59,7 +59,6 @@ function setup(letter: LetterDetailRow) {
     { run: (fn: (tx: unknown) => unknown) => fn({}) } as never,
     eventBus as never,
     {} as never,
-    { refs: vi.fn(async () => []) } as never,
     {} as never,
     profiles as never,
   );
@@ -92,67 +91,6 @@ describe('правка реквизитов (редизайн #56 — карто
     const { service, validator } = setup(row(null));
     await service.update(REGISTRAR, LETTER, { addresseeId: COLLEAGUE });
     expect(validator.patch).toHaveBeenCalled();
-  });
-});
-
-describe('выбор основного документа звездой («Основной документ письма» #56)', () => {
-  const att = (id: string, role: string) => ({
-    id,
-    fileId: `file-${id}`,
-    role,
-    sortOrder: 0,
-    contentId: null,
-    inline: false,
-  });
-
-  it('канцелярия выбирает файл до регистрации: файл → main, прежний main → приложение', async () => {
-    const { service, repo, eventBus } = setup(row(null));
-    repo.attachments.mockResolvedValueOnce([
-      att('old', 'main'),
-      att('new', 'attachment'),
-      att('body', 'body'),
-    ]);
-    await service.setMainDocument(REGISTRAR, LETTER, 'new');
-    expect(repo.setMainRoles).toHaveBeenCalledWith(expect.anything(), LETTER, {
-      promoteId: 'new',
-      demoteIds: ['old'],
-    });
-    expect(eventBus.emit).toHaveBeenCalled();
-  });
-
-  it('звезда на PDF-копии тела: main сбрасывается, роль body_pdf неизменна', async () => {
-    const { service, repo } = setup(row(null));
-    repo.attachments.mockResolvedValueOnce([att('m', 'main'), att('pdf', 'body_pdf')]);
-    await service.setMainDocument(REGISTRAR, LETTER, 'pdf');
-    expect(repo.setMainRoles).toHaveBeenCalledWith(expect.anything(), LETTER, {
-      promoteId: undefined,
-      demoteIds: ['m'],
-    });
-  });
-
-  it('после регистрации выбор заморожен', async () => {
-    const { service } = setup(row(new Date()));
-    await expect(service.setMainDocument(REGISTRAR, LETTER, 'x')).rejects.toMatchObject({
-      code: 'LETTER_NOT_EDITABLE',
-    });
-  });
-
-  it('текст письма и исходник — не кандидаты; повтор выбора — no-op', async () => {
-    const { service, repo } = setup(row(null));
-    repo.attachments.mockResolvedValueOnce([att('b', 'body'), att('s', 'source')]);
-    await expect(service.setMainDocument(REGISTRAR, LETTER, 'b')).rejects.toMatchObject({
-      code: 'VALIDATION_FAILED',
-    });
-    repo.attachments.mockResolvedValueOnce([att('same', 'main')]);
-    await service.setMainDocument(REGISTRAR, LETTER, 'same');
-    expect(repo.setMainRoles).not.toHaveBeenCalled();
-  });
-
-  it('не-канцелярия не выбирает', async () => {
-    const { service } = setup(row(null));
-    await expect(service.setMainDocument(EMPLOYEE, LETTER, 'x')).rejects.toMatchObject({
-      code: 'LETTER_NOT_EDITABLE',
-    });
   });
 });
 
