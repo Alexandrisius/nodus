@@ -99,19 +99,6 @@ export function SignerValue({
     notSet
   );
   if (!editable || !letter.counterparty) return text;
-  if (!signer) {
-    return (
-      <button
-        type="button"
-        className={cn(valueButton, 'shrink-0')}
-        aria-label={editLabel(label)}
-        onClick={() => setEditing(true)}
-      >
-        {text}
-      </button>
-    );
-  }
-
   if (editing) {
     return (
       <div className="w-80 max-w-full">
@@ -132,7 +119,7 @@ export function SignerValue({
     <span className="group/value flex min-w-0 items-center gap-1">
       <button
         type="button"
-        className={valueButton}
+        className={cn(valueButton, !signer && 'shrink-0')}
         aria-label={editLabel(label)}
         onClick={() => setEditing(true)}
       >
@@ -174,21 +161,6 @@ export function AddresseeValue({
     empty
   );
   if (!editable) return text;
-  // Пустое «Не задано» не сжимается: nowrap-текст шире плашки = ховер без
-  // последних символов (flex-слот давит кнопку, #56 приёмка 28.10).
-  if (!addressee) {
-    return (
-      <button
-        type="button"
-        className={cn(valueButton, 'shrink-0')}
-        aria-label={editLabel(label)}
-        onClick={() => setEditing(true)}
-      >
-        {empty}
-      </button>
-    );
-  }
-
   if (editing) {
     return (
       <div className="w-80 max-w-full">
@@ -207,7 +179,9 @@ export function AddresseeValue({
     <span className="group/value flex min-w-0 items-center gap-1">
       <button
         type="button"
-        className={valueButton}
+        // Пустое «Не задано» не сжимается: nowrap-текст шире плашки = ховер
+        // без последних символов (flex-слот давит кнопку, #56 приёмка 28.10).
+        className={cn(valueButton, !addressee && 'shrink-0')}
         aria-label={editLabel(label)}
         onClick={() => setEditing(true)}
       >
