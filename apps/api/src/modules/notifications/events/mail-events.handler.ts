@@ -106,7 +106,7 @@ export class LetterArrivedNotifyHandler {
   async handle(event: DomainEvent<Record<string, unknown>>): Promise<void> {
     // Только почта (В4): ручное создание канцелярия и так видит своими руками.
     if (event.payload.source !== 'mail') return;
-    const subject = event.payload.letterSubject;
+    const subject = event.payload.subject;
     await this.writer.write(event, {
       kind: 'letter.arrived',
       preview: typeof subject === 'string' && subject ? subject : 'Письмо без темы',

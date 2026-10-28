@@ -170,17 +170,22 @@ export class SmtpOutboxTransport implements OnModuleInit, OnModuleDestroy {
   /** Финальный провал — доменное событие (уведомление канцелярии — Р8). */
   private async reportFailure(job: SmtpOutboxJob, error: unknown): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
-    this.logger.error({ err: error, job }, 'Исходящее не отправлено');
-    const meta = job.letterId
-      ? { aggregateType: 'letter' as const, aggregateId: job.letterId }
-      : { aggregateType: 'mail_source' as const, aggregateId: 'chancery' };
+    // Лог без содержимого письма (security-ревью #56): только адреса и контекст.
+    this.logger.error(
+      { err: error, letterId: job.letterId ?? null, to: job.to, subject: job.subject },
+      'Исходящее не отправлено',
+    );
     await this.txRunner
       .run(async (tx) => {
         await this.eventBus.emit(
           tx,
           CORRESPONDENCE_EVENTS.LETTER_SEND_FAILED,
           { letterId: job.letterId ?? null, error: message.slice(0, 200) },
-          meta,
+          // aggregate_id — uuid: без карточки письма агрегата нет (событие
+          // журнала без агрегата; отправка вне письма появится с #464).
+          ...(job.letterId
+            ? [{ aggregateType: 'letter' as const, aggregateId: job.letterId }]
+            : []),
         );
       })
       .catch(() => undefined);

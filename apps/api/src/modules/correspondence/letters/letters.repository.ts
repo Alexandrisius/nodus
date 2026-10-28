@@ -225,11 +225,18 @@ export class LettersRepository {
   }
 
   /** Живые письма по Message-ID (надгробия спама исключены — авто-связь не
-   *  должна цепляться к удалённому). */
+   *  цепляется к удалённому). Цель «ответ на» — зарегистрированное исходящее
+   *  (контракт списка; security-ревью #56: подделка References не тянет
+   *  связь на чужое входящее). */
   findByMailMessageIds(messageIds: readonly string[]) {
     if (messageIds.length === 0) return Promise.resolve([]);
     return this.prisma.letter.findMany({
-      where: { mailMessageId: { in: [...messageIds] }, deletedAt: null },
+      where: {
+        mailMessageId: { in: [...messageIds] },
+        deletedAt: null,
+        direction: 'outgoing',
+        registeredAt: { not: null },
+      },
       select: { id: true, regNumber: true, subject: true, mailMessageId: true },
     });
   }

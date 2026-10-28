@@ -211,7 +211,7 @@ describe('приём почты #56 (живой PG)', () => {
       }),
     );
     expect(created.created).toBe(true);
-    const [letterId] = await idsOf(messageId);
+    const [letterId] = (await idsOf(messageId)) as [string];
     const relation = await fixture.fx.prisma.letterRelation.findFirstOrThrow({
       where: { letterId, kind: 'reply_to' },
     });
@@ -230,7 +230,7 @@ describe('приём почты #56 (живой PG)', () => {
     const outId = await seedOutgoing(`${RUN_PREFIX()}-out2@example.test`, `Исх-${year}/${seq}`);
     const messageId = `${RUN_PREFIX()}-sugg@example.test`;
     await importLetter(emlOf({ messageId, subject: `О допуске — на № ${seq} от ${ruToday()}` }));
-    const [letterId] = await idsOf(messageId);
+    const [letterId] = (await idsOf(messageId)) as [string];
     // Подсказка пришла в карточке (динамика чтения).
     const detailRes = await fixture.api(fixture.registrar, 'GET', `/letters/${letterId}`);
     const detail = letterDetailSchema.parse(await detailRes.json());
@@ -251,19 +251,19 @@ describe('приём почты #56 (живой PG)', () => {
       emlOf({ messageId: `${RUN_PREFIX()}-bad@example.test`, subject: 'Без подсказки' }),
     );
     expect(another.created).toBe(true);
-    const [badId] = await idsOf(`${RUN_PREFIX()}-bad@example.test`);
+    const [badId] = (await idsOf(`${RUN_PREFIX()}-bad@example.test`)) as [string];
     const badRes = await fixture.register(fixture.registrar, badId, {
       ...registration,
       replyToLetterId: outId,
     });
     expect(badRes.status).toBe(422);
-    expect((await badRes.json()).code).toBe('LETTER_RELATION_INVALID');
+    expect(((await badRes.json()) as { code?: string }).code).toBe('LETTER_RELATION_INVALID');
   });
 
   it('спам-надгробие: удалённое не возвращается повторным импортом', async () => {
     const messageId = `${RUN_PREFIX()}-spam@example.test`;
     await importLetter(emlOf({ messageId, subject: 'Мусор' }));
-    const [letterId] = await idsOf(messageId);
+    const [letterId] = (await idsOf(messageId)) as [string];
     const del = await fixture.api(fixture.registrar, 'DELETE', `/letters/${letterId}`);
     expect(del.status).toBe(204);
     // Строка-надгробие живёт: Message-ID держит дедуп, файлы снесены.
