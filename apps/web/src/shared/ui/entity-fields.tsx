@@ -17,6 +17,9 @@ export interface EntityFieldDef {
   key: string;
   icon: ReactNode;
   label: string;
+  /** Обязательное поле формы (карточка-письмо до регистрации, редизайн
+   *  #56): у метки — звёздочка, пустое значение подсвечивает фича. */
+  required?: boolean;
   render: () => ReactNode;
 }
 
@@ -57,6 +60,7 @@ export function FieldRow({
   hint,
   hintId,
   wide = false,
+  required = false,
   children,
 }: {
   icon: ReactNode;
@@ -64,6 +68,7 @@ export function FieldRow({
   hint?: string | null;
   hintId?: string;
   wide?: boolean;
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -84,6 +89,12 @@ export function FieldRow({
           {icon}
         </span>
         <span className="truncate">{label}</span>
+        {/* Обязательное поле — тонкая метка-звёздочка в тоне действия. */}
+        {required ? (
+          <span aria-hidden className="shrink-0 text-primary">
+            *
+          </span>
+        ) : null}
         {hint ? (
           <Info className="size-3 shrink-0 opacity-50" strokeWidth={1.75} aria-hidden />
         ) : null}
@@ -116,7 +127,7 @@ export function EntityFields({ defs, storageKey }: { defs: EntityFieldDef[]; sto
   return (
     <div className="mx-auto mt-5 grid max-w-4xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[55rem]:grid-cols-2">
       {visible.map((def) => (
-        <FieldRow key={def.key} icon={def.icon} label={def.label}>
+        <FieldRow key={def.key} icon={def.icon} label={def.label} required={def.required}>
           {def.render()}
         </FieldRow>
       ))}

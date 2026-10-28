@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import type { ContactRef, CounterpartyRef, LetterDetail } from '@nodus/contracts';
+import { useState, type ReactNode } from 'react';
+import type { ContactRef, CounterpartyRef, LetterDetail, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../../app/shell/use-card-stack.js';
 import { CounterpartyCombobox } from '../../../../shared/counterparties/counterparty-combobox.js';
 import { identityTone } from '../../../../shared/ui/identity-tone.js';
+import { PersonAvatar } from '../../../../shared/ui/person-avatar.js';
 import { ProjectPicker } from '../../../../shared/ui/project-picker.js';
+import { AddresseeField } from '../registration/addressee-field.js';
 import { SignerField } from '../registration/signer-field.js';
 import { ClearButton, EditButton, editLabel, notSet, valueButton } from './letter-value-bits.js';
 
@@ -15,10 +17,13 @@ import { ClearButton, EditButton, editLabel, notSet, valueButton } from './lette
 export function CounterpartyValue({
   letter,
   editable,
+  empty = notSet,
   onCommit,
 }: {
   letter: LetterDetail;
   editable: boolean;
+  /** Пустое значение (обязательное поле — предупреждающий тон). */
+  empty?: ReactNode;
   onCommit: (ref: CounterpartyRef) => void;
 }) {
   const openCard = useOpenCard();
@@ -53,7 +58,7 @@ export function CounterpartyValue({
           {letter.counterparty.name}
         </button>
       ) : (
-        notSet
+        empty
       )}
       {editable ? <EditButton label={label} onClick={() => setEditing(true)} /> : null}
     </span>
@@ -110,6 +115,67 @@ export function SignerValue({
         {text}
       </button>
       {signer ? <ClearButton label={label} onClick={() => onCommit(null)} /> : null}
+    </span>
+  );
+}
+
+/** Адресат незарегистрированного письма (редизайн #56): один сотрудник —
+ *  тот же селектор, что в форме регистрации (сверху «Принимают решения»);
+ *  выбор и сброс — оптимистичный PATCH `addresseeId` у хозяина доски. */
+export function AddresseeValue({
+  letter,
+  editable,
+  empty = notSet,
+  onCommit,
+}: {
+  letter: LetterDetail;
+  editable: boolean;
+  /** Пустое значение (обязательное поле — предупреждающий тон). */
+  empty?: ReactNode;
+  onCommit: (addressee: UserRef | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const label = ui.letters.fields.addressee;
+  const addressee = letter.addressee;
+  const text = addressee ? (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <PersonAvatar
+        name={addressee.displayName}
+        avatarUrl={addressee.avatarUrl}
+        className="size-6 shrink-0"
+      />
+      <span className="truncate">{addressee.displayName}</span>
+    </span>
+  ) : (
+    empty
+  );
+  if (!editable) return text;
+
+  if (editing) {
+    return (
+      <div className="w-80 max-w-full">
+        <AddresseeField
+          value={addressee}
+          autoFocus
+          onChange={(user) => {
+            setEditing(false);
+            if ((user?.id ?? null) !== (addressee?.id ?? null)) onCommit(user);
+          }}
+        />
+      </div>
+    );
+  }
+  return (
+    <span className="group/value flex min-w-0 items-center gap-1">
+      <button
+        type="button"
+        className={valueButton}
+        aria-label={editLabel(label)}
+        onClick={() => setEditing(true)}
+      >
+        {text}
+      </button>
+      {addressee ? <ClearButton label={label} onClick={() => onCommit(null)} /> : null}
     </span>
   );
 }

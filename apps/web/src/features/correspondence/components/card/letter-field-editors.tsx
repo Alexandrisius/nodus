@@ -27,19 +27,25 @@ export function TextFieldValue({
   label,
   maxLength,
   editable,
+  empty = notSet,
+  mono = true,
   onCommit,
 }: {
   value: string | null;
   label: string;
   maxLength: number;
   editable: boolean;
+  /** Пустое значение (обязательное поле — предупреждающий тон). */
+  empty?: ReactNode;
+  /** Номера — моно; тема — обычный текст. */
+  mono?: boolean;
   onCommit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const text = value ? (
-    <span className="truncate font-mono text-label-sm tabular-nums">{value}</span>
+    <span className={cn('truncate', mono && 'font-mono text-label-sm tabular-nums')}>{value}</span>
   ) : (
-    notSet
+    empty
   );
   if (!editable) return text;
 
@@ -65,7 +71,10 @@ export function TextFieldValue({
           setDraft(null);
         }
       }}
-      className="-mx-1 h-6 w-56 max-w-full rounded-md bg-accent/50 px-1 font-mono text-label-sm outline-none"
+      className={cn(
+        '-mx-1 h-6 w-56 max-w-full rounded-md bg-accent/50 px-1 outline-none',
+        mono ? 'font-mono text-label-sm' : 'text-sm',
+      )}
     />
   ) : (
     <button
@@ -129,15 +138,18 @@ export function DateFieldValue({
 export function ReceiptMethodValue({
   letter,
   editable,
+  empty = notSet,
   onCommit,
 }: {
   letter: LetterDetail;
   editable: boolean;
+  /** Пустое значение (обязательное поле — предупреждающий тон). */
+  empty?: ReactNode;
   onCommit: (method: { id: string; name: string }) => void;
 }) {
   const { data: methods = [] } = useReceiptMethods();
   const current = letter.receiptMethod;
-  const text = current ? <span className="truncate">{current.name}</span> : notSet;
+  const text = current ? <span className="truncate">{current.name}</span> : empty;
   if (!editable) return text;
   return (
     <DropdownMenu>

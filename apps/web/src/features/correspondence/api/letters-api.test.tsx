@@ -45,6 +45,8 @@ function detail(patch: Partial<LetterDetail> = {}): LetterDetail {
     responseDeadline: null,
     replyTo: null,
     attachmentCount: 1,
+    // Карточка открыта — «я открывал» (редизайн #56).
+    viewed: true,
     type: {
       id: '20000000-0000-4000-8000-000000000910',
       code: 'letter-incoming',

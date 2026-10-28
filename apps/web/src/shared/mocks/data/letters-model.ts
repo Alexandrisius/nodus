@@ -94,7 +94,10 @@ export function letterRefOf(letter: DemoLetter): LetterRef {
   return { id: letter.id, regNumber: letter.regNumber, subject: letter.subject };
 }
 
-export function letterListItemOf(letter: DemoLetter): LetterListItem {
+export function letterListItemOf(
+  letter: DemoLetter,
+  viewed = letter.registeredAt !== null,
+): LetterListItem {
   return {
     id: letter.id,
     typeId: letter.typeId,
@@ -117,6 +120,7 @@ export function letterListItemOf(letter: DemoLetter): LetterListItem {
     responseDeadline: letter.responseDeadline,
     replyTo: letter.replyTo,
     attachmentCount: letter.attachments.filter((a) => a.role !== 'source' && !a.inline).length,
+    viewed,
   };
 }
 
@@ -136,13 +140,16 @@ export function counterpartySuggestionOf(letter: DemoLetter): LetterCounterparty
 }
 
 function accessOf(letter: DemoLetter, actor: LetterActor): LetterAccess {
+  // Зеркало серверного letter-access (редизайн #56): правка реквизитов —
+  // канцелярия (и незарегистрированного — форма по месту в карточке),
+  // «Присоединиться» — канцелярия может начать обсуждение до регистрации.
   const register = canRegisterLetters(actor);
-  const open = !isFinalState(letter.stage.systemState);
+  const registered = letter.registeredAt !== null;
   const isParticipant = letterMemberIds(letter).includes(actor.id);
   return {
-    canEdit: register && letter.registeredAt !== null && open,
-    canDeleteSpam: register && boxOf(letter) === 'new',
-    canJoin: !isParticipant && open,
+    canEdit: register,
+    canDeleteSpam: !registered && !isFinalState(letter.stage.systemState) && register,
+    canJoin: !isParticipant && (registered || register),
     isParticipant,
   };
 }
@@ -150,7 +157,7 @@ function accessOf(letter: DemoLetter, actor: LetterActor): LetterAccess {
 export function letterDetailOf(letter: DemoLetter, actor: LetterActor): LetterDetail {
   const type = letterProcessTypes.find((t) => t.id === letter.typeId) ?? letterProcessTypes[0]!;
   return {
-    ...letterListItemOf(letter),
+    ...letterListItemOf(letter, true),
     type: { id: type.id, code: type.code, name: type.name, category: type.category },
     signer: letter.signer,
     registrar: letter.registrar,

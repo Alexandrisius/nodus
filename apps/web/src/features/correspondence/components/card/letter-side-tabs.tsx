@@ -1,6 +1,6 @@
 import { FileText, Loader2, MessageSquare, MessagesSquare, X } from 'lucide-react';
 import { useId, type KeyboardEvent, type ReactNode } from 'react';
-import type { LetterDetail } from '@nodus/contracts';
+import type { LetterAttachment, LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -34,9 +34,11 @@ interface TabDef {
   badge?: number;
 }
 
-/** Чат письма (Р10): участнику — обычная беседа мессенджера (композер в
- *  покое h-16 = бару действий — одна горизонталь), остальным — объяснение и
- *  «Присоединиться к обсуждению», если письмо ещё в работе. */
+/** Чат письма (Р10; редизайн #56 — обсуждение живёт и у незарегистриро-
+ *  ванного): участнику — обычная беседа мессенджера (композер в покое h-16
+ *  = бару действий — одна горизонталь), остальным — объяснение и
+ *  «Присоединиться к обсуждению» / «Начать обсуждение» (канцелярия до
+ *  регистрации), если письмо ещё в работе. */
 function LetterChatTab({
   letter,
   joining,
@@ -47,6 +49,8 @@ function LetterChatTab({
   onJoin: () => void;
 }) {
   const { data, error } = useLetterConversation(letter.id, letter.access.isParticipant);
+  const joinLabel =
+    letter.registeredAt === null ? ui.letters.card.startDiscussion : ui.letters.card.join;
 
   if (letter.access.isParticipant && data) {
     return (
@@ -89,7 +93,7 @@ function LetterChatTab({
               ) : (
                 <MessageSquare data-icon="inline-start" />
               )}
-              {ui.letters.card.join}
+              {joinLabel}
             </Button>
           </EmptyContent>
         ) : null}
@@ -99,17 +103,20 @@ function LetterChatTab({
 }
 
 /**
- * Правая панель карточки письма (#55, U7): «Тело» и «Чат» — неснимаемые
+ * Правая панель карточки письма (#55, U7): «Письмо», «Чат» и «Текст
+ * письма» (когда текстовая часть есть — редизайн #56) — неснимаемые
  * вкладки, вложения — закрываемые (≤ 6, `letter-tabs.ts`). Содержимое
- * вкладки монтируется при первом показе и дальше живёт скрытым (`invisible`
- * + `inert`, не `display: none`): прокрутка, страница и масштаб документа
- * при возврате на вкладку на месте. ←/→ на полосе — соседняя вкладка.
+ * вкладки монтируется при первом показе и дальше живёт скрытым
+ * (`invisible` + `inert`, не `display: none`): прокрутка, страница и
+ * масштаб документа при возврате на вкладку на месте. ←/→ на полосе —
+ * соседняя вкладка.
  */
 export function LetterSideTabs({
   letter,
   tabs,
   joining,
   panelOpen,
+  textAttachment,
   onActivate,
   onClose,
   onJoin,
@@ -120,6 +127,9 @@ export function LetterSideTabs({
   joining: boolean;
   /** Панель вложений беседы (как в мессенджере) открыта — тоггл подсвечен. */
   panelOpen: boolean;
+  /** Текстовая часть письма (role body при документе) — вкладка «Текст
+   *  письма»; null — вкладки нет. */
+  textAttachment: LetterAttachment | null;
   onActivate: (tab: LetterTabId) => void;
   onClose: (attachmentId: string) => void;
   onJoin: () => void;
@@ -131,6 +141,15 @@ export function LetterSideTabs({
 
   const strip: TabDef[] = [
     { id: 'body', label: ui.letters.card.tabBody, icon: <FileText className="size-3.5" /> },
+    ...(textAttachment
+      ? [
+          {
+            id: 'text' as const,
+            label: ui.letters.card.tabText,
+            icon: <FileTypeIcon mime={textAttachment.mime} className="size-3.5" />,
+          },
+        ]
+      : []),
     {
       id: 'chat',
       label: ui.letters.card.tabChat,
@@ -164,6 +183,7 @@ export function LetterSideTabs({
 
   const panel = (tab: LetterTabId): ReactNode => {
     if (tab === 'body') return <LetterBodyView letter={letter} />;
+    if (tab === 'text') return <LetterBodyView letter={letter} attachmentId={textAttachment?.id} />;
     if (tab === 'chat') return <LetterChatTab letter={letter} joining={joining} onJoin={onJoin} />;
     const fileId = fileIdOf(tab);
     return fileId ? <LetterBodyView letter={letter} attachmentId={fileId} /> : null;

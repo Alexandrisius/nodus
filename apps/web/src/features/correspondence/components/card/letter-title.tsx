@@ -7,7 +7,9 @@ import { useLetterDetail } from '../../api/letters-queries.js';
 /** Тема письма в хроме слайдера (как название задачи: главный заголовок —
  *  рядом с X, в теле не дублируется). Канцелярия правит её на месте
  *  (Enter/уход — сохранить, Esc — отмена; пустую тему сервер не примет —
- *  отмена), остальным — текст; без темы — «Письмо без темы». */
+ *  отмена), остальным — текст; без темы — «Письмо без темы». У
+ *  незарегистрированного без темы placeholder — предупреждающим тоном:
+ *  тема обязательна для регистрации без окна (редизайн #56). */
 export function LetterTitle({ letterId }: { letterId: string }) {
   const { data: letter } = useLetterDetail(letterId);
   const update = useUpdateLetter(letterId);
@@ -15,6 +17,8 @@ export function LetterTitle({ letterId }: { letterId: string }) {
 
   if (!letter) return <>{ui.letters.letter}</>;
   const shown = letter.subject ?? ui.letters.noSubject;
+  const subjectMissing =
+    letter.subject === null && letter.registeredAt === null && letter.access.canEdit;
   if (!letter.access.canEdit) {
     return <span className={letter.subject ? undefined : 'text-muted-foreground'}>{shown}</span>;
   }
@@ -55,7 +59,9 @@ export function LetterTitle({ letterId }: { letterId: string }) {
       type="button"
       title={`${ui.letters.card.editHint}: ${ui.letters.fields.subject}`}
       onClick={() => setDraft(letter.subject ?? '')}
-      className="block max-w-full cursor-text truncate text-left decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:underline"
+      className={`block max-w-full cursor-text truncate text-left decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:underline ${
+        subjectMissing ? 'text-warning' : letter.subject ? '' : 'text-muted-foreground'
+      }`}
     >
       {shown}
     </button>

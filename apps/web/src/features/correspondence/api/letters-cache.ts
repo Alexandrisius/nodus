@@ -50,6 +50,8 @@ export function listItemOf(letter: LetterDetail): LetterListItem {
     responseDeadline: letter.responseDeadline,
     replyTo: letter.replyTo,
     attachmentCount: letter.attachmentCount,
+    // Карточку открыли — письмо просмотрено (карточка всегда «я открывал»).
+    viewed: letter.viewed,
   };
 }
 

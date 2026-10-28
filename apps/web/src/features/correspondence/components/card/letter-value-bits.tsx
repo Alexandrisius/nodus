@@ -1,5 +1,5 @@
 import { Pencil, X } from 'lucide-react';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 
 /** Значение-ссылка карточки письма (#55, U7): имя ведёт в карточку сущности,
@@ -10,6 +10,15 @@ export const valueButton =
   '-mx-1 inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-accent';
 
 export const notSet = <span className="text-muted-foreground">{ui.common.notSet}</span>;
+
+/** Пустое ОБЯЗАТЕЛЬНОЕ поле формы незарегистрированного письма (редизайн
+ *  #56): тот же «—», но предупреждающим тоном — пропуск заметен до
+ *  «Зарегистрировать». */
+export const notSetRequired: ReactNode = (
+  <span className="text-warning" title={ui.letters.card.requiredField}>
+    {ui.common.notSet}
+  </span>
+);
 
 export const editLabel = (label: string) => `${ui.letters.card.editHint}: ${label}`;
 

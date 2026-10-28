@@ -143,7 +143,7 @@ function cfDisplay(value: unknown): string | null {
 export function patchChanges(
   letter: DemoLetter,
   body: UpdateLetterBody,
-  next: Pick<DemoLetter, 'counterparty' | 'signer' | 'receiptMethod' | 'project'>,
+  next: Pick<DemoLetter, 'counterparty' | 'signer' | 'receiptMethod' | 'project' | 'addressee'>,
 ): LetterHistoryChange[] {
   const changes: LetterHistoryChange[] = [];
   const push = (field: string, from: string | null, to: string | null) => {
@@ -154,6 +154,9 @@ export function patchChanges(
   }
   if (body.signerId !== undefined) {
     push('signerId', letter.signer?.fullName ?? null, next.signer?.fullName ?? null);
+  }
+  if (body.addresseeId !== undefined) {
+    push('addresseeId', letter.addressee?.displayName ?? null, next.addressee?.displayName ?? null);
   }
   if (body.theirNumber !== undefined) push('theirNumber', letter.theirNumber, body.theirNumber);
   if (body.theirDate !== undefined) push('theirDate', letter.theirDate, body.theirDate);

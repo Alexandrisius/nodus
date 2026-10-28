@@ -22,8 +22,10 @@ import {
   letterHistory,
   letterMemberIds,
   pushLetterHistory,
+  viewedLetterIds,
   type DemoLetter,
 } from '../../../../shared/mocks/data/letters.js';
+import { demoUserListItems } from '../../../../shared/mocks/data/users.js';
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import {
   apiError,
@@ -130,19 +132,22 @@ export const lettersMutationHandlers = [
     return HttpResponse.json(letterDetailOf(letter, actor), { status: 201 });
   }),
 
-  /** Правка регистрационных данных (В3, Р11): только зарегистрированные и
-   *  открытые, та же проверка, что при регистрации; журнал — изменения. */
+  /** Правка реквизитов (В3, Р11; редизайн #56 — и незарегистрированного из
+   *  карточки-формы; адресат — только до регистрации): та же проверка полей,
+   *  что при регистрации; журнал — изменения. */
   http.patch('/api/v1/letters/:id', async ({ params, request }) => {
     const actor = getMockActor();
     const letter = findLetter(String(params.id));
     if (!letter || !canSeeLetter(letter, actor)) return notFound();
     if (!canRegisterLetters(actor)) return apiError(403, 'FORBIDDEN');
-    if (letter.registeredAt === null || isFinalState(letter.stage.systemState)) {
-      return apiError(409, 'LETTER_NOT_EDITABLE');
-    }
+    if (isFinalState(letter.stage.systemState)) return apiError(409, 'LETTER_NOT_EDITABLE');
     const parsed = updateLetterBodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return apiError(400, 'VALIDATION_FAILED');
     const body = parsed.data;
+    // Адресат меняется только до регистрации (редизайн #56).
+    if (letter.registeredAt !== null && body.addresseeId !== undefined) {
+      return apiError(409, 'LETTER_NOT_EDITABLE');
+    }
     const counterpartyId = body.counterpartyId ?? letter.counterparty?.id ?? '';
     const signerId = body.signerId !== undefined ? body.signerId : (letter.signer?.id ?? null);
     const issue = await letterFieldsIssue(
@@ -157,6 +162,16 @@ export const lettersMutationHandlers = [
       request,
     );
     if (issue) return apiError(422, 'LETTER_REGISTRATION_INVALID', issue);
+    const addresseeId = body.addresseeId !== undefined ? body.addresseeId : null;
+    const addresseeUser = addresseeId
+      ? demoUserListItems.find((user) => user.id === addresseeId && user.status === 'active')
+      : null;
+    if (addresseeId && !addresseeUser) {
+      return apiError(422, 'LETTER_REGISTRATION_INVALID', {
+        field: 'addresseeId',
+        reason: 'inactive',
+      });
+    }
     const next = {
       counterparty: counterpartyRefById(counterpartyId) ?? letter.counterparty,
       signer: contactRefOf(counterpartyId, signerId),
@@ -164,6 +179,16 @@ export const lettersMutationHandlers = [
         ? receiptMethodRefOf(body.receiptMethodId)
         : letter.receiptMethod,
       project: body.projectId !== undefined ? projectRefOf(body.projectId) : letter.project,
+      addressee:
+        body.addresseeId !== undefined
+          ? addresseeUser
+            ? {
+                id: addresseeUser.id,
+                displayName: addresseeUser.displayName,
+                avatarUrl: addresseeUser.avatarUrl,
+              }
+            : null
+          : letter.addressee,
     };
     const changes = patchChanges(letter, body, next);
     Object.assign(letter, next, {
@@ -202,7 +227,8 @@ export const lettersMutationHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  /** «Присоединиться к обсуждению» (Р10): участник со звуком, идемпотентно. */
+  /** «Присоединиться к обсуждению» (Р10; редизайн #56 — канцелярия может и
+   *  до регистрации): участник со звуком, идемпотентно. */
   http.post('/api/v1/letters/:id/join', ({ params }) => {
     const actor = getMockActor();
     const letter = findLetter(String(params.id));
@@ -218,6 +244,45 @@ export const lettersMutationHandlers = [
       const conversation = demoConversations.find((c) => c.letter?.id === letter.id);
       if (conversation && !conversation.membersPreview.some((m) => m.id === actor.id)) {
         conversation.membersPreview.push(actorUserRef());
+        conversation.membersCount += 1;
+      }
+    }
+    return HttpResponse.json(letterDetailOf(letter, actor));
+  }),
+
+  /** «Я открывал» (редизайн #56): идемпотентно, точка в «Новых» гаснет. */
+  http.post('/api/v1/letters/:id/view', ({ params }) => {
+    const letter = findLetter(String(params.id));
+    if (!letter || !canSeeLetter(letter, getMockActor())) return notFound();
+    viewedLetterIds.add(letter.id);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  /** Пригласить коллегу в обсуждение (редизайн #56): право регистрации,
+   *  любое состояние письма, идемпотентно. */
+  http.post('/api/v1/letters/:id/participants', async ({ params, request }) => {
+    const actor = getMockActor();
+    const letter = findLetter(String(params.id));
+    if (!letter || !canSeeLetter(letter, actor)) return notFound();
+    if (!canRegisterLetters(actor)) return apiError(403, 'FORBIDDEN');
+    const body = (await request.json().catch(() => null)) as { userId?: string } | null;
+    const user = demoUserListItems.find((entry) => entry.id === body?.userId);
+    if (!user || user.status !== 'active') return apiError(422, 'VALIDATION_FAILED');
+    if (!letter.participantIds.includes(user.id)) {
+      letter.participantIds.push(user.id);
+      pushLetterHistory(letter.id, {
+        id: crypto.randomUUID(),
+        kind: 'participant_joined',
+        at: new Date().toISOString(),
+        actor: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl },
+      });
+      const conversation = demoConversations.find((c) => c.letter?.id === letter.id);
+      if (conversation && !conversation.membersPreview.some((m) => m.id === user.id)) {
+        conversation.membersPreview.push({
+          id: user.id,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+        });
         conversation.membersCount += 1;
       }
     }

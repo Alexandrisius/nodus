@@ -58,4 +58,18 @@ describe('вкладки карточки письма (#55)', () => {
     expect(state.files).toEqual([]);
     expect(state.active).toBe('body');
   });
+
+  it('«Текст письма» — постоянная вкладка: активируется, в файлах не живёт (редизайн #56)', () => {
+    let state = activateTab(initialTabs('body'), 'text');
+    expect(state.active).toBe('text');
+    expect(state.visited).toEqual(['body', 'text']);
+    // Не файловая: не закрывается крестиком и не занимает слот вложений.
+    state = openFileTab(state, 'f1');
+    expect(state.files).toEqual(['f1']);
+    state = activateTab(state, 'text');
+    expect(state.active).toBe('text');
+    expect(closeFileTab(state, 'f1').files).toEqual([]);
+    // Пропажа текстовой части — забота карточки (нормализация активной).
+    expect(pruneFileTabs(state, []).active).toBe('text');
+  });
 });

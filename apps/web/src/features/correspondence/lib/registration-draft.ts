@@ -14,6 +14,8 @@ import type {
 } from '@nodus/contracts';
 import { RECEIPT_METHOD_CODES, checkLetterDates, ui } from '@nodus/contracts';
 
+import { todayIso } from './letter-format.js';
+
 /**
  * Черновик формы регистрации (#55, U5) — одна модель для конвейера «Новые»
  * и окна «Зарегистрировать» карточки: ссылки хранятся целиком (имя показывается
@@ -181,4 +183,15 @@ export function registrationInputOf(
       : {}),
     ...(Object.keys(customFields).length > 0 ? { customFields } : {}),
   };
+}
+
+/** Ввод регистрации из САМОГО ПИСЬМА (редизайн #56): карточка-форма правит
+ *  поля по месту, и когда обязательные заполнены — «Зарегистрировать» в
+ *  баре идёт напрямую, без окна (окно — контроль пропусков). null — что-то
+ *  из обязательного пусто или дата не по правилам, нужен контроль окна. */
+export function letterRegistrationInput(
+  letter: LetterDetail,
+  methods: readonly DictionaryItem[],
+): LetterRegistrationInput | null {
+  return registrationInputOf(initialDraft(letter, methods), todayIso());
 }

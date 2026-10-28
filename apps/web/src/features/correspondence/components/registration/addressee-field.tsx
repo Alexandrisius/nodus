@@ -23,12 +23,15 @@ export function AddresseeField({
   id,
   invalid,
   describedBy,
+  autoFocus = false,
 }: {
   value: UserRef | null;
   onChange: (user: UserRef | null) => void;
   id?: string;
   invalid?: boolean;
   describedBy?: string;
+  /** Правка по месту в карточке: фокус в поле открывает список сразу. */
+  autoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -111,6 +114,7 @@ export function AddresseeField({
             aria-autocomplete="list"
             role="combobox"
             autoComplete="off"
+            autoFocus={autoFocus || undefined}
             onChange={(e) => {
               setText(e.target.value);
               setOpen(true);

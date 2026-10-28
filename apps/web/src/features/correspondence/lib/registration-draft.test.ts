@@ -6,6 +6,7 @@ import {
   defaultReceiptMethodId,
   draftIssues,
   initialDraft,
+  letterRegistrationInput,
   missingFields,
   nextEmptyField,
   registrationInputOf,
@@ -123,6 +124,30 @@ describe('черновик регистрации (#55, U5)', () => {
       initialDraft({ ...letter, replySuggestion: suggested } as LetterDetail, METHODS)
         .suggestedReply,
     ).toBe(suggested);
+  });
+
+  it('ввод из самого письма (редизайн #56): всё обязательное заполнено в карточке — готов; пропуск — null, нужен контроль окна', () => {
+    const filled = {
+      ...letter,
+      counterparty: { id: '00000000-0000-4000-8000-000000000001', name: 'АО «Галургия»' },
+      theirNumber: '0359-КЖ/152',
+      theirDate: '2026-10-25',
+      addressee: {
+        id: '00000000-0000-4000-8000-000000000007',
+        displayName: 'Валерия Шайдерова',
+        avatarUrl: null,
+      },
+    } as LetterDetail;
+    const input = letterRegistrationInput(filled, METHODS);
+    expect(input).not.toBeNull();
+    expect(input?.counterpartyId).toBe(filled.counterparty!.id);
+    expect(input?.addresseeId).toBe(filled.addressee!.id);
+    expect(input?.receiptMethodId).toBe(METHODS[0]!.id);
+    // Что-то обязательное пусто (адресат не выбран по месту) — без окна нельзя.
+    expect(letterRegistrationInput(letter, METHODS)).toBeNull();
+    expect(
+      letterRegistrationInput({ ...filled, addressee: null } as LetterDetail, METHODS),
+    ).toBeNull();
   });
 });
 

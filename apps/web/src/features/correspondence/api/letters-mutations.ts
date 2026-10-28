@@ -133,7 +133,8 @@ export function useDeleteSpamLetter() {
   });
 }
 
-/** «Присоединиться к обсуждению» (Р10): участник со звуком, чат открывается. */
+/** «Присоединиться к обсуждению» (Р10; редизайн #56 — канцелярия может
+ *  начать обсуждение и до регистрации): участник со звуком, чат открывается. */
 export function useJoinLetter(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -143,6 +144,23 @@ export function useJoinLetter(id: string) {
       void queryClient.invalidateQueries({ queryKey: chatKeys.byLetter(id) });
       void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
       toast.success(ui.letters.card.joinedToast);
+    },
+    onError: (error) => toast.error(letterErrorText(error)),
+  });
+}
+
+/** Пригласить коллегу в обсуждение (редизайн #56): право регистрации,
+ *  любое состояние письма; состав беседы решает сервер — пессимистично. */
+export function useInviteLetterParticipant(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      api<LetterDetail>(`/letters/${id}/participants`, { method: 'POST', body: { userId } }),
+    onSuccess: (letter) => {
+      applyLetter(queryClient, letter);
+      void queryClient.invalidateQueries({ queryKey: chatKeys.byLetter(id) });
+      void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
+      toast.success(ui.letters.card.invitedToast);
     },
     onError: (error) => toast.error(letterErrorText(error)),
   });

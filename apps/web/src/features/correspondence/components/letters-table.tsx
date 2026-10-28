@@ -1,7 +1,8 @@
-import { Inbox, Send } from 'lucide-react';
-import { useMemo } from 'react';
-import type { LetterListItem } from '@nodus/contracts';
+import { FilePlus2, Inbox, MailCheck, Send } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import type { LetterBox, LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { letterRows, useLettersInfinite } from '../../../shared/api/letters-list.js';
@@ -20,10 +21,15 @@ import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { usePrefetchLetter } from '../api/letters-queries.js';
 import { LettersEmpty, LettersLoadError } from './letters-empty.js';
 import { LettersHeader } from './letters-header.js';
-
-type JournalBox = 'incoming' | 'outgoing';
+import { ManualLetterDialog } from './manual-letter-dialog.js';
 
 const journal = {
+  new: {
+    label: ui.letters.tabs.new,
+    icon: MailCheck,
+    empty: ui.letters.list.newEmpty,
+    hint: ui.letters.list.newEmptyHint,
+  },
   incoming: {
     label: ui.letters.tabs.incoming,
     icon: Inbox,
@@ -41,23 +47,25 @@ const journal = {
 const letterKey = (letter: LetterListItem) => letter.id;
 
 /**
- * Журнал «Входящие» / «Исходящие» (#55, U6) — зарегистрированные письма
- * направления: каноническая таблица shared/views (свой viewKey на вкладку —
- * своя память колонок и фильтров), курсорная подгрузка sentinel-ом,
- * СЕРВЕРНЫЙ поиск (№, тема, их №, корреспондент; задержка 250 мс, прежние
- * строки — до ответа), поля фильтра и пресеты «Мне адресованы» / «Срок
- * ответа истёк» — локально по загруженным страницам. Создания здесь нет:
- * входящее рождается в «Новых», исходящее — с отправкой из портала.
- * Строка — карточка письма поверх стека (префетч по ховеру).
+ * Список писем вкладки (#55, U6; редизайн #56 — и «Новые»): каноническая
+ * таблица shared/views (свой viewKey на вкладку — своя память колонок и
+ * фильтров), курсорная подгрузка sentinel-ом, СЕРВЕРНЫЙ поиск (№, тема,
+ * их №, корреспондент; задержка 250 мс, прежние строки — до ответа), поля
+ * фильтра и пресеты «Мне адресованы» / «Срок ответа истёк» — локально по
+ * загруженным страницам (у «Новых» пресетов нет — письма без адресата и
+ * сроков). Создание — только в «Новых» (бумажное письмо; входящее из почты
+ * приходит само). Строка — карточка письма поверх стека (префетч по
+ * ховеру); у «Новых» тема несёт личную точку «я ещё не открывал»
+ * (`letter-table-fields`).
  */
-export function LettersTable({ box }: { box: JournalBox }) {
+export function LettersTable({ box }: { box: LetterBox }) {
   const copy = journal[box];
   const viewKey = `letters.${box}`;
-  const toolbar = useListToolbar(viewKey, letterBuiltinPresets);
+  const toolbar = useListToolbar(viewKey, box === 'new' ? [] : letterBuiltinPresets);
   const search = useDebouncedValue(toolbar.query.trim(), 250);
   const query = useLettersInfinite(box, { search: search || undefined });
   const serverRows = useMemo(() => letterRows(query.data), [query.data]);
-  const fields = useMemo(() => makeLetterTableFields(), []);
+  const fields = useMemo(() => makeLetterTableFields({ box }), [box]);
   const defs = useLetterFilterDefs(serverRows);
   // Запрос уже применил сервер — локально только поля фильтра (иначе
   // совпадения по «их №» отсеялись бы клиентской подстрокой).
@@ -68,6 +76,7 @@ export function LettersTable({ box }: { box: JournalBox }) {
   const rows = useFilteredList(serverRows, filter);
   const openCard = useOpenCard();
   const prefetch = usePrefetchLetter();
+  const [manualOpen, setManualOpen] = useState(false);
 
   const failed = query.isError && !query.data;
   const pristine = query.isSuccess && serverRows.length === 0 && !search;
@@ -81,10 +90,16 @@ export function LettersTable({ box }: { box: JournalBox }) {
           className="min-w-0 flex-1 px-0"
           toolbar={toolbar}
           defs={defs}
-          builtinPresets={letterBuiltinPresets}
+          builtinPresets={box === 'new' ? [] : letterBuiltinPresets}
           searchPlaceholder={ui.letters.list.searchPlaceholder}
           right={<ViewSettings viewKey={viewKey} defs={fields} />}
         />
+        {box === 'new' ? (
+          <Button onClick={() => setManualOpen(true)} className="shrink-0">
+            <FilePlus2 data-icon="inline-start" />
+            {ui.common.create}
+          </Button>
+        ) : null}
       </LettersHeader>
       <div className="min-h-0 flex-1">
         {failed ? (
@@ -111,6 +126,13 @@ export function LettersTable({ box }: { box: JournalBox }) {
           />
         )}
       </div>
+      {box === 'new' ? (
+        <ManualLetterDialog
+          open={manualOpen}
+          onOpenChange={setManualOpen}
+          onCreated={(created) => openCard({ kind: 'letter', id: created.id })}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { CalendarClock, Paperclip } from 'lucide-react';
-import type { LetterListItem, TaskSystemState } from '@nodus/contracts';
+import type { LetterBox, LetterListItem, TaskSystemState } from '@nodus/contracts';
 import { isOpenState, ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -70,22 +70,27 @@ export function ResponseDeadline({
 
 /**
  * ЕДИНЫЙ реестр колонок списка писем (#55; стандарт «модули не отличаются»,
- * образец — `project-table-fields`): журналы «Входящие»/«Исходящие» и
- * вкладка «Письма» карточки контрагента — каждый со своим viewKey, реестр
- * один. Порядок по умолчанию — как в журнале регистрации: №, дата,
- * корреспондент, тема, их № и дата, адресат, статус, срок ответа; редкие
- * поля — в шестерёнке. Сортировка № — по моменту регистрации (порядок
+ * образец — `project-table-fields`): журналы «Входящие»/«Исходящие», «Новые»
+ * (редизайн #56 — очередь канцелярии тем же каноном) и вкладка «Письма»
+ * карточки контрагента — каждый со своим viewKey, реестр один. Порядок по
+ * умолчанию — как в журнале регистрации: №, дата, корреспондент, тема, их №
+ * и дата, адресат, статус, срок ответа; редкие поля — в шестерёнке. Для
+ * `box: 'new'` умолчания другие: у очереди нет номеров — видны отправитель,
+ * время поступления и вложения, а у темы — личная точка «я ещё не открывал»
+ * (в журналах её нет). Сортировка № — по моменту регистрации (порядок
  * выдачи номеров серии; строковая «Вх-2026/99» > «…/108» врала бы).
  * `counterpartyVisible: false` — внутри карточки контрагента контекст очевиден.
  */
 export function makeLetterTableFields({
   counterpartyVisible = true,
-}: { counterpartyVisible?: boolean } = {}): DataTableField<LetterListItem>[] {
+  box,
+}: { counterpartyVisible?: boolean; box?: LetterBox } = {}): DataTableField<LetterListItem>[] {
+  const fresh = box === 'new';
   const fields: DataTableField<LetterListItem>[] = [
     {
       id: 'regNumber',
       label: ui.letters.fields.regNumber,
-      defaultVisible: true,
+      defaultVisible: !fresh,
       defaultWidth: 124,
       minWidth: 96,
       maxWidth: 200,
@@ -99,12 +104,38 @@ export function makeLetterTableFields({
     {
       id: 'regDate',
       label: ui.letters.fields.regDate,
-      defaultVisible: true,
+      defaultVisible: !fresh,
       defaultWidth: 140,
       minWidth: 104,
       render: (letter) =>
         letter.regDate ? <span className={monoCell}>{formatIsoDate(letter.regDate)}</span> : dash,
       sortValue: (letter) => letter.registeredAt,
+    },
+    {
+      id: 'sender',
+      label: ui.letters.fields.sender,
+      defaultVisible: fresh,
+      defaultWidth: 240,
+      minWidth: 140,
+      maxWidth: 420,
+      render: (letter) => {
+        if (letter.source !== 'mail' || !letter.mailFromAddress) {
+          return (
+            <span className="truncate text-sm text-muted-foreground">
+              {ui.letters.pipeline.senderManual}
+            </span>
+          );
+        }
+        const label = letter.mailFromName
+          ? `${letter.mailFromName} <${letter.mailFromAddress}>`
+          : letter.mailFromAddress;
+        return (
+          <span className="truncate text-sm" title={label}>
+            {letter.mailFromName ?? letter.mailFromAddress}
+          </span>
+        );
+      },
+      sortValue: (letter) => letter.mailFromName ?? letter.mailFromAddress ?? null,
     },
     {
       id: 'counterparty',
@@ -132,13 +163,20 @@ export function makeLetterTableFields({
       maxWidth: 640,
       locked: true,
       render: (letter) => (
-        <span
-          className={cn(
-            'truncate text-sm',
-            letter.subject ? 'font-medium' : 'text-muted-foreground',
-          )}
-        >
-          {letter.subject ?? ui.letters.noSubject}
+        <span className="min-w-0 truncate text-sm">
+          {/* «Я ещё не открывал» (редизайн #56): точка перед темой — только
+              очередь «Новые», журналы её не показывают. */}
+          {fresh && !letter.viewed ? (
+            <span
+              title={ui.letters.list.unreadDot}
+              className="mr-1.5 inline-block size-1.5 shrink-0 rounded-full bg-port align-middle"
+            />
+          ) : null}
+          <span
+            className={cn('truncate', letter.subject ? 'font-medium' : 'text-muted-foreground')}
+          >
+            {letter.subject ?? ui.letters.noSubject}
+          </span>
         </span>
       ),
       sortValue: (letter) => letter.subject,
@@ -146,7 +184,7 @@ export function makeLetterTableFields({
     {
       id: 'theirNumber',
       label: ui.letters.fields.theirNumberAndDate,
-      defaultVisible: true,
+      defaultVisible: !fresh,
       defaultWidth: 188,
       minWidth: 128,
       maxWidth: 300,
@@ -174,7 +212,7 @@ export function makeLetterTableFields({
     {
       id: 'stage',
       label: ui.letters.fields.stage,
-      defaultVisible: true,
+      defaultVisible: !fresh,
       defaultWidth: 172,
       minWidth: 120,
       render: (letter) => <StageChip name={letter.stage.name} color={letter.stage.color} />,
@@ -184,7 +222,7 @@ export function makeLetterTableFields({
     {
       id: 'responseDeadline',
       label: ui.letters.fields.responseDeadline,
-      defaultVisible: true,
+      defaultVisible: !fresh,
       defaultWidth: 136,
       minWidth: 112,
       render: (letter) => (
@@ -209,7 +247,7 @@ export function makeLetterTableFields({
     {
       id: 'receivedAt',
       label: ui.letters.fields.receivedAt,
-      defaultVisible: false,
+      defaultVisible: fresh,
       defaultWidth: 156,
       minWidth: 128,
       render: (letter) => (
@@ -220,7 +258,7 @@ export function makeLetterTableFields({
     {
       id: 'files',
       label: ui.letters.fields.files,
-      defaultVisible: false,
+      defaultVisible: fresh,
       defaultWidth: 88,
       minWidth: 72,
       render: (letter) =>

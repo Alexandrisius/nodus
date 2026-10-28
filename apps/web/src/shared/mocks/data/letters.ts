@@ -15,6 +15,10 @@ export const demoLetters: DemoLetter[] = seedLetters();
 
 export const letterHistory: Map<string, LetterHistoryEntry[]> = seedHistory(demoLetters);
 
+/** «Я открывал» (редизайн #56): личный признак мока — какие незарегистриро-
+ * ванные письма текущий актёр открывал карточкой (сброс — F5). */
+export const viewedLetterIds: Set<string> = new Set();
+
 export function findLetter(id: string): DemoLetter | undefined {
   return demoLetters.find((letter) => letter.id === id);
 }

@@ -11,7 +11,6 @@ import {
   Mail,
   ScanLine,
   Shapes,
-  Stamp,
   TriangleAlert,
   UserCheck,
   UserPen,
@@ -29,12 +28,16 @@ import { EntityFields, type EntityFieldDef } from '../../../../shared/ui/entity-
 import { PersonAvatar } from '../../../../shared/ui/person-avatar.js';
 import { ResponseDeadline } from '../../../../shared/views/letter-table-fields.js';
 import { useUpdateLetter } from '../../api/letters-mutations.js';
-import { boxOfLetter } from '../../api/letters-cache.js';
 import { formatIsoDate } from '../../lib/letter-format.js';
 import { registrationReasonText } from '../../lib/registration-draft.js';
-import { CounterpartyValue, ProjectValue, SignerValue } from './letter-entity-values.js';
+import {
+  AddresseeValue,
+  CounterpartyValue,
+  ProjectValue,
+  SignerValue,
+} from './letter-entity-values.js';
 import { DateFieldValue, ReceiptMethodValue, TextFieldValue } from './letter-field-editors.js';
-import { notSet } from './letter-value-bits.js';
+import { notSet, notSetRequired } from './letter-value-bits.js';
 
 const VISIBILITY_KEY = 'nodus-letter-fields-v1';
 
@@ -53,14 +56,16 @@ const mono = (text: string): ReactNode => (
 );
 
 /**
- * Доска регистрационных данных письма (#55, U7) на общем каркасе
- * `EntityFields` (грамматика полей карточки задачи, «+ Поле» — видимость).
- * Пары в две колонки: корреспондент | подписант, их № | их дата, адресат |
- * срок ответа, способ | проект, дата регистрации | регистратор, поступило |
- * тип. Правка — у `access.canEdit` (канцелярия, зарегистрированное письмо в
- * работе), оптимистично: смена корреспондента тем же PATCH сбрасывает
- * подписанта. Адресат и номер так не меняются (Р11). Новое письмо
- * заполняется окном «Зарегистрировать».
+ * Доска реквизитов письма (#55, U7; редизайн #56 — карточка-форма) на общем
+ * каркасе `EntityFields` (грамматика полей карточки задачи, «+ Поле» —
+ * видимость). Пары в две колонки. Правка — у `access.canEdit` (канцелярия;
+ * после регистрации в работе — тоже), оптимистично: смена корреспондента
+ * тем же PATCH сбрасывает подписанта. Незарегистрированное письмо — ФОРМА:
+ * адресат редактируется по месту (после регистрации — только чтение, Р11),
+ * обязательные поля (корреспондент, их №/дата, способ, адресат; тема — в
+ * титуле слайдера) помечены звёздочкой, пустой пропуск подсвечен тоном —
+ * «Зарегистрировать» без окна требует их заполнения. Тема живёт в хроме
+ * слайдера (`LetterTitle`), здесь не дублируется.
  */
 export const LetterFieldsBoard = memo(function LetterFieldsBoard({
   letter,
@@ -70,6 +75,7 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
   const update = useUpdateLetter(letter.id);
   const { data: projects } = useProjectsList({ enabled: letter.access.canEdit });
   const editable = letter.access.canEdit;
+  const unregistered = letter.registeredAt === null;
   const save = (body: UpdateLetterBody, patch: Partial<LetterDetail>) =>
     update.mutate({ body, patch });
   const rejectDate = (reason: 'in_future' | 'in_past') =>
@@ -81,10 +87,12 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
       key: 'counterparty',
       icon: <Building2 className="size-3.5" />,
       label: ui.letters.fields.counterparty,
+      required: unregistered,
       render: () => (
         <CounterpartyValue
           letter={letter}
           editable={editable}
+          empty={unregistered ? notSetRequired : notSet}
           onCommit={(counterparty) =>
             save(
               { counterpartyId: counterparty.id, signerId: null },
@@ -110,12 +118,14 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
       key: 'theirNumber',
       icon: <Hash className="size-3.5" />,
       label: ui.letters.fields.theirNumber,
+      required: unregistered,
       render: () => (
         <TextFieldValue
           value={letter.theirNumber}
           label={ui.letters.fields.theirNumber}
           maxLength={LETTER_LIMITS.theirNumber}
           editable={editable}
+          empty={unregistered ? notSetRequired : notSet}
           onCommit={(theirNumber) => save({ theirNumber }, { theirNumber })}
         />
       ),
@@ -124,13 +134,20 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
       key: 'theirDate',
       icon: <CalendarDays className="size-3.5" />,
       label: ui.letters.fields.theirDate,
+      required: unregistered,
       render: () => (
         <DateFieldValue
           value={letter.theirDate}
           label={ui.letters.fields.theirDate}
           editable={editable}
           rule="not_future"
-          display={letter.theirDate ? mono(formatIsoDate(letter.theirDate)) : notSet}
+          display={
+            letter.theirDate ? (
+              mono(formatIsoDate(letter.theirDate))
+            ) : (
+              <>{unregistered ? notSetRequired : notSet}</>
+            )
+          }
           onRejected={rejectDate}
           onCommit={(theirDate) => theirDate && save({ theirDate }, { theirDate })}
         />
@@ -140,7 +157,15 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
       key: 'addressee',
       icon: <UserCheck className="size-3.5" />,
       label: ui.letters.fields.addressee,
-      render: () => <Person user={letter.addressee} />,
+      required: unregistered,
+      render: () => (
+        <AddresseeValue
+          letter={letter}
+          editable={editable && unregistered}
+          empty={unregistered ? notSetRequired : notSet}
+          onCommit={(addressee) => save({ addresseeId: addressee?.id ?? null }, { addressee })}
+        />
+      ),
     },
     {
       key: 'responseDeadline',
@@ -172,10 +197,12 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
       key: 'receiptMethod',
       icon: <Inbox className="size-3.5" />,
       label: ui.letters.fields.receiptMethod,
+      required: unregistered,
       render: () => (
         <ReceiptMethodValue
           letter={letter}
           editable={editable}
+          empty={unregistered ? notSetRequired : notSet}
           onCommit={(receiptMethod) =>
             save({ receiptMethodId: receiptMethod.id }, { receiptMethod })
           }
@@ -270,14 +297,12 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
     },
   ];
 
-  // Подсказка, почему поля не правятся: у нового — окно регистрации, у
-  // зарегистрированного в работе без права — канцелярия.
+  // Подсказка, почему поля не правятся: зарегистрированное в работе без
+  // права — канцелярия (незарегистрированное видит только она — там правка).
   const hint =
-    boxOfLetter(letter) === 'new'
-      ? { icon: <Stamp className="size-3.5" />, text: ui.letters.card.newHint }
-      : !editable && letter.registeredAt !== null && !isFinalState(letter.stage.systemState)
-        ? { icon: <Lock className="size-3.5" />, text: ui.letters.card.readOnlyHint }
-        : null;
+    !editable && letter.registeredAt !== null && !isFinalState(letter.stage.systemState)
+      ? { icon: <Lock className="size-3.5" />, text: ui.letters.card.readOnlyHint }
+      : null;
 
   // Флаги приёма почты (#56): письмо разобрано/сохранено не полностью.
   const mailFlags: string[] = [];

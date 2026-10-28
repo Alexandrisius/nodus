@@ -11,7 +11,6 @@ import { DownloadCard } from '../../../shared/files/download-card.js';
 import { FileViewerBody } from '../../../shared/files/file-viewer-body.js';
 import type { ViewerTarget } from '../../../shared/files/viewer-store.js';
 import { SandboxedHtml, useEmailSheetColors } from '../../../shared/html/sandboxed-html.js';
-import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
 import { useLetterBodyText } from '../api/letters-queries.js';
 
 /** Цель общего просмотрщика по вложению письма. */
@@ -31,6 +30,14 @@ export function viewerTargetOf(attachment: LetterAttachment): ViewerTarget {
  *  (вердикт владельца 28.10: .txt должен читаться, а не показывать нули). */
 const isTextBody = (a: LetterAttachment) => a.role === 'body';
 
+/** Текстовая часть письма (role body) рядом с главным документом — основа
+ *  неснимаемой вкладки «Текст письма» (редизайн #56): есть только когда
+ *  главное — документ (скан/PDF), а текст почты — отдельная часть. */
+export function letterTextPart(letter: LetterDetail): LetterAttachment | null {
+  if (letter.body.kind !== 'document') return null;
+  return letter.attachments.find(isTextBody) ?? null;
+}
+
 /** contentId → абсолютный URL вложения (Р11): резолв cid: картинок HTML-тела
  *  на показе; ссылка подписанная и того же происхождения (CSP 'self'). */
 function cidMapOf(letter: LetterDetail): Record<string, string> {
@@ -45,9 +52,9 @@ function cidMapOf(letter: LetterDetail): Record<string, string> {
  * Тело письма и его вложения (#55, Р8; #56 — cid-картинки): главный документ
  * — общим просмотрщиком по ширине панели; HTML — песочница с «Показать
  * изображения» и резолвом inline-картинок; text/plain — читательской
- * колонкой со ссылками. При главном документе И тексте почты —
- * переключатель «Документ / Текст письма». `attachmentId` — конкретное
- * вложение (вкладка карточки).
+ * колонкой со ссылками. Текстовая часть почты при документе — отдельная
+ * вкладка карточки (`letterTextPart`), переключателя здесь нет.
+ * `attachmentId` — конкретное вложение (вкладка карточки).
  */
 export function LetterBodyView({
   letter,
@@ -56,10 +63,9 @@ export function LetterBodyView({
 }: {
   letter: LetterDetail;
   attachmentId?: string;
-  /** Пустое тело: конвейер — «Документ не приложен», карточка — своё. */
+  /** Пустое тело: карточка — своё. */
   empty?: ReactNode;
 }) {
-  const [mode, setMode] = useState<'document' | 'text'>('document');
   const byId = (id: string) => letter.attachments.find((a) => a.id === id);
   const cidMap = useMemo(() => cidMapOf(letter), [letter]);
 
@@ -72,30 +78,7 @@ export function LetterBodyView({
   }
   const main = byId(letter.body.attachmentId);
   if (!main) return <>{empty ?? <BodyEmpty title={ui.letters.body.none} />}</>;
-  const text = letter.body.kind === 'document' ? letter.attachments.find(isTextBody) : undefined;
-  if (!text) return <AttachmentView attachment={main} cidMap={cidMap} />;
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center justify-center border-b border-border px-3">
-        <SegmentedControl
-          size="sm"
-          value={mode}
-          onChange={setMode}
-          ariaLabel={ui.letters.card.tabsLabel}
-          activeClassName="bg-accent text-foreground"
-          className="w-64"
-          options={[
-            { value: 'document', label: ui.letters.body.document },
-            { value: 'text', label: ui.letters.card.tabText },
-          ]}
-        />
-      </div>
-      <div className="min-h-0 flex-1">
-        <AttachmentView key={mode} attachment={mode === 'document' ? main : text} cidMap={cidMap} />
-      </div>
-    </div>
-  );
+  return <AttachmentView attachment={main} cidMap={cidMap} />;
 }
 
 function AttachmentView({
