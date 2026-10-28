@@ -7,6 +7,7 @@ import {
 } from '@nodus/contracts';
 
 import { FileAccessRegistry } from '../../src/core/ports/file-access.registry.js';
+import { waitForAudit } from './audit-test-utils.js';
 import {
   historyPage,
   registrationResult,
@@ -214,14 +215,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(removed.status).toBe(204);
       expect((await c.api(c.registrar, 'GET', `/letters/${letterId}`)).status).toBe(404);
       // DELETE отвечает 204 без тела — entityId аудита пуст, путь несёт id.
-      const audit = await c.fx.prisma.auditLog.findFirst({
-        where: { action: 'correspondence.letter_spam_deleted' },
-        orderBy: { createdAt: 'desc' },
-      });
-      expect(audit).not.toBeNull();
-      expect(audit?.entityId).toBe(letterId);
-      expect(JSON.stringify(audit?.details ?? {})).toContain(letterId);
-      expect(JSON.stringify(audit?.details ?? {})).not.toContain('scan.pdf');
+      const audit = await waitForAudit(() =>
+        c.fx.prisma.auditLog.findFirst({
+          where: { action: 'correspondence.letter_spam_deleted' },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+      expect(audit.entityId).toBe(letterId);
+      expect(JSON.stringify(audit.details ?? {})).toContain(letterId);
+      expect(JSON.stringify(audit.details ?? {})).not.toContain('scan.pdf');
     });
 
     it('присоединение: беседа письма, проекция CRM, подписант занят', async () => {
