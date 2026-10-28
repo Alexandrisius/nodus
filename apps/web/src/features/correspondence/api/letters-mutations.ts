@@ -20,8 +20,8 @@ import {
   letterErrorText,
   listItemOf,
   registrationIssueOf,
-  restoreLists,
-  snapshotLists,
+  restoreLetterInLists,
+  snapshotLetterInList,
   syncLetterInLists,
 } from './letters-cache.js';
 
@@ -81,22 +81,25 @@ export function useUpdateLetter(id: string) {
     onMutate: async ({ patch }) => {
       await queryClient.cancelQueries({ queryKey: detailKey });
       const previous = queryClient.getQueryData<LetterDetail>(detailKey);
-      const lists = snapshotLists(queryClient);
+      const previousListItem = snapshotLetterInList(queryClient, id);
       if (previous) {
         const next = { ...previous, ...patch };
         queryClient.setQueryData(detailKey, next);
         syncLetterInLists(queryClient, id, listItemOf(next));
       }
-      return { previous, lists };
+      return { previous, previousListItem };
     },
     onError: (error, _vars, context) => {
       if (context?.previous) queryClient.setQueryData(detailKey, context.previous);
-      restoreLists(queryClient, context?.lists);
+      restoreLetterInLists(queryClient, id, context?.previousListItem ?? null);
       toast.error(letterErrorText(error));
     },
     onSuccess: (letter) => {
       applyLetter(queryClient, letter);
       void queryClient.invalidateQueries({ queryKey: lettersKeys.history(id) });
+    },
+    onSettled: () => {
+      listsStale(queryClient);
     },
   });
 }
@@ -107,13 +110,13 @@ export function useDeleteSpamLetter() {
   return useMutation({
     mutationFn: (letterId: string) => api<void>(`/letters/${letterId}`, { method: 'DELETE' }),
     onMutate: async (letterId) => {
+      const previousListItem = snapshotLetterInList(queryClient, letterId);
       await queryClient.cancelQueries({ queryKey: lettersKeys.lists() });
-      const lists = snapshotLists(queryClient);
       syncLetterInLists(queryClient, letterId, null);
-      return { lists };
+      return { previousListItem };
     },
-    onError: (error, _letterId, context) => {
-      restoreLists(queryClient, context?.lists);
+    onError: (error, letterId, context) => {
+      restoreLetterInLists(queryClient, letterId, context?.previousListItem ?? null);
       toast.error(letterErrorText(error));
     },
     onSuccess: (_result, letterId) => {
