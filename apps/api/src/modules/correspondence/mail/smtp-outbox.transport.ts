@@ -172,7 +172,7 @@ export class SmtpOutboxTransport implements OnModuleInit, OnModuleDestroy {
     const message = error instanceof Error ? error.message : String(error);
     // Лог без содержимого письма (security-ревью #56): только адреса и контекст.
     this.logger.error(
-      { err: error, letterId: job.letterId ?? null, to: job.to, subject: job.subject },
+      { err: error, letterId: job.letterId ?? null, to: job.to },
       'Исходящее не отправлено',
     );
     await this.txRunner

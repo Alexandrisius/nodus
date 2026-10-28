@@ -2,13 +2,15 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { ADMIN, SECOND } from '../e2e-users.js';
 
 /**
- * Живой e2e корреспонденции (#55, критичный путь «≤ 30 секунд»): канцелярия
- * (админ) регистрирует бумажное письмо в конвейере «Новые» — корреспондент,
- * их №, дата, тема, способ поступления, адресат, Ctrl+Enter — и получает
- * номер «Вх-ГГГГ/N». Сотрудник без `correspondence.register` не видит
- * «Новые» (вкладки нет), но видит зарегистрированное письмо во «Входящих».
+ * Живой e2e корреспонденции (#56, критичный путь регистрации): канцелярия
+ * (админ) регистрирует письмо из «Новых» карточкой-формой — бар
+ * «Зарегистрировать» с пустыми полями открывает окно контроля пропусков,
+ * заполнение (корреспондент, № и дата корреспондента, тема, адресат) —
+ * «Зарегистрировать» в окне, номер «Вх-ГГГГ/N» приходит тостом, карточка
+ * закрывается. Сотрудник без `correspondence.register` не видит вкладку
+ * «Новые», но видит письмо с номером во «Входящих».
  *
- * Требует живой стек без моков (api + web + MinIO):
+ * Требует живой стек без моков (api + web + MinIO + Gotenberg):
  *   E2E_LIVE_API=1 NODUS_BASE_URL=http://127.0.0.1:4173 npx playwright test specs/letters-live.spec.ts
  */
 
@@ -55,7 +57,7 @@ async function loginUi(page: Page, email: string, password: string): Promise<voi
   await expect(page).toHaveURL(/\/home$/);
 }
 
-test.describe('живая корреспонденция (#55)', () => {
+test.describe('живая корреспонденция (#56)', () => {
   let adminToken: string;
   let letterId: string;
   let regNumber: string;
@@ -81,6 +83,8 @@ test.describe('живая корреспонденция (#55)', () => {
     });
     expect(counterparty.status, await counterparty.clone().text()).toBe(201);
 
+    // Ручное входящее (скан): mainIndex=0 — основной документ уже назначен,
+    // звезда в окне регистрации горит на нём.
     const form = new FormData();
     form.append('typeId', incoming!.id);
     form.append('mainIndex', '0');
@@ -94,50 +98,46 @@ test.describe('живая корреспонденция (#55)', () => {
     letterId = ((await created.json()) as LetterDto).id;
   });
 
-  test('канцелярия регистрирует письмо из конвейера «Новые»', async ({ page }) => {
-    test.setTimeout(90_000);
+  test('канцелярия регистрирует письмо карточкой-формой через окно пропусков', async ({ page }) => {
+    test.setTimeout(120_000);
     await loginUi(page, ADMIN.email, ADMIN.password);
     await page.goto('/letters?tab=new');
 
-    const queue = page.getByRole('listbox', { name: 'Новые письма' });
-    await expect(queue).toBeVisible();
-    // Наше письмо — самое свежее (received_at DESC), поэтому первое.
-    const first = queue.getByRole('option').first();
-    await expect(first).toBeVisible();
-    await first.click();
+    // «Новые» — таблица; наше письмо свежее (received_at DESC) — первая строка.
+    const row = page.getByRole('row', { name: new RegExp(SUBJECT) }).first();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await row.click();
 
-    // Корреспондент: ввод фильтрует справочник, выбор — кликом.
-    await page.getByRole('combobox', { name: 'Корреспондент' }).click();
-    await page.getByRole('combobox', { name: 'Корреспондент' }).fill(COUNTERPARTY);
-    await page
+    // Обязательные поля пусты: бар ведёт в окно «контроль пропусков».
+    await page.getByRole('button', { name: 'Зарегистрировать', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    // Основной документ уже выбран (mainIndex) — пропуск не горит.
+    await expect(dialog.getByText('Основной документ')).toBeVisible();
+
+    await dialog.getByRole('combobox', { name: 'Корреспондент' }).click();
+    await dialog.getByRole('combobox', { name: 'Корреспондент' }).fill(COUNTERPARTY);
+    await dialog
       .getByRole('option', { name: new RegExp(COUNTERPARTY) })
       .first()
       .click();
 
-    await page.getByLabel('Их №').fill(THEIR_NUMBER);
-    await page.getByRole('textbox', { name: 'Их дата' }).fill('01.10.2026');
-    await page.getByRole('textbox', { name: 'Тема', exact: true }).fill(SUBJECT);
+    await dialog.getByLabel('№ корреспондента').fill(THEIR_NUMBER);
+    await dialog.getByLabel('Дата корреспондента').fill('01.10.2026');
+    await dialog.getByLabel('Тема', { exact: true }).fill(SUBJECT);
 
-    // Способ поступления — системный справочник; «Почта» засеяна миграцией.
-    await page.getByRole('combobox', { name: 'Способ поступления' }).click();
-    await page.getByRole('option', { name: 'Почта', exact: true }).click();
-
-    await page.getByRole('combobox', { name: 'Адресат' }).click();
-    // Список «Принимают решения» — держатели correspondence.resolve; админ
-    // в сиде — «Системный Администратор».
-    await page
-      .getByRole('option', { name: /Администратор Системный/ })
+    await dialog.getByRole('combobox', { name: 'Адресат' }).click();
+    // Список «Принимают решения»: в сиде песочницы это тестовые держатели.
+    await dialog
+      .getByRole('option', { name: /Администратор|Климович|night/ })
       .first()
       .click();
-    // Список закрывается и возвращает фокус в поле — ждём, иначе Ctrl+Enter
-    // придёт в поповер и конвейер (правило «поверх — окно») его пропустит.
-    await expect(page.getByRole('listbox', { name: 'Адресат' })).toHaveCount(0);
+    await expect(dialog.getByRole('listbox')).toHaveCount(0);
 
-    // Сценарий «≤ 30 секунд»: Ctrl+Enter регистрирует без мыши.
-    await page.keyboard.press('Control+Enter');
-    await expect(page.getByText(/Зарегистрировано:/)).toBeVisible({ timeout: 15_000 });
+    await dialog.getByRole('button', { name: 'Зарегистрировать' }).click();
+    // Номер — тостом; карточка закрывается — возврат к списку «Новых».
+    await expect(page.getByText(/Зарегистрировано:/)).toBeVisible({ timeout: 20_000 });
 
-    // Сервер выдал номер и письмо ушло во «Входящие».
     await expect
       .poll(async () => {
         const res = await fetch(`${BASE_URL}/api/v1/letters/${letterId}`, {

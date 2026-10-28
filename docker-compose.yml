@@ -302,6 +302,12 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
     restart: unless-stopped
+    # Вторая линия обороны конвертера (security #56): Chromium-роуту разрешены
+    # только локальные схемы и рабочая папка формы — чужие http(s)/file:// в
+    # недоверенном HTML письма (включая file:///etc/…) не открываются вовсе.
+    command:
+      - gotenberg
+      - --chromium-allow-list=about:*;blob:*;data:*;file:*/tmp/*;fontsize:*
     # Конвейер производных #139; офисные вложения ВНЕШНИХ отправителей
     # приходят почтой (#56) — SSRF-поверхность конвертера закрыта
     # egress-изоляцией: ТОЛЬКО внутренняя сеть без выхода наружу и без
@@ -319,6 +325,10 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg_sandbox
     restart: unless-stopped
+    # Тот же allow-list, что у прода (security #56) — единая защита конвертера.
+    command:
+      - gotenberg
+      - --chromium-allow-list=about:*;blob:*;data:*;file:*/tmp/*;fontsize:*
     ports:
       - '127.0.0.1:${NODUS_GOTENBERG_PORT:-3100}:3000'
     networks: [nodus_net]

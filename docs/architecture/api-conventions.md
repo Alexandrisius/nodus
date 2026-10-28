@@ -133,6 +133,6 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 - `DELETE /letters/:id` — только «Новые» и только право регистрации (спам, Р12).
 - `POST /letters/:id/view` — личный признак «просмотрено» (не бизнес-действие: без аудита и события), 204, идемпотентен.
 - `POST /letters/:id/join` — состав беседы письма решает сервер; канцелярия может «начать обсуждение» и незарегистрированного (редизайн #56), остальные — только зарегистрированные.
-- `POST /letters/:id/participants` — пригласить коллегу в обсуждение (`{ userId }`): только `correspondence.register`, письмо в любом состоянии, идемпотентно; событие и аудит — те же, что у join.
+- `POST /letters/:id/participants` — пригласить коллег в обсуждение (`{ userIds }`: массив 1–20): только `correspondence.register`, письмо в любом состоянии, идемпотентно; событие и аудит — те же, что у join.
 - `GET /letters/resolvers` — держатели `correspondence.resolve` («Принимают решения»); литеральный путь объявлен ДО `/letters/:id`.
 - Коды: `LETTER_REGISTRATION_INVALID` (`details {field, reason}` — подсветка поля), `LETTER_ALREADY_REGISTERED` (`details.regNumber`), `WORKFLOW_NUMBERING_NOT_CONFIGURED`.
