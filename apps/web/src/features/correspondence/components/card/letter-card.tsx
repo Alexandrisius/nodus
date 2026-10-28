@@ -38,7 +38,6 @@ import { LetterCardChainBar } from './letter-card-chain-bar.js';
 import { LetterCardSkeleton } from './letter-card-skeleton.js';
 import { LetterFieldsBoard } from './letter-fields-board.js';
 import { LetterFilesBlock } from './letter-files-block.js';
-import { LetterHistory } from './letter-history.js';
 import { LetterSideTabs } from './letter-side-tabs.js';
 // Побочный эффект: превью ссылок на письма в чате (link-previews); карточка —
 // eager-импорт стека, поэтому реестр заполнен на старте.
@@ -62,7 +61,7 @@ function defaultTabOf(letter: LetterDetail): LetterTabId {
  * Карточка письма (#55, U7; редизайн #56, стек ADR-0009, `?cards=letter:<id>`)
  * — анатомия карточки задачи: полоса цепочки «ПИСЬМО · Вх-…» со статусом;
  * слева — доска реквизитов (незарегистрированное — ФОРМА: поля по месту,
- * обязательные помечены), атрибуты типа, «Файлы», «История» (свёрнута) и
+ * обязательные помечены), атрибуты типа и «Файлы», и
  * замоноличенный бар h-16 («Зарегистрировать» при заполненных полях идёт
  * без окна; после успешной регистрации карточка закрывается — возврат к
  * списку «Новых»); справа — панель вкладок «Письмо» (документ: выбор
@@ -183,7 +182,6 @@ export function LetterCard({ letterId }: { letterId: string }) {
               <LetterFieldsBoard letter={letter} />
               <LetterAttributes letter={letter} />
               <LetterFilesBlock letter={letter} activeId={activeFileId} onOpen={openAttachment} />
-              <LetterHistory letterId={letter.id} />
             </div>
           </div>
           <div className="flex h-16 shrink-0 items-center border-t border-border px-5">

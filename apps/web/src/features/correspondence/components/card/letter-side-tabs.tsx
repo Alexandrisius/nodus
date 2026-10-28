@@ -1,4 +1,4 @@
-import { FileText, Loader2, MessageSquare, MessagesSquare, X } from 'lucide-react';
+import { FileText, History, Loader2, MessageSquare, MessagesSquare, X } from 'lucide-react';
 import { useId, type KeyboardEvent, type ReactNode } from 'react';
 import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -25,6 +25,7 @@ import {
   type LetterTabsState,
 } from '../../lib/letter-tabs.js';
 import { LetterBodyView } from '../letter-body-view.js';
+import { LetterHistory } from './letter-history.js';
 
 interface TabDef {
   id: LetterTabId;
@@ -153,6 +154,11 @@ export function LetterSideTabs({
       icon: <MessageSquare className="size-3.5" />,
       badge: conversation?.unreadCount,
     },
+    {
+      id: 'history',
+      label: ui.letters.card.history,
+      icon: <History className="size-3.5" />,
+    },
     ...tabs.files.flatMap((fileId) => {
       const file = letter.attachments.find((a) => a.id === fileId);
       return file
@@ -181,6 +187,7 @@ export function LetterSideTabs({
   const panel = (tab: LetterTabId): ReactNode => {
     if (tab === 'body') return <LetterBodyView letter={letter} />;
     if (tab === 'chat') return <LetterChatTab letter={letter} joining={joining} onJoin={onJoin} />;
+    if (tab === 'history') return <LetterHistory letterId={letter.id} />;
     const fileId = fileIdOf(tab);
     return fileId ? <LetterBodyView letter={letter} attachmentId={fileId} /> : null;
   };

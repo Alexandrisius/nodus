@@ -9,7 +9,7 @@
  * тестируются без DOM.
  */
 
-export type LetterTabId = 'body' | 'chat' | `file:${string}`;
+export type LetterTabId = 'body' | 'chat' | 'history' | `file:${string}`;
 
 export const MAX_FILE_TABS = 6;
 
