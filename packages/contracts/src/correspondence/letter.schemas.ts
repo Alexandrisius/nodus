@@ -44,6 +44,11 @@ export const letterAttachmentSchema = z.object({
   name: z.string().min(1),
   mime: z.string().min(1),
   size: z.number().int().min(0),
+  /** Content-ID MIME-части (#56): связывает inline-картинку HTML-тела с
+   *  вложением (cid: резолв на показе); null — обычное вложение. */
+  contentId: z.string().min(1).nullable(),
+  /** Inline-часть письма (картинка в HTML-теле): из блока «Файлы» скрыта. */
+  inline: z.boolean(),
   /** Подписанная ссылка содержимого (выдаётся только после проверки
    *  видимости письма). */
   url: z.string().min(1),
@@ -96,6 +101,10 @@ export const letterListItemSchema = z.object({
   /** Поступило в систему (почта — время приёма, вручную — создания). */
   receivedAt: z.iso.datetime(),
   source: letterSourceSchema,
+  /** Отправитель почтового конверта (#56, Р9): строка очереди «Новые»
+   *  показывает «Имя <адрес>»; у ручного письма — null («внесено вручную»). */
+  mailFromName: z.string().nullable(),
+  mailFromAddress: z.string().min(3).nullable(),
   /** Тема: у почты — из письма, у бумажного скана до регистрации — пусто. */
   subject: z.string().nullable(),
   /** Корреспондент — ссылка на справочник контрагентов (I15); до
@@ -109,6 +118,9 @@ export const letterListItemSchema = z.object({
   addressee: userRefSchema.nullable(),
   /** Срок ответа (ISO-дата); по умолчанию не ставится. */
   responseDeadline: z.iso.date().nullable(),
+  /** Авто-связь «ответ на» по почтовой цепочке (#56, Р5): предок-исходящее
+   *  (registered) или null. */
+  replyTo: letterRefSchema.nullable(),
   /** Файлов письма (без исходника .eml). */
   attachmentCount: z.number().int().min(0),
 });
@@ -126,11 +138,43 @@ export const letterAccessSchema = z.object({
 });
 export type LetterAccess = z.infer<typeof letterAccessSchema>;
 
+/** Почтовые реквизиты письма (заголовки конверта, #56); null — вручную. */
+export const letterMailInfoSchema = z.object({
+  fromAddress: z.string().min(3),
+  fromName: z.string().nullable(),
+  /** Message-ID конверта (дедуп и связи цепочки); null — письмо без него. */
+  messageId: z.string().nullable(),
+  /** Письмо не разобрано целиком — реквизиты и файлы неполные (битое
+   *  письмо не блокирует очередь — анти-яд). */
+  parseIssue: z.boolean(),
+  /** Часть письма не сохранена (исходник сверх потолка, вложения сверх
+   *  лимита) — карточка помечает. */
+  storageIncomplete: z.boolean(),
+});
+export type LetterMailInfo = z.infer<typeof letterMailInfoSchema>;
+
+/** Подстановка контрагента по адресу отправителя (Р6, В2): ровно один
+ *  активный контакт справочника с таким адресом; подписант — этот контакт. */
+export const letterCounterpartySuggestionSchema = z.object({
+  counterpartyId: z.uuid(),
+  signerId: z.uuid(),
+});
+export type LetterCounterpartySuggestion = z.infer<typeof letterCounterpartySuggestionSchema>;
+
 export const letterDetailSchema = letterListItemSchema.extend({
   type: processTypeRefSchema,
   /** Подписант — контакт корреспондента. */
   signer: contactRefSchema.nullable(),
   registrar: userRefSchema.nullable(),
+  /** Почтовые реквизиты (#56); null — бумажное письмо, внесённое вручную. */
+  mail: letterMailInfoSchema.nullable(),
+  /** Нечёткая подсказка связи (тема «на № N от ДД.ММ.ГГГГ», Р5): приходит,
+   *  только если авто-связи по цепочке нет; регистратор подтверждает
+   *  галочкой в форме. */
+  replySuggestion: letterRefSchema.nullable(),
+  /** Контрагент и подписант по адресу отправителя (Р6, В2); null — адреса
+   *  нет в справочнике или совпадений несколько. */
+  counterpartySuggestion: letterCounterpartySuggestionSchema.nullable(),
   attachments: z.array(letterAttachmentSchema),
   body: letterBodySchema,
   /** Атрибуты области `letter`, привязанные к типу (ADR-0029). */

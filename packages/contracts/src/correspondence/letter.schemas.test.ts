@@ -22,6 +22,8 @@ const listItem = {
   registeredAt: null,
   receivedAt: '2026-10-26T07:12:00.000Z',
   source: 'manual',
+  mailFromName: null,
+  mailFromAddress: null,
   subject: null,
   counterparty: null,
   theirNumber: null,
@@ -30,6 +32,7 @@ const listItem = {
   project: null,
   addressee: null,
   responseDeadline: null,
+  replyTo: null,
   attachmentCount: 1,
 };
 
@@ -47,6 +50,9 @@ describe('письмо v3 (#55)', () => {
       },
       signer: null,
       registrar: null,
+      mail: null,
+      replySuggestion: null,
+      counterpartySuggestion: null,
       attachments: [
         {
           id: attachmentId,
@@ -55,6 +61,8 @@ describe('письмо v3 (#55)', () => {
           name: 'скан.jpg',
           mime: 'image/jpeg',
           size: 120_000,
+          contentId: null,
+          inline: false,
           url: '/api/v1/files/x/content?exp=1&sig=2',
           pdfUrl: null,
           previewKind: 'image',
@@ -99,6 +107,59 @@ describe('письмо v3 (#55)', () => {
     expect(listLettersQuerySchema.parse({ box: 'new' }).box).toBe('new');
     expect(listLettersQuerySchema.safeParse({ box: 'registry' }).success).toBe(false);
     expect(listLettersQuerySchema.safeParse({ search: 'я'.repeat(129) }).success).toBe(false);
+  });
+
+  it('почтовое письмо (#56): конверт, подсказки, inline-вложение с contentId', () => {
+    const attachmentId = id();
+    const outgoingRef = { id: id(), regNumber: 'Исх-2026/45', subject: 'Проект договора' };
+    const detail = letterDetailSchema.parse({
+      ...listItem,
+      source: 'mail',
+      mailFromName: 'ООО «Силиум»',
+      mailFromAddress: 'info@silium.by',
+      replyTo: outgoingRef,
+      type: {
+        id: listItem.typeId,
+        code: 'letter-incoming',
+        name: 'Входящее письмо',
+        category: 'letter',
+      },
+      signer: null,
+      registrar: null,
+      mail: {
+        fromAddress: 'info@silium.by',
+        fromName: 'ООО «Силиум»',
+        messageId: '<abc@silium.by>',
+        parseIssue: false,
+        storageIncomplete: false,
+      },
+      replySuggestion: null,
+      counterpartySuggestion: { counterpartyId: id(), signerId: id() },
+      attachments: [
+        {
+          id: attachmentId,
+          fileId: id(),
+          role: 'attachment',
+          name: 'logo.png',
+          mime: 'image/png',
+          size: 8_000,
+          contentId: 'logo-cid@silium',
+          inline: true,
+          url: '/api/v1/files/x/content?exp=1&sig=2',
+          pdfUrl: null,
+          previewKind: 'image',
+        },
+      ],
+      body: { kind: 'html', attachmentId: id() },
+      customFields: {},
+      customFieldRefs: [],
+      access: { canEdit: false, canDeleteSpam: true, canJoin: true, isParticipant: false },
+    });
+    expect(detail.mail?.messageId).toBe('<abc@silium.by>');
+    expect(detail.replyTo?.regNumber).toBe('Исх-2026/45');
+    expect(detail.attachments[0]?.inline).toBe(true);
+    // Подтверждение подсказки — ровно одна пара контрагент+подписант.
+    expect(detail.counterpartySuggestion?.counterpartyId).toBeTruthy();
   });
 
   it('история — union по виду; правка несёт 1–20 изменений', () => {

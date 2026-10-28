@@ -20,6 +20,11 @@ export const LETTER_LIMITS = {
   subject: 500,
   /** Файлов при ручном создании (скан + приложения). */
   files: 20,
+  /** Вложений письма почты (#56, Р12): сверх — не сохраняются, письмо
+   *  помечается `storageIncomplete`. */
+  mailFiles: 50,
+  /** Идентификаторов References/In-Reply-To в разборе цепочки (Р5, кап). */
+  mailReferences: 100,
   /** Байт одного файла ручного создания (лимит вложений портала). */
   fileBytes: 100 * 1024 * 1024,
   /** Байт HTML/текстового тела, которое веб показывает в песочнице; больше —
@@ -34,7 +39,9 @@ export const LETTER_LIMITS = {
 } as const;
 
 /** Ввод регистрации (`form.registration` тела перехода, Р1): адресат
- *  обязателен (В1), подписант — контакт корреспондента или пусто. */
+ *  обязателен (В1), подписант — контакт корреспондента или пусто.
+ *  `replyToLetterId` — подтверждение подсказки «ответ на» галочкой (#56,
+ *  Р5): ровно свежая подсказка сервера, произвольные связи — #461. */
 export const letterRegistrationInputSchema = z
   .object({
     counterpartyId: z.uuid(),
@@ -46,6 +53,7 @@ export const letterRegistrationInputSchema = z
     projectId: z.uuid().nullable(),
     addresseeId: z.uuid(),
     responseDeadline: z.iso.date().nullable(),
+    replyToLetterId: z.uuid().nullable().optional(),
     customFields: customFieldValuesInputSchema.optional(),
   })
   .strict();
@@ -62,9 +70,20 @@ export const letterRegistrationFieldSchema = z.enum([
   'projectId',
   'addresseeId',
   'responseDeadline',
+  'replyToLetterId',
   'customFields',
 ]);
 export type LetterRegistrationField = z.infer<typeof letterRegistrationFieldSchema>;
+
+/** Причина отказа `422 LETTER_RELATION_INVALID` (подтверждение связи
+ *  «ответ на», #56, Р5): цель не найдена/не видна, не исходящее
+ *  зарегистрированное письмо, не совпадает со свежей подсказкой. */
+export const letterRelationReasonSchema = z.enum([
+  'not_found',
+  'not_outgoing_registered',
+  'suggestion_mismatch',
+]);
+export type LetterRelationReason = z.infer<typeof letterRelationReasonSchema>;
 
 /** Причина отказа поля (`422 LETTER_REGISTRATION_INVALID`, `details {field,
  *  reason}`): пусто, неверный формат, дата в будущем/прошлом, ссылка не

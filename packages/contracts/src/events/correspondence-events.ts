@@ -29,6 +29,11 @@ export const CORRESPONDENCE_EVENTS = {
   LETTER_PARTICIPANTS_CHANGED: 'correspondence.letter_participants_changed',
   /** Удалено как спам (Р12). */
   LETTER_DELETED: 'correspondence.letter_deleted',
+  /** Почтовый ящик не читается после нескольких неудачных попыток
+   *  (аккумулятор порога, #56, В4). */
+  MAIL_SYNC_FAILED: 'correspondence.mail_sync_failed',
+  /** Исходящее письмо не отправлено (финальный провал SMTP, #56 Р7 → #464). */
+  LETTER_SEND_FAILED: 'correspondence.letter_send_failed',
   /** Зарезервировано: отправка исходящего (#464). */
   LETTER_SENT: 'correspondence.letter_sent',
 } as const;
@@ -41,8 +46,10 @@ export const letterReceivedPayloadSchema = z.object({
   typeId: z.uuid(),
   direction: letterDirectionSchema,
   source: letterSourceSchema,
-  /** Файлы письма — вход конвейера PDF-производных офисных документов. */
-  fileIds: z.array(z.uuid()).max(LETTER_LIMITS.files + 2),
+  /** Файлы письма — вход конвейера PDF-производных офисных документов.
+   *  Почта приносит до `LETTER_LIMITS.mailFiles` вложений + тело + исходник
+   *  (#56, Р12). */
+  fileIds: z.array(z.uuid()).max(Math.max(LETTER_LIMITS.files, LETTER_LIMITS.mailFiles) + 2),
 });
 export type LetterReceivedPayload = z.infer<typeof letterReceivedPayloadSchema>;
 
@@ -114,3 +121,21 @@ export type LetterParticipantsChangedPayload = z.infer<
 
 export const letterDeletedPayloadSchema = z.object({ letterId: z.uuid() });
 export type LetterDeletedPayload = z.infer<typeof letterDeletedPayloadSchema>;
+
+/** Ящик не читается: аккумулятор циклов дошёл до порога (#56, Р4/В4).
+ *  `sourceCode` — код `mail_sources` ('chancery'), error — человекочитаемая
+ *  причина последней неудачи. */
+export const mailSyncFailedPayloadSchema = z.object({
+  sourceCode: z.string().min(1),
+  error: z.string().min(1),
+  attempts: z.number().int().min(1),
+});
+export type MailSyncFailedPayload = z.infer<typeof mailSyncFailedPayloadSchema>;
+
+/** Исходящее не отправлено после всех повторов (SMTP 5xx/лимит, #56, Р7).
+ *  `letterId` null — отправка вне карточки письма (транспорт для #464). */
+export const letterSendFailedPayloadSchema = z.object({
+  letterId: z.uuid().nullable(),
+  error: z.string().min(1),
+});
+export type LetterSendFailedPayload = z.infer<typeof letterSendFailedPayloadSchema>;

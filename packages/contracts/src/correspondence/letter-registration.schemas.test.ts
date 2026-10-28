@@ -41,6 +41,20 @@ describe('ввод регистрации письма (#55, Р1)', () => {
     ).toBe(false);
   });
 
+  it('подтверждение подсказки «ответ на» — необязательный uuid или null (#56, Р5)', () => {
+    const replyToLetterId = id();
+    expect(letterRegistrationInputSchema.parse({ ...input, replyToLetterId })).toMatchObject({
+      replyToLetterId,
+    });
+    expect(letterRegistrationInputSchema.parse({ ...input, replyToLetterId: null })).toMatchObject({
+      replyToLetterId: null,
+    });
+    expect(letterRegistrationInputSchema.parse(input).replyToLetterId).toBeUndefined();
+    expect(
+      letterRegistrationInputSchema.safeParse({ ...input, replyToLetterId: 'не-uuid' }).success,
+    ).toBe(false);
+  });
+
   it('раздел регистрации — часть тела перехода движка', () => {
     const body = transitionFormInputSchema.parse({ registration: input });
     expect(body.registration?.addresseeId).toBe(input.addresseeId);
