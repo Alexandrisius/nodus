@@ -37,6 +37,7 @@ export function CounterpartyCombobox({
   invalid,
   describedBy,
   autoFocus,
+  openOnFocus = true,
   onDismiss,
 }: {
   value: CounterpartyRef | null;
@@ -49,6 +50,10 @@ export function CounterpartyCombobox({
   invalid?: boolean;
   describedBy?: string;
   autoFocus?: boolean;
+  /** Раскрывать ли список на авто-фокусе: окно регистрации фокусирует поле
+   *  молча (приёмка 28.10 — ничего не раскрываем автоматически), список —
+   *  по клику/вводу. */
+  openOnFocus?: boolean;
   /** Список закрыт без выбора (клик мимо, Esc, уход фокуса) — правка по
    *  месту в карточке на этом выходит из режима ввода. */
   onDismiss?: () => void;
@@ -154,7 +159,7 @@ export function CounterpartyCombobox({
               fromPointer.current = true;
             }}
             onFocus={() => {
-              if (!fromPointer.current) setOpen(true);
+              if (openOnFocus && !fromPointer.current) setOpen(true);
             }}
             onClick={() => {
               fromPointer.current = false;

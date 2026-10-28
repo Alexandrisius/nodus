@@ -134,7 +134,11 @@ export function RegistrationFields({
           placeholder={ui.letters.form.counterpartyPlaceholder}
           invalid={Boolean(invalidKeys.counterpartyId)}
           describedBy={errorId('counterpartyId')}
-          autoFocus={autoFocus}
+          // Окно-контроль пропусков: фокус — только на ещё пустое поле, и он
+          // молчалив — список не распахивается (приёмка 28.10: заполненное не
+          // активируем, пустое не раскрываем; Enter-навигация живёт).
+          autoFocus={autoFocus && !value.counterparty}
+          openOnFocus={false}
         />,
       )}
       {fromSuggestion ? (
@@ -252,6 +256,7 @@ export function RegistrationFields({
           onChange={(addressee) => set({ addressee }, addressee ? 'addresseeId' : undefined)}
           invalid={Boolean(invalidKeys.addresseeId)}
           describedBy={errorId('addresseeId')}
+          openOnFocus={false}
         />,
       )}
       {projectsAvailable('letters')
