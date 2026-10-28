@@ -114,10 +114,6 @@ export class LettersRepository {
     await tx.letter.update({ where: { id }, data });
   }
 
-  async delete(tx: TransactionClient, id: string): Promise<void> {
-    await tx.letter.delete({ where: { id } });
-  }
-
   /** Письма, в которых лежит файл, — видимость для контрибьютора прав
    *  файлов (#55, B5). Файл может быть приложен к нескольким письмам. */
   async visibilityByFile(fileId: string): Promise<{ registeredAt: Date | null }[]> {

@@ -8,6 +8,7 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { FeatureFlagService } from '../../../core/feature-flags/feature-flag.service.js';
 import { MAIL_CLIENT, type MailClient } from './mail-client.port.js';
 import { MailLetterWriter } from './mail-letter-writer.js';
+import { MailSyncLock } from './mail-lock.service.js';
 import { MAIL_RECEPTION_CONFIG, type MailReceptionConfig } from './mail-reception.config.js';
 import { MailSourcesRepository } from './mail-sources.repository.js';
 
@@ -55,6 +56,7 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
     private readonly flags: FeatureFlagService,
     @Inject(MAIL_RECEPTION_CONFIG) private readonly config: MailReceptionConfig,
     private readonly sources: MailSourcesRepository,
+    private readonly lock: MailSyncLock,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly logger: PinoLogger,
@@ -146,7 +148,11 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runCycle(trigger: 'idle' | 'poll'): Promise<SyncResult> {
-    if (!(await this.sources.tryLock())) return { ran: false, created: 0, skipped: true };
+    if (!(await this.lock.tryAcquire())) {
+      // Не молчать (код-ревью #56): цикл занят — виден в логе, а не «пусто».
+      this.logger.warn({ trigger }, 'Цикл приёма занят (advisory lock) — пропуск');
+      return { ran: false, created: 0, skipped: true };
+    }
     try {
       const source = await this.sources.ensure(CHANCERY_SOURCE_CODE);
       const status = await this.client.status();
@@ -185,7 +191,7 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
       await this.recordFailure(error);
       throw error;
     } finally {
-      await this.sources.unlock();
+      await this.lock.release();
     }
   }
 

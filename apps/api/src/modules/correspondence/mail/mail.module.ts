@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ImapFlowMailClientProvider } from './imapflow-mail-client.provider.js';
 import { MAIL_CLIENT } from './mail-client.port.js';
+import { MailSyncLock } from './mail-lock.service.js';
 import { MailParserService } from './mail-parser.service.js';
 import { MailSourcesRepository } from './mail-sources.repository.js';
 import { MAIL_RECEPTION_CONFIG, MailReceptionConfig } from './mail-reception.config.js';
@@ -20,9 +21,16 @@ import { MAIL_RECEPTION_CONFIG, MailReceptionConfig } from './mail-reception.con
     { provide: MAIL_RECEPTION_CONFIG, useFactory: () => new MailReceptionConfig() },
     MailParserService,
     MailSourcesRepository,
+    MailSyncLock,
     ImapFlowMailClientProvider,
     { provide: MAIL_CLIENT, useExisting: ImapFlowMailClientProvider },
   ],
-  exports: [MAIL_RECEPTION_CONFIG, MailParserService, MailSourcesRepository, MAIL_CLIENT],
+  exports: [
+    MAIL_RECEPTION_CONFIG,
+    MailParserService,
+    MailSourcesRepository,
+    MailSyncLock,
+    MAIL_CLIENT,
+  ],
 })
 export class MailModule {}

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import { Queue, Worker, type Job } from 'bullmq';
+import { Queue, UnrecoverableError, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import nodemailer, { type SentMessageInfo, type Transporter } from 'nodemailer';
 import { PinoLogger } from 'nestjs-pino';
@@ -156,12 +156,12 @@ export class SmtpOutboxTransport implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const responseCode = (error as { responseCode?: number }).responseCode ?? 0;
       // 5xx — окончательный отказ сервера: повторы бессмысленны (Р7) —
-      // событие провала сразу, задание — в failed без повторов.
+      // событие провала сразу и в failed БЕЗ повторов штатным механизмом
+      // BullMQ (UnrecoverableError; moveToFailed требует lock-токен задания
+      // и с константой возвращает «Lock is not owned» — код-ревью #56).
       if (responseCode >= 500 || (error as { permanent?: boolean }).permanent) {
         await this.reportFailure(job, error);
-        // Без повторов: перемещаем задание в failed минуя attempts (BullMQ
-        // discard доступен у воркера — через JobProgress-токен не нужен).
-        await bullJob.moveToFailed(new Error('SMTP 5xx — без повторов'), 'smtp-permanent', true);
+        throw new UnrecoverableError('SMTP 5xx — без повторов');
       }
       throw error;
     }

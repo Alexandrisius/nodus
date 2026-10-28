@@ -4,7 +4,6 @@ import { SmtpOutboxTransport, type SmtpOutboxJob } from './smtp-outbox.transport
 import { MailReceptionConfig } from './mail-reception.config.js';
 
 const sendMail = vi.fn();
-const moveToFailed = vi.fn();
 
 vi.mock('ioredis', () => {
   const FakeRedis = class {
@@ -17,14 +16,15 @@ vi.mock('ioredis', () => {
   };
   return { Redis: FakeRedis };
 });
-vi.mock('bullmq', () => {
+vi.mock('bullmq', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('bullmq')>();
   const FakeQueue = class {
     add = vi.fn();
     close = vi.fn();
     upsertJobScheduler = vi.fn();
   };
   const FakeWorker = class {};
-  return { Queue: FakeQueue, Worker: FakeWorker };
+  return { ...actual, Queue: FakeQueue, Worker: FakeWorker };
 });
 vi.mock('nodemailer', () => ({
   default: {
@@ -68,7 +68,6 @@ function makeTransport() {
   const job = {
     data: JOB,
     attemptsMade: 0,
-    moveToFailed,
   };
   return { transport, send, job, events };
 }
@@ -96,14 +95,14 @@ describe('SmtpOutboxTransport: повторы и провалы (#56, Р7)', () 
     sendMail.mockRejectedValue(Object.assign(new Error('greylist'), { responseCode: 421 }));
     await expect(send(job)).rejects.toThrow('greylist');
     expect(events).toEqual([]);
-    expect(moveToFailed).not.toHaveBeenCalled();
   });
 
-  it('5xx: событие letter_send_failed сразу, задание без повторов', async () => {
+  it('5xx: событие letter_send_failed сразу, задание без повторов (UnrecoverableError)', async () => {
     const { send, job, events } = makeTransport();
     sendMail.mockRejectedValue(Object.assign(new Error('reject'), { responseCode: 554 }));
-    await expect(send(job)).rejects.toThrow('reject');
-    expect(moveToFailed).toHaveBeenCalledTimes(1);
+    // Не исходная 5xx-ошибка, а штатный «без повторов» BullMQ — воркер
+    // остановит попытки, повторных событий не будет.
+    await expect(send(job)).rejects.toThrow('SMTP 5xx — без повторов');
     const failed = events.find((event) => event.type === 'correspondence.letter_send_failed');
     expect(failed?.payload.letterId).toBe(JOB.letterId);
     expect(failed?.payload.error).toBe('reject');

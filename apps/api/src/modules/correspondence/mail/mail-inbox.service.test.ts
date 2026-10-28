@@ -107,8 +107,6 @@ function fakes(uids: bigint[], opts: { flagOn?: boolean } = {}) {
   });
   const logger = { setContext() {}, info() {}, warn() {}, error() {} };
   const sourcesRepo = {
-    tryLock: async () => true,
-    unlock: async () => undefined,
     ensure: async () => source,
     initializeCursor: async (_id: string, uidValidity: bigint, lastUid: bigint) => {
       source.uidValidity = uidValidity;
@@ -133,12 +131,17 @@ function fakes(uids: bigint[], opts: { flagOn?: boolean } = {}) {
       return source;
     },
   };
+  const lock = {
+    tryAcquire: async () => true,
+    release: async () => undefined,
+  };
   const service = new MailInboxService(
     client,
     writer,
     flags as never,
     config,
     sourcesRepo as never,
+    lock as never,
     txRunner as never,
     eventBus as never,
     logger as never,

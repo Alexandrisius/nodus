@@ -3,15 +3,12 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 
-/** Ключ advisory-лока цикла приёма: второй процесс api приём не ведёт
- *  (страховка горизонтального масштабирования — само оно для приёма
- *  запрещено, ADR-0035). */
-export const MAIL_SYNC_ADVISORY_LOCK = 9056n;
-
 /**
  * Репозиторий ящиков-источников (mail_sources, #56): курсор UIDVALIDITY/UID и
  * аккумуляторы цикла. Единственная точка доступа к таблице (patterns.md);
- * сервис приёма не знает про PrismaService.
+ * сервис приёма не знает про PrismaService. Advisory-лок цикла живёт отдельно
+ * (MailSyncLock): сессионный лок требует одно и то же соединение на захват и
+ * освобождение — пул Prisma этого не гарантирует.
  */
 @Injectable()
 export class MailSourcesRepository {
@@ -24,17 +21,6 @@ export class MailSourcesRepository {
   /** Строка ящика создаётся лениво, если сид миграции не нашёл. */
   async ensure(code: string) {
     return (await this.findByCode(code)) ?? this.prisma.mailSource.create({ data: { code } });
-  }
-
-  /** Advisory lock цикла: false — приём уже ведёт другой процесс. */
-  async tryLock(): Promise<boolean> {
-    const rows = await this.prisma.$queryRaw<{ locked: boolean }[]>`
-      SELECT pg_try_advisory_lock(${MAIL_SYNC_ADVISORY_LOCK}) AS locked`;
-    return rows[0]?.locked === true;
-  }
-
-  async unlock(): Promise<void> {
-    await this.prisma.$queryRaw`SELECT pg_advisory_unlock(${MAIL_SYNC_ADVISORY_LOCK})`;
   }
 
   /** Первый запуск: курсор на максимум, старое не импортируем (В5). */
