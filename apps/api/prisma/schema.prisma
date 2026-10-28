@@ -160,6 +160,7 @@ model User {
 
   roles               UserRole[]
   sessions            Session[]
+  letterViews         LetterView[]
   headedDepartments   Department[] @relation("DepartmentHead")
   deputiedDepartments Department[] @relation("DepartmentDeputy")
 
@@ -1599,6 +1600,7 @@ model Letter {
 
   attachments  LetterAttachment[]
   participants LetterParticipant[]
+  views        LetterView[]
   relations    LetterRelation[] @relation("LetterRelationsFrom")
   replyToLink  LetterRelation[] @relation("LetterRelationsTo")
 
@@ -1653,6 +1655,22 @@ model LetterParticipant {
   @@id([letterId, userId])
   @@index([userId])
   @@map("letter_participants")
+}
+
+/// Личный признак «просмотрено» (редизайн #56): строка на сотрудника —
+/// индикатор «я ещё не открывал» гаснет при открытии карточки. Общего
+/// счётчика «никто не смотрел» нет (решение владельца 28.10).
+model LetterView {
+  letterId  String   @map("letter_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.Timestamptz()
+
+  letter Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([letterId, userId])
+  @@index([userId])
+  @@map("letter_views")
 }
 
 /// Связь письма с письмом (#56, Р5; UI связей — #461): сейчас единственный

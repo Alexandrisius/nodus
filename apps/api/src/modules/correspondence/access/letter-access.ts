@@ -31,9 +31,10 @@ export function canViewLetter(
 }
 
 /**
- * Права карточки (сервер — истина, I8): правка регистрационных данных и
- * удаление спама — канцелярия; «Присоединиться» — зарегистрированное письмо,
- * где сотрудник ещё не участник и не адресат.
+ * Права карточки (сервер — истина, I8): правка реквизитов и удаление спама —
+ * канцелярия (правка незарегистрированного — заполнение полей по месту в
+ * карточке, редизайн #56); «Присоединиться» — не участник: канцелярия может
+ * «начать обсуждение» и до регистрации, остальные — только зарегистрированное.
  */
 export function letterAccessOf(
   user: { id: string; permissions: readonly string[] },
@@ -49,9 +50,9 @@ export function letterAccessOf(
   // Адресат — участник по построению (владелец беседы письма, Р10).
   const participant = isParticipant || row.addresseeId === user.id;
   return {
-    canEdit: registered && registrar,
+    canEdit: registrar,
     canDeleteSpam: !registered && row.systemState !== 'closed' && registrar,
-    canJoin: registered && !participant,
+    canJoin: !participant && (registered || registrar),
     isParticipant: participant,
   };
 }

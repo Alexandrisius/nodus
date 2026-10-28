@@ -16,6 +16,10 @@ import { TransactionRunner } from '../../../core/database/transaction-runner.js'
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
+import {
+  USER_PROFILE_READER,
+  type UserProfileReader,
+} from '../../../core/ports/user-profile.port.js';
 import { companyDate } from '../../../core/time/company-time.js';
 import {
   PROCESS_CATALOG_READER,
@@ -36,9 +40,11 @@ export interface UploadedLetterFile {
 
 /**
  * Мутации писем (#55): ручное создание (multipart, атомарно с файлами),
- * правка регистрационных данных (В3), удаление спама (Р12) и присоединение
- * к обсуждению (Р10). Все — в транзакциях вызывающего слоя; файлы пишутся
- * до транзакции и убираются при её откате.
+ * правка реквизитов (В3; редизайн #56 — и незарегистрированного по месту в
+ * карточке), удаление спама (Р12), присоединение к обсуждению (Р10),
+ * приглашение коллеги и личный признак «просмотрено» (редизайн #56). Все —
+ * в транзакциях вызывающего слоя; файлы пишутся до транзакции и убираются
+ * при её откате.
  */
 @Injectable()
 export class LettersMutationService {
@@ -50,6 +56,7 @@ export class LettersMutationService {
     private readonly eventBus: EventBus,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
+    @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
   ) {}
 
   /** `POST /letters` — ручное письмо (скан бумаги) сразу в «Новые». */
@@ -142,11 +149,17 @@ export class LettersMutationService {
     }
   }
 
-  /** `PATCH /letters/:id` — правка реквизитов зарегистрированного письма. */
+  /** `PATCH /letters/:id` — правка реквизитов письма канцелярией по месту в
+   *  карточке (редизайн #56): незарегистрированное заполняется до регистрации,
+   *  зарегистрированное — как раньше (В3). */
   async update(user: AuthUser, id: string, body: UpdateLetterBody): Promise<LetterDetail> {
     const row = await this.query.visibleRow(user, id);
-    if (row.registeredAt === null || !canRegisterLetters(user)) {
+    if (!canRegisterLetters(user)) {
       throw new DomainException(ErrorCode.LETTER_NOT_EDITABLE, 'Letter is not editable');
+    }
+    if (body.addresseeId !== undefined && row.registeredAt !== null) {
+      // Адресат и номер не меняются после регистрации.
+      throw new DomainException(ErrorCode.LETTER_NOT_EDITABLE, 'Addressee is not editable');
     }
     const current = {
       counterpartyId: row.counterpartyId ?? '',
@@ -217,22 +230,52 @@ export class LettersMutationService {
     await this.storage.remove(fileIds).catch(() => undefined);
   }
 
-  /** `POST /letters/:id/join` — «Присоединиться к обсуждению» (идемпотентно). */
+  /** `POST /letters/:id/join` — «Присоединиться к обсуждению» (идемпотентно).
+   *  Канцелярия может «начать обсуждение» и до регистрации (редизайн #56),
+   *  остальным — только зарегистрированное письмо. */
   async join(user: AuthUser, id: string): Promise<LetterDetail> {
     const row = await this.query.visibleRow(user, id);
-    if (row.registeredAt === null) throw DomainException.notFound('Letter is not registered');
+    if (row.registeredAt === null && !canRegisterLetters(user)) {
+      throw DomainException.notFound('Letter is not registered');
+    }
+    await this.addParticipantRow(user, id, user.id);
+    return this.query.detail(user, id);
+  }
+
+  /** `POST /letters/:id/participants` — пригласить коллегу в обсуждение
+   *  (редизайн #56): только канцелярия (гуард контроллера), письмо в любом
+   *  состоянии; повторное приглашение — не ошибка, просто текущий состав. */
+  async addParticipant(user: AuthUser, id: string, userId: string): Promise<LetterDetail> {
+    await this.query.visibleRow(user, id);
+    const active = await this.profiles.filterActiveUserIds([userId]);
+    if (active.length === 0) {
+      throw DomainException.notFound('User not found');
+    }
+    await this.addParticipantRow(user, id, userId);
+    return this.query.detail(user, id);
+  }
+
+  /** Общая запись участника + событие состава (join и приглашение — одна
+   *  механика: эмитится только реальная вставка, повтор идемпотентен). */
+  private async addParticipantRow(user: AuthUser, id: string, userId: string): Promise<void> {
     await this.txRunner.run(async (tx) => {
       await this.repo.lock(tx, id);
-      const created = await this.repo.addParticipant(tx, id, user.id);
+      const created = await this.repo.addParticipant(tx, id, userId);
       if (created) {
         await this.eventBus.emit(
           tx,
           CORRESPONDENCE_EVENTS.LETTER_PARTICIPANTS_CHANGED,
-          { letterId: id, added: [user.id], removed: [] },
+          { letterId: id, added: [userId], removed: [] },
           { actorId: user.id, aggregateType: 'letter', aggregateId: id },
         );
       }
     });
-    return this.query.detail(user, id);
+  }
+
+  /** `POST /letters/:id/view` — личный признак «просмотрено» (редизайн #56):
+   *  не бизнес-действие — без аудита и события; идемпотентен. */
+  async markViewed(user: AuthUser, id: string): Promise<void> {
+    await this.query.visibleRow(user, id);
+    await this.repo.markViewed(id, user.id);
   }
 }

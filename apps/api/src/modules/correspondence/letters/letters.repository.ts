@@ -21,8 +21,10 @@ export function listOrderOf(box: LetterBox | undefined): 'receivedAt' | 'registe
 
 /**
  * Единственная точка доступа к таблицам модуля (#55): `letters`,
- * `letter_attachments`, `letter_participants`. Чтения — вне транзакций,
- * записи — в транзакции вызывающего (переход движка, создание, правка).
+ * `letter_attachments`, `letter_participants`, `letter_views` (лист целей
+ * оправдывает > 300 строк — одна ответственность «хранилище писем»).
+ * Чтения — вне транзакций, записи — в транзакции вызывающего (переход
+ * движка, создание, правка).
  */
 @Injectable()
 export class LettersRepository {
@@ -73,12 +75,33 @@ export class LettersRepository {
     });
   }
 
-  /** Участники одного письма (деталь, состав чата). */
-  participants(letterId: string): Promise<{ userId: string; role: string }[]> {
+  /** Участники одного письма (деталь, состав чата) — по времени прихода:
+   *  первый участник незарегистрированного обсуждения — его создатель. */
+  participants(letterId: string): Promise<{ userId: string; role: string; createdAt: Date }[]> {
     return this.prisma.letterParticipant.findMany({
       where: { letterId },
-      select: { userId: true, role: true },
+      orderBy: [{ createdAt: 'asc' }, { userId: 'asc' }],
+      select: { userId: true, role: true, createdAt: true },
     });
+  }
+
+  /** Личный признак «просмотрено» (редизайн #56): вставка идемпотентна —
+   *  повторное открытие не двигает время первого просмотра. */
+  async markViewed(letterId: string, userId: string): Promise<void> {
+    await this.prisma.letterView.createMany({
+      data: [{ letterId, userId }],
+      skipDuplicates: true,
+    });
+  }
+
+  /** Просмотренные сотрудником письма страницы (индикатор «я не открывал»). */
+  async viewedLetterIds(userId: string, letterIds: readonly string[]): Promise<Set<string>> {
+    if (letterIds.length === 0) return new Set();
+    const rows = await this.prisma.letterView.findMany({
+      where: { userId, letterId: { in: [...letterIds] } },
+      select: { letterId: true },
+    });
+    return new Set(rows.map((row) => row.letterId));
   }
 
   /** Скрепка в списке — ТОЛЬКО настоящие вложения: текст письма (body),

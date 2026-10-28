@@ -123,6 +123,9 @@ export const letterListItemSchema = z.object({
   replyTo: letterRefSchema.nullable(),
   /** Файлов письма (без исходника .eml). */
   attachmentCount: z.number().int().min(0),
+  /** Личный признак «я открывал» (редизайн #56): гаснет в списке «Новые»
+   *  после POST /letters/:id/view; в карточке всегда true. */
+  viewed: z.boolean(),
 });
 export type LetterListItem = z.infer<typeof letterListItemSchema>;
 
@@ -209,10 +212,12 @@ export const createLetterFieldsSchema = z.object({
 });
 export type CreateLetterFields = z.infer<typeof createLetterFieldsSchema>;
 
-/** `PATCH /letters/:id` — правка регистрационных данных зарегистрированного
- *  письма канцелярией (В3, Р11): адресат и номер так не меняются. Явные
- *  необязательные поля без `.default()` (gotcha Zod 4: умолчания в патче
- *  перетирали бы непереданное); `null` — очистить необязательное. */
+/** `PATCH /letters/:id` — правка реквизитов письма канцелярией (В3, Р11;
+ * редизайн #56 — и незарегистрированного по месту в карточке): номер так не
+ * меняется никогда; адресат — только до регистрации (после —
+ * LETTER_NOT_EDITABLE). Явные необязательные поля без `.default()` (gotcha
+ * Zod 4: умолчания в патче перетирали бы непереданное); `null` — очистить
+ * необязательное. */
 export const updateLetterBodySchema = z
   .object({
     counterpartyId: z.uuid().optional(),
@@ -222,12 +227,21 @@ export const updateLetterBodySchema = z
     subject: z.string().trim().min(1).max(LETTER_LIMITS.subject).optional(),
     receiptMethodId: z.uuid().optional(),
     projectId: z.uuid().nullable().optional(),
+    /** Адресат: только незарегистрированное письмо (редизайн #56 — поля
+     *  заполняются по месту в карточке до регистрации). */
+    addresseeId: z.uuid().nullable().optional(),
     responseDeadline: z.iso.date().nullable().optional(),
     customFields: customFieldValuesPatchSchema.optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 export type UpdateLetterBody = z.infer<typeof updateLetterBodySchema>;
+
+/** `POST /letters/:id/participants` — пригласить коллегу в обсуждение
+ *  (редизайн #56): только держатель `correspondence.register`, письмо в
+ *  любом состоянии, повторное приглашение идемпотентно. */
+export const addLetterParticipantBodySchema = z.object({ userId: z.uuid() }).strict();
+export type AddLetterParticipantBody = z.infer<typeof addLetterParticipantBodySchema>;
 
 /** Изменение поля в истории (`letter_updated`): ключ — системное поле
  *  (`counterpartyId`, `theirDate`, …) или атрибут `cf.<uuid>`; значения —

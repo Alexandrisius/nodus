@@ -20,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
+  addLetterParticipantBodySchema,
   createLetterFieldsSchema,
   executeLetterTransitionResultSchema,
   executeTransitionBodySchema,
@@ -32,6 +33,7 @@ import {
   Permission,
   updateLetterBodySchema,
   workflowTransitionSchema,
+  type AddLetterParticipantBody,
   type AuthUser,
   type CreateLetterFields,
   type ExecuteLetterTransitionResult,
@@ -70,9 +72,11 @@ const historyQuery = z.object({
 
 /**
  * Письма (`/api/v1/letters`, #55): «Новые», «Входящие», «Исходящие»,
- * карточка, ручное создание (multipart), правка регистрационных данных,
- * спам, присоединение к обсуждению, кнопки маршрута и история. Модуль за
- * флагом `correspondence` (I10); мутации — идемпотентные и аудируемые.
+ * карточка, ручное создание (multipart), правка реквизитов (редизайн #56 —
+ * и незарегистрированного по месту в карточке), спам, присоединение к
+ * обсуждению и приглашение коллег, личный признак «просмотрено», кнопки
+ * маршрута и история. Модуль за флагом `correspondence` (I10); мутации —
+ * идемпотентные и аудируемые.
  */
 @ApiTags('correspondence')
 @ApiBearerAuth()
@@ -143,7 +147,7 @@ export class LettersController {
   @Patch(':id')
   @RequirePermissions(Permission.CORRESPONDENCE_REGISTER)
   @Audit({ action: 'correspondence.letter_update', entity: 'letter' })
-  @ApiOperation({ summary: 'Правка регистрационных данных зарегистрированного письма' })
+  @ApiOperation({ summary: 'Правка реквизитов письма (адресат — только до регистрации)' })
   @ApiOkResponse({ standardSchema: letterDetailSchema })
   @ApiErrors(400, 401, 403, 404, 409, 422)
   @ApiIdempotencyKey()
@@ -157,6 +161,15 @@ export class LettersController {
     body: UpdateLetterBody,
   ): Promise<LetterDetail> {
     return this.mutations.update(user, id, body);
+  }
+
+  @Post(':id/view')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Отметить письмо просмотренным (личный признак, идемпотентно)' })
+  @ApiNoContentResponse()
+  @ApiErrors(400, 401, 404)
+  view(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<void> {
+    return this.mutations.markViewed(user, id);
   }
 
   @Delete(':id')
@@ -180,6 +193,26 @@ export class LettersController {
   @ApiIdempotencyKey()
   join(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<LetterDetail> {
     return this.mutations.join(user, id);
+  }
+
+  @Post(':id/participants')
+  @HttpCode(200)
+  @RequirePermissions(Permission.CORRESPONDENCE_REGISTER)
+  @Audit({ action: 'correspondence.letter_participants_add', entity: 'letter' })
+  @ApiOperation({ summary: 'Пригласить коллегу в обсуждение (идемпотентно)' })
+  @ApiOkResponse({ standardSchema: letterDetailSchema })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  addParticipant(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({
+      schema: addLetterParticipantBodySchema,
+      pipes: [new ZodValidationPipe(addLetterParticipantBodySchema)],
+    })
+    body: AddLetterParticipantBody,
+  ): Promise<LetterDetail> {
+    return this.mutations.addParticipant(user, id, body.userId);
   }
 
   @Get(':id/transitions')

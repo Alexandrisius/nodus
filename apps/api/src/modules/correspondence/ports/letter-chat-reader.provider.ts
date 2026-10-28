@@ -12,7 +12,10 @@ import type {
 /**
  * Реализация порта письма для чата (#55, Р10): состав беседы (адресат —
  * владелец, участники — члены), ссылки для превью и видимость той же
- * функцией, что у карточки (Р7).
+ * функцией, что у карточки (Р7). Незарегистрированное письмо получает
+ * беседу с первым участником-владельцем, когда обсуждение начато
+ * (редизайн #56); состав переживает регистрацию — sync после неё делает
+ * владельцем адресата, прежний владелец остаётся участником (осознанно).
  */
 @Injectable()
 export class LetterChatReaderProvider implements LetterChatReader {
@@ -20,10 +23,24 @@ export class LetterChatReaderProvider implements LetterChatReader {
 
   async roster(letterId: string): Promise<LetterChatRoster | null> {
     const row = await this.letters.chatRoster(letterId);
-    if (!row || row.registeredAt === null || !row.addresseeId) return null;
+    if (!row) return null;
+    if (row.registeredAt !== null) {
+      // Зарегистрированное: владелец — адресат (без адресата беседы нет).
+      if (!row.addresseeId) return null;
+      return {
+        ownerId: row.addresseeId,
+        members: (await this.letters.participants(letterId)).map((participant) => ({
+          userId: participant.userId,
+          muted: false,
+        })),
+      };
+    }
+    // Незарегистрированное: обсуждение существует, только если канцелярия
+    // его начала (есть участники); создатель — первый по времени участник.
     const participants = await this.letters.participants(letterId);
+    if (participants.length === 0) return null;
     return {
-      ownerId: row.addresseeId,
+      ownerId: participants[0]!.userId,
       members: participants.map((participant) => ({
         userId: participant.userId,
         muted: false,

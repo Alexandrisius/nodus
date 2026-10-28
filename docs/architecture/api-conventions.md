@@ -126,11 +126,13 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 
 ### Корреспонденция (#55)
 
-- `GET /letters?box=new|incoming|outgoing&counterpartyId=&search=&cursor=` — курсор «(received_at,id) DESC» у «Новых», «(registered_at,id) DESC» у журналов; `box=new` без права `correspondence.register` — 403.
+- `GET /letters?box=new|incoming|outgoing&counterpartyId=&search=&cursor=` — курсор «(received_at,id) DESC» у «Новых», «(registered_at,id) DESC» у журналов; `box=new` без права `correspondence.register` — 403. Элемент списка несёт личный `viewed` (редизайн #56).
 - `POST /letters` — multipart: поля `typeId`, `mainIndex`, файлы `files` (1–20); письмо и файлы атомарно.
 - `POST /letters/:id/transitions/:transitionId` — общий движок; раздел окна `registration` (`letter-registration.schemas.ts`), пост-действие `assign_number`.
-- `PATCH /letters/:id` — `.strict()`, только реквизиты (номер и адресат так не меняются), пустое тело — ошибка.
+- `PATCH /letters/:id` — `.strict()`, реквизиты; незарегистрированное канцелярия заполняет по месту в карточке (редизайн #56), номер не меняется никогда, адресат — только до регистрации (`LETTER_NOT_EDITABLE` после), пустое тело — ошибка.
 - `DELETE /letters/:id` — только «Новые» и только право регистрации (спам, Р12).
-- `POST /letters/:id/join` — состав беседы письма решает сервер.
+- `POST /letters/:id/view` — личный признак «просмотрено» (не бизнес-действие: без аудита и события), 204, идемпотентен.
+- `POST /letters/:id/join` — состав беседы письма решает сервер; канцелярия может «начать обсуждение» и незарегистрированного (редизайн #56), остальные — только зарегистрированные.
+- `POST /letters/:id/participants` — пригласить коллегу в обсуждение (`{ userId }`): только `correspondence.register`, письмо в любом состоянии, идемпотентно; событие и аудит — те же, что у join.
 - `GET /letters/resolvers` — держатели `correspondence.resolve` («Принимают решения»); литеральный путь объявлен ДО `/letters/:id`.
 - Коды: `LETTER_REGISTRATION_INVALID` (`details {field, reason}` — подсветка поля), `LETTER_ALREADY_REGISTERED` (`details.regNumber`), `WORKFLOW_NUMBERING_NOT_CONFIGURED`.

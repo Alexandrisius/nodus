@@ -20,26 +20,32 @@ describe('видимость письма (#55, Р7)', () => {
   });
 });
 
-describe('права карточки письма (#55, Р11/Р12/Р10)', () => {
-  it('канцелярия правит зарегистрированное и удаляет спам из «Нового»', () => {
+describe('права карточки письма (#55, Р11/Р12/Р10; редизайн #56)', () => {
+  it('канцелярия правит и зарегистрированное, и «Новое»; спам — только из «Нового»', () => {
     expect(letterAccessOf(REGISTRAR, REGISTERED, false)).toMatchObject({
       canEdit: true,
       canDeleteSpam: false,
       canJoin: true,
     });
     expect(letterAccessOf(REGISTRAR, NEW, false)).toMatchObject({
-      canEdit: false,
+      canEdit: true,
       canDeleteSpam: true,
-      canJoin: false,
+      // «Начать обсуждение» незарегистрированного — тоже канцелярия.
+      canJoin: true,
     });
   });
 
-  it('сотрудник не правит; адресат уже участник и не «присоединяется»', () => {
+  it('сотрудник не правит и не начинает обсуждение «Нового»', () => {
     expect(letterAccessOf(EMPLOYEE, REGISTERED, false)).toMatchObject({
       canEdit: false,
       canDeleteSpam: false,
       canJoin: false,
       isParticipant: true,
+    });
+    expect(letterAccessOf(EMPLOYEE, NEW, false)).toMatchObject({
+      canEdit: false,
+      canJoin: false,
+      isParticipant: false,
     });
     expect(letterAccessOf(REGISTRAR, { ...REGISTERED, addresseeId: 'u9' }, true)).toMatchObject({
       canJoin: false,

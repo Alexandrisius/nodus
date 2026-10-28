@@ -69,13 +69,18 @@ export class LettersQueryService {
     const after = q.cursor ? (decodeCursor(q.cursor, cursorSchema) as LetterCursor) : undefined;
     const rows = await this.repo.list(where, listOrderOf(q.box), after, q.limit);
     const page = rows.slice(0, q.limit);
-    const counts = await this.repo.attachmentCounts(page.map((row) => row.id));
+    const ids = page.map((row) => row.id);
+    const [counts, viewed] = await Promise.all([
+      this.repo.attachmentCounts(ids),
+      // Личный индикатор «я ещё не открывал» (редизайн #56).
+      this.repo.viewedLetterIds(user.id, ids),
+    ]);
     // Бейджи «Ответ на …» в строке очереди «Новые» (#56, Р5).
-    const replyTos = await this.repo.replyTos(page.map((row) => row.id));
+    const replyTos = await this.repo.replyTos(ids);
     const last = page[page.length - 1];
     const axis = listOrderOf(q.box);
     return {
-      items: await this.mapper.toListItems(page, counts, replyTos),
+      items: await this.mapper.toListItems(page, counts, replyTos, viewed),
       nextCursor:
         rows.length > q.limit && last
           ? encodeCursor({ at: last[axis]!.toISOString(), id: last.id })

@@ -34,6 +34,7 @@ const listItem = {
   responseDeadline: null,
   replyTo: null,
   attachmentCount: 1,
+  viewed: false,
 };
 
 describe('письмо v3 (#55)', () => {
@@ -91,8 +92,9 @@ describe('письмо v3 (#55)', () => {
     });
     expect(updateLetterBodySchema.parse({ signerId: null })).toEqual({ signerId: null });
     expect(updateLetterBodySchema.safeParse({}).success).toBe(false);
-    // Адресат и номер правкой не меняются (В3).
-    expect(updateLetterBodySchema.safeParse({ addresseeId: id() }).success).toBe(false);
+    // Номер правкой не меняется никогда; адресат — только до регистрации.
+    expect(updateLetterBodySchema.safeParse({ addresseeId: id() }).success).toBe(true);
+    expect(updateLetterBodySchema.safeParse({ addresseeId: null }).success).toBe(true);
     expect(updateLetterBodySchema.safeParse({ regNumber: 'Вх-2026/1' }).success).toBe(false);
   });
 

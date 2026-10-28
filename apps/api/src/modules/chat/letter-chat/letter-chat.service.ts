@@ -18,7 +18,9 @@ import { LetterChatRepository } from './letter-chat.repository.js';
  * на сущность»). Состав = адресат (owner) + участники (`member`); регистратор
  * в чат не входит (В2). Синхронизация идемпотентна и вызывается событиями
  * `correspondence.*` и GET by-letter (беседа старого письма создаётся при
- * первом открытии). До регистрации беседы нет: roster null.
+ * первом открытии). До регистрации беседа есть, только если обсуждение
+ * начато (участники есть, владелец — создатель, редизайн #56); состав
+ * переживает регистрацию — владелец становится адресатом.
  */
 @Injectable()
 export class LetterChatService {
@@ -29,9 +31,10 @@ export class LetterChatService {
     @Inject(LETTER_CHAT_READER) private readonly letters: LetterChatReader,
   ) {}
 
-  /** Привести беседу к составу письма; null — письма нет или оно не
-   *  зарегистрировано (состав распускается, история остаётся). Состав
-   *  читается ПОСЛЕ блокировки беседы (как у задач, security-гейт #252). */
+  /** Привести беседу к составу письма; null — письма нет либо беседы не
+   *  существует (незарегистрированное без участников — состав распускается,
+   *  история остаётся). Состав читается ПОСЛЕ блокировки беседы (как у задач,
+   *  security-гейт #252). */
   async sync(letterId: string, actorId: string | null): Promise<string | null> {
     return this.txRunner.run(async (tx) => {
       let id = await this.repo.find(tx, letterId);

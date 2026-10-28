@@ -123,6 +123,7 @@ export class LetterDtoMapper {
     refs: LetterRefs,
     attachmentCount: number,
     replyTo: LetterRef | null = null,
+    viewed: boolean = false,
   ): LetterListItem {
     const stage = refs.stages.get(row.stageId);
     return {
@@ -158,6 +159,7 @@ export class LetterDtoMapper {
       responseDeadline: dateOnly(row.responseDeadline),
       replyTo,
       attachmentCount,
+      viewed,
     };
   }
 
@@ -165,10 +167,17 @@ export class LetterDtoMapper {
     rows: readonly LetterListRow[],
     counts: Map<string, number>,
     replyTos: ReadonlyMap<string, LetterRef> = new Map(),
+    viewed: ReadonlySet<string> = new Set(),
   ): Promise<LetterListItem[]> {
     const refs = await this.refsOf(rows);
     return rows.map((row) =>
-      this.toListItem(row, refs, counts.get(row.id) ?? 0, replyTos.get(row.id) ?? null),
+      this.toListItem(
+        row,
+        refs,
+        counts.get(row.id) ?? 0,
+        replyTos.get(row.id) ?? null,
+        viewed.has(row.id),
+      ),
     );
   }
 
@@ -223,6 +232,8 @@ export class LetterDtoMapper {
         // документ (скан) — части самого письма, а не приложения (вердикт 28.10).
         files.filter((file) => file.role === 'attachment' && !file.inline).length,
         extra.replyTo,
+        // Карточку показывают только тому, кто её открыл — он и просмотрел.
+        true,
       ),
       type: refs.types.get(row.typeId) ?? {
         id: row.typeId,
