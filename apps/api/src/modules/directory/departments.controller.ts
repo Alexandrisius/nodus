@@ -107,7 +107,7 @@ export class DepartmentsController {
     dto: UpdateDepartmentDto,
     @GetUser() actor: AuthUser,
   ): Promise<DepartmentNode> {
-    return this.departmentsService.update(id, dto, actor.id);
+    return this.departmentsService.update(id, dto, actor);
   }
 
   @Post(':id/archive')

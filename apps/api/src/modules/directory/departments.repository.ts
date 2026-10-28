@@ -12,6 +12,9 @@ const departmentInclude = {
 
 export type DepartmentRow = Prisma.DepartmentGetPayload<{ include: typeof departmentInclude }>;
 
+/** Предохранитель глубины дерева подразделений (как в RoleMembershipProvider). */
+const MAX_TREE_DEPTH = 32;
+
 /** Доступ к таблице departments (дерево оргструктуры, оба kind). */
 @Injectable()
 export class DepartmentsRepository {
@@ -65,5 +68,22 @@ export class DepartmentsRepository {
       currentId = row.parentId;
     }
     return chain;
+  }
+
+  /** Поддерево: сам узел и все потомки (BFS по уровням; bind #490 —
+   *  затронутые переносом подразделения). */
+  async findSubtreeIds(id: string, tx?: TransactionClient): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const ids: string[] = [];
+    let frontier = [id];
+    for (let depth = 0; frontier.length > 0 && depth < MAX_TREE_DEPTH; depth += 1) {
+      ids.push(...frontier);
+      const children = await client.department.findMany({
+        where: { parentId: { in: frontier } },
+        select: { id: true },
+      });
+      frontier = children.map((child) => child.id);
+    }
+    return ids;
   }
 }

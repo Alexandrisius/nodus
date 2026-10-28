@@ -44,3 +44,22 @@ const CATALOG: ReadonlySet<string> = new Set(Object.values(Permission));
 export function catalogPermissions(permissions: readonly string[]): Permission[] {
   return permissions.filter((permission): permission is Permission => CATALOG.has(permission));
 }
+
+/** Роли, добавившиеся относительно снимка «до» (bind #490 проверяет их одни). */
+export function addedRoleIds(before: readonly string[], after: readonly string[]): string[] {
+  const beforeSet = new Set(before);
+  return after.filter((id) => !beforeSet.has(id));
+}
+
+/** Недостающие права актора для НАБОРА ролей (bind #490): объединение прав
+ *  ролей минус права актора; без дублей, по алфавиту (стабильный details). */
+export function rolesNotHeld(
+  actorPermissions: readonly string[],
+  permissionsByRole: readonly (readonly string[])[],
+): Permission[] {
+  const union = new Set<string>();
+  for (const permissions of permissionsByRole) {
+    for (const permission of permissions) union.add(permission);
+  }
+  return notHeld(actorPermissions, uniquePermissions(catalogPermissions([...union])));
+}

@@ -73,6 +73,26 @@ export class RolesRepository {
     return this.db(tx).role.count({ where: { id: { in: ids } } });
   }
 
+  /** Права ролей пачкой (bind #490): id роли → права по алфавиту. */
+  async permissionsByIds(ids: string[], tx?: TransactionClient): Promise<Map<string, string[]>> {
+    const byRole = new Map<string, string[]>();
+    if (ids.length === 0) return byRole;
+    const rows = await this.db(tx).role.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        permissions: { select: { permission: true }, orderBy: { permission: 'asc' } },
+      },
+    });
+    for (const row of rows) {
+      byRole.set(
+        row.id,
+        row.permissions.map((p) => p.permission),
+      );
+    }
+    return byRole;
+  }
+
   async codeExists(code: string): Promise<boolean> {
     return (await this.prisma.role.count({ where: { code } })) > 0;
   }

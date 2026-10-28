@@ -3,6 +3,8 @@ import type { Readable } from 'node:stream';
 import {
   DIRECTORY_EVENTS,
   ErrorCode,
+  SystemRole,
+  type AuthUser,
   type CreateUserDto,
   type ListUsersQuery,
   type Paginated,
@@ -19,82 +21,23 @@ import { DomainException } from '../../core/errors/domain-exception.js';
 import { EventBus } from '../../core/events/event-bus.js';
 import { AVATAR_PROCESSOR, type AvatarProcessor } from '../../core/ports/avatar-processor.port.js';
 import { avatarUrlOf as signAvatarUrl } from './avatar-url.js';
+import { RoleAssignmentGuard } from './role-assignment-guard.service.js';
 import { RolesRepository } from './roles.repository.js';
-import { UsersRepository, type UserCardRow, type UserListRow } from './users.repository.js';
+import { UsersRepository, type UserCardRow } from './users.repository.js';
+import { buildDisplayName, toListItem, toUserCard } from './user-dto.js';
 
-/** «Фамилия Имя» — денормализация для списков и JWT. Отчество в displayName
- *  НЕ входит (#132, фидбек пилотов: слишком формально; поле middleName
- *  остаётся в справочнике и карточке сотрудника, включалка отображения —
- *  будущее «Настройки портала» #133). Единая точка: ~40 мест UI рендерят
- *  displayName сырым. */
-export function buildDisplayName(parts: {
-  lastName: string;
-  firstName: string;
-  /** Приходит из модели/DTO — ПРИНИМАЕТСЯ и игнорируется: callers с полным
-   *  объектом не чистят поле сами (тест #132 прямо проверяет игнор). */
-  middleName?: string | null;
-}): string {
-  return [parts.lastName, parts.firstName].filter((p): p is string => Boolean(p)).join(' ');
-}
-
-function toIsoDate(value: Date | null): string | null {
-  return value ? value.toISOString().slice(0, 10) : null;
-}
-
-export function toUserCard(
-  row: UserCardRow,
-  avatarUrlOf: (fileId: string | null) => string | null,
-): UserCard {
-  return {
-    id: row.id,
-    email: row.email,
-    displayName: row.displayName,
-    status: row.status,
-    lastName: row.lastName,
-    firstName: row.firstName,
-    middleName: row.middleName,
-    managerId: row.managerId,
-    departmentId: row.departmentId,
-    positionId: row.positionId,
-    legalDepartmentId: row.legalDepartmentId,
-    legalPositionId: row.legalPositionId,
-    mobilePhone: row.mobilePhone,
-    city: row.city,
-    officeLocation: row.officeLocation,
-    isRemote: row.isRemote,
-    workRate: row.workRate,
-    gender: row.gender,
-    birthDate: toIsoDate(row.birthDate),
-    hiredAt: toIsoDate(row.hiredAt),
-    workdayStart: row.workdayStart,
-    avatarUrl: avatarUrlOf(row.avatarFileId),
-    roles: row.roles.map((ur) => ({ id: ur.role.id, code: ur.role.code, name: ur.role.name })),
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-function toListItem(
-  row: UserListRow,
-  avatarUrlOf: (fileId: string | null) => string | null,
-): UserListItem {
-  return {
-    id: row.id,
-    displayName: row.displayName,
-    status: row.status,
-    avatarUrl: avatarUrlOf(row.avatarFileId),
-    email: row.email,
-    managerId: row.managerId,
-    departmentId: row.departmentId,
-    legalDepartmentId: row.legalDepartmentId,
-    positionName: row.position?.name ?? null,
-    departmentName: row.department?.name ?? null,
-  };
+/** Прямая роль «Администратор» сотрудника, если есть (замок и последний админ). */
+function adminRoleOf(row: Pick<UserCardRow, 'roles'>): { id: string; code: string } | null {
+  const match = row.roles.find((assignment) => assignment.role.code === SystemRole.ADMIN);
+  return match ? { id: match.role.id, code: match.role.code } : null;
 }
 
 /**
  * Сценарии справочника сотрудников. Prisma — только репозиторий;
  * каждая мутация — tx + outbox-событие (I9), аудит — контроллером (@Audit).
+ * Смена ролей сотрудника (явные `roleIds` и перевод в подразделение) — под
+ * bind-правилом #490; состав роли «Администратор» защищён замком строки
+ * (последнего активного прямого участника нельзя снять или деактивировать).
  */
 @Injectable()
 export class UsersService {
@@ -105,6 +48,7 @@ export class UsersService {
     private readonly tx: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly signedUrls: SignedUrlService,
+    private readonly guard: RoleAssignmentGuard,
     @Inject(AVATAR_PROCESSOR) private readonly avatars: AvatarProcessor,
   ) {}
 
@@ -133,7 +77,7 @@ export class UsersService {
     return toUserCard(row, this.avatarUrlOf);
   }
 
-  async createUser(dto: CreateUserDto, actorId: string): Promise<UserCard> {
+  async createUser(dto: CreateUserDto, actor: AuthUser): Promise<UserCard> {
     if (await this.users.emailExists(dto.email)) {
       throw new DomainException(ErrorCode.DIRECTORY_EMAIL_TAKEN, 'Email already registered');
     }
@@ -160,17 +104,20 @@ export class UsersService {
       if (dto.roleIds.length > 0) {
         await this.users.setRoles(created.id, dto.roleIds, tx);
       }
+      // bind (#490): роли нового сотрудника — явные и от подразделения —
+      // только из прав актора; отказ откатывает создание целиком.
+      await this.guard.assertEffectiveRolesHeld(actor, created.id, [], tx);
       await this.eventBus.emit(
         tx,
         DIRECTORY_EVENTS.USER_CREATED,
         { userId: created.id, email: created.email },
-        { actorId, aggregateType: 'user', aggregateId: created.id },
+        { actorId: actor.id, aggregateType: 'user', aggregateId: created.id },
       );
       return toUserCard((await this.users.findCardById(created.id, tx))!, this.avatarUrlOf);
     });
   }
 
-  async updateUser(id: string, dto: UpdateUserDto, actorId: string): Promise<UserCard> {
+  async updateUser(id: string, dto: UpdateUserDto, actor: AuthUser): Promise<UserCard> {
     const before = await this.users.findCardById(id);
     if (!before) {
       throw DomainException.notFound('User not found');
@@ -185,8 +132,18 @@ export class UsersService {
       middleName: dto.middleName === undefined ? before.middleName : dto.middleName,
     };
     const { roleIds, ...fields } = dto;
+    const adminRole = adminRoleOf(before);
+    const adminRemoved =
+      adminRole !== null && roleIds !== undefined && !roleIds.includes(adminRole.id);
+    const membershipChanges = roleIds !== undefined || dto.departmentId !== undefined;
 
     return this.tx.run(async (tx) => {
+      // Замок строки admin (#490): правки состава сериализуются, отказ
+      // пост-проверки откатывает транзакцию целиком.
+      if (adminRemoved) {
+        await this.roles.lockForUpdate(adminRole.id, tx);
+      }
+      const beforeRoleIds = membershipChanges ? await this.guard.effectiveRoleIds(id, tx) : null;
       await this.users.update(
         id,
         {
@@ -198,18 +155,26 @@ export class UsersService {
       if (roleIds) {
         await this.users.setRoles(id, roleIds, tx);
       }
+      if (beforeRoleIds !== null) {
+        await this.guard.assertEffectiveRolesHeld(actor, id, beforeRoleIds, tx);
+      }
+      if (adminRemoved && (await this.roles.countActiveDirectMembers(adminRole.id, tx)) === 0) {
+        throw new DomainException(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', {
+          roleId: adminRole.id,
+        });
+      }
       await this.eventBus.emit(
         tx,
         DIRECTORY_EVENTS.USER_UPDATED,
         { userId: id, changedFields: Object.keys(dto) },
-        { actorId, aggregateType: 'user', aggregateId: id },
+        { actorId: actor.id, aggregateType: 'user', aggregateId: id },
       );
       return toUserCard((await this.users.findCardById(id, tx))!, this.avatarUrlOf);
     });
   }
 
   /** Деактивация (увольнение): статус + событие; сессии отзовёт подписчик auth. */
-  async deactivateUser(id: string, actorId: string): Promise<UserCard> {
+  async deactivateUser(id: string, actor: AuthUser): Promise<UserCard> {
     const before = await this.users.findCardById(id);
     if (!before) {
       throw DomainException.notFound('User not found');
@@ -217,14 +182,25 @@ export class UsersService {
     if (before.status === 'deactivated') {
       return toUserCard(before, this.avatarUrlOf); // идемпотентно
     }
+    const adminRole = adminRoleOf(before);
 
     return this.tx.run(async (tx) => {
+      // Замок строки admin (#490): деактивация последнего администратора
+      // сериализуется с правками состава роли.
+      if (adminRole) {
+        await this.roles.lockForUpdate(adminRole.id, tx);
+      }
       await this.users.update(id, { status: 'deactivated' }, tx);
+      if (adminRole && (await this.roles.countActiveDirectMembers(adminRole.id, tx)) === 0) {
+        throw new DomainException(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', {
+          roleId: adminRole.id,
+        });
+      }
       await this.eventBus.emit(
         tx,
         DIRECTORY_EVENTS.USER_DEACTIVATED,
         { userId: id },
-        { actorId, aggregateType: 'user', aggregateId: id },
+        { actorId: actor.id, aggregateType: 'user', aggregateId: id },
       );
       return toUserCard((await this.users.findCardById(id, tx))!, this.avatarUrlOf);
     });
