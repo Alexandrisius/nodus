@@ -1,33 +1,27 @@
 import {
-  AtSign,
   Building2,
-  CalendarCheck,
   CalendarClock,
   CalendarDays,
   FolderKanban,
   Hash,
   Inbox,
   Lock,
-  Mail,
-  ScanLine,
-  Shapes,
   TriangleAlert,
   UserCheck,
-  UserPen,
   UserRound,
 } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
-import type { LetterDetail, UpdateLetterBody, UserRef } from '@nodus/contracts';
+import { memo } from 'react';
+import type { LetterDetail, UpdateLetterBody } from '@nodus/contracts';
 import { LETTER_LIMITS, isFinalState, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { projectsAvailable } from '../../../../shared/api/projects-available.js';
 import { useProjectsList } from '../../../../shared/api/projects-list.js';
-import { formatDateTimeShort } from '../../../../shared/lib/format.js';
+import { useUsersSearch } from '../../../../shared/api/users-list.js';
 import { EntityFields, type EntityFieldDef } from '../../../../shared/ui/entity-fields.js';
-import { PersonAvatar } from '../../../../shared/ui/person-avatar.js';
 import { ResponseDeadline } from '../../../../shared/views/letter-table-fields.js';
 import { useUpdateLetter } from '../../api/letters-mutations.js';
+import { useLetterResolvers } from '../../api/letters-queries.js';
 import { formatIsoDate } from '../../lib/letter-format.js';
 import { registrationReasonText } from '../../lib/registration-draft.js';
 import {
@@ -37,23 +31,10 @@ import {
   SignerValue,
 } from './letter-entity-values.js';
 import { DateFieldValue, ReceiptMethodValue, TextFieldValue } from './letter-field-editors.js';
-import { notSet, notSetRequired } from './letter-value-bits.js';
+import { infoFieldDefs } from './letter-fields-info.js';
+import { mono, notSet, notSetRequired } from './letter-value-bits.js';
 
 const VISIBILITY_KEY = 'nodus-letter-fields-v1';
-
-function Person({ user }: { user: UserRef | null }) {
-  if (!user) return notSet;
-  return (
-    <>
-      <PersonAvatar name={user.displayName} avatarUrl={user.avatarUrl} className="size-6" />
-      <span className="truncate">{user.displayName}</span>
-    </>
-  );
-}
-
-const mono = (text: string): ReactNode => (
-  <span className="font-mono text-label-sm tabular-nums">{text}</span>
-);
 
 /**
  * Доска реквизитов письма (#55, U7; редизайн #56 — карточка-форма) на общем
@@ -73,7 +54,14 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
   letter: LetterDetail;
 }) {
   const update = useUpdateLetter(letter.id);
-  const { data: projects } = useProjectsList({ enabled: letter.access.canEdit });
+  const { data: projects } = useProjectsList({
+    enabled: letter.access.canEdit && (projectsAvailable('letters') || letter.project !== null),
+  });
+  // Префетч справочников выбора (вердикт владельца 28.10): попап поля
+  // открывается с данными сразу, а не с пустой загрузкой — запросы грейятся
+  // монтированием карточки, кэш общий со полями-селекторами.
+  useUsersSearch('');
+  useLetterResolvers();
   const editable = letter.access.canEdit;
   const unregistered = letter.registeredAt === null;
   const save = (body: UpdateLetterBody, patch: Partial<LetterDetail>) =>
@@ -240,61 +228,10 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
           },
         ]
       : []),
-    {
-      key: 'regDate',
-      icon: <CalendarCheck className="size-3.5" />,
-      label: ui.letters.fields.regDate,
-      render: () => (letter.regDate ? mono(formatIsoDate(letter.regDate)) : notSet),
-    },
-    {
-      key: 'registrar',
-      icon: <UserPen className="size-3.5" />,
-      label: ui.letters.fields.registrar,
-      render: () => <Person user={letter.registrar} />,
-    },
-    {
-      key: 'received',
-      icon:
-        letter.source === 'manual' ? (
-          <ScanLine className="size-3.5" />
-        ) : (
-          <Mail className="size-3.5" />
-        ),
-      label: ui.letters.fields.receivedAt,
-      render: () => (
-        <span className="flex min-w-0 items-baseline gap-2">
-          {mono(formatDateTimeShort(letter.receivedAt))}
-          <span className="truncate text-xs text-muted-foreground">
-            {ui.letters.source[letter.source]}
-          </span>
-        </span>
-      ),
-    },
-    ...(letter.mail
-      ? [
-          {
-            key: 'sender',
-            icon: <AtSign className="size-3.5" />,
-            label: ui.letters.fields.sender,
-            render: () => (
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate">
-                  {letter.mail!.fromName ?? letter.mail!.fromAddress}
-                </span>
-                <span className="truncate font-mono text-label-sm text-muted-foreground">
-                  {letter.mail!.fromAddress}
-                </span>
-              </span>
-            ),
-          },
-        ]
-      : []),
-    {
-      key: 'type',
-      icon: <Shapes className="size-3.5" />,
-      label: ui.letters.fields.type,
-      render: () => <span className="truncate">{letter.type.name}</span>,
-    },
+    // Читательские строки (факт поступления, отправитель, тип; у
+    // зарегистрированного — дата регистрации и регистратор) — реестр
+    // `letter-fields-info`.
+    ...infoFieldDefs(letter, unregistered),
   ];
 
   // Подсказка, почему поля не правятся: зарегистрированное в работе без

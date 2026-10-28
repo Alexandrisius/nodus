@@ -87,7 +87,15 @@ function LetterChatTab({
         </EmptyHeader>
         {letter.access.canJoin ? (
           <EmptyContent>
-            <Button onClick={onJoin} disabled={joining} aria-busy={joining || undefined}>
+            {/* Outline, а не заливка: primary на экране один («Зарегистрировать»
+                в баре действий), а то же действие в баре — outline-кнопка:
+                одно действие — один вес в обоих входах. */}
+            <Button
+              variant="outline"
+              onClick={onJoin}
+              disabled={joining}
+              aria-busy={joining || undefined}
+            >
               {joining ? (
                 <Loader2 className="animate-spin" />
               ) : (

@@ -1,20 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { LetterDetail, LetterListItem, Paginated } from '@nodus/contracts';
+import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useRailShrink } from '../../../../app/shell/right-rail.js';
-import {
-  useCardStack,
-  useCloseCard,
-  useReplaceTopCard,
-} from '../../../../app/shell/use-card-stack.js';
+import { useCloseCard } from '../../../../app/shell/use-card-stack.js';
 import { useLetterConversation } from '../../../../shared/chat/chat-queries.js';
 import { CHAT_PANEL_W, ChatSidePanel } from '../../../../shared/chat/chat-side-panel.js';
-import { ApiError, api } from '../../../../shared/api-client.js';
+import { ApiError } from '../../../../shared/api-client.js';
 import { lettersKeys } from '../../../../shared/api/letters-keys.js';
-import { letterRows, type LettersPages } from '../../../../shared/api/letters-list.js';
 import { useReadEntityNotifications } from '../../../../shared/api/read-entity-notifications.js';
 import { uiPx } from '../../../../shared/ui/ui-scale.js';
 import {
@@ -36,7 +31,6 @@ import {
   type LetterTabsState,
 } from '../../lib/letter-tabs.js';
 import { letterTextPart } from '../letter-body-view.js';
-import { LetterSenderLine } from '../letter-sender-line.js';
 import { SpamConfirmDialog } from '../spam-confirm-dialog.js';
 import { InviteParticipantDialog } from './invite-participant-dialog.js';
 import { LetterActionBar } from './letter-action-bar.js';
@@ -60,29 +54,10 @@ function defaultTabOf(letter: LetterDetail): LetterTabId {
   return letter.body.kind === 'none' && letter.access.isParticipant ? 'chat' : 'body';
 }
 
-/** Следующее письмо очереди «Новые» после регистрации текущего (скорость
- *  пакета, редизайн #56): кэш списка или первая страница с сервера; пусто —
- *  остаёмся в карточке (письмо уже зарегистрировано). */
-async function nextNewLetterId(
-  queryClient: ReturnType<typeof useQueryClient>,
-  currentId: string,
-): Promise<string | null> {
-  let data = queryClient.getQueryData<LettersPages>(lettersKeys.list('new'));
-  if (!data) {
-    const first = await queryClient
-      .fetchQuery({
-        queryKey: lettersKeys.list('new'),
-        queryFn: ({ signal }) => api<Paginated<LetterListItem>>('/letters?box=new', { signal }),
-        staleTime: 30_000,
-      })
-      .catch(() => undefined);
-    if (first) data = { pages: [first], pageParams: [null] };
-  }
-  const next = letterRows(data).find(
-    (letter) => letter.id !== currentId && letter.registeredAt === null,
-  );
-  return next?.id ?? null;
-}
+/** Регистрация письма в карточке (окном или кнопкой без окна): списки
+ *  рефечатся сразу — строка уходит из «Новые» и появляется во «Входящих» без
+ *  F5 (вердикт владельца 28.10). Автооткрытие следующего письма убрано тем
+ *  же вердиктом: смена карточки выглядела как «предыдущее не зарегалось». */
 
 /**
  * Карточка письма (#55, U7; редизайн #56, стек ADR-0009, `?cards=letter:<id>`)
@@ -105,9 +80,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
   const join = useJoinLetter(letterId);
   const deleteSpam = useDeleteSpamLetter();
   const closeCard = useCloseCard();
-  const replaceTopCard = useReplaceTopCard();
   const queryClient = useQueryClient();
-  const stack = useCardStack();
   const [spamOpen, setSpamOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   // Вкладки — до первого действия производные от письма (стартовая вкладка).
@@ -132,14 +105,11 @@ export function LetterCard({ letterId }: { letterId: string }) {
   );
   const sideW = Math.max(chatW - railShrink - panelShrink, chatFloor);
 
-  // Скорость пакета: письмо было «новым» и зарегистрировалось (окном или
-  // кнопкой без окна) — карточку сменяет следующее письмо очереди. Замена
-  // только ВЕРХНЕЙ карточки: эта карточка сейчас верхняя (регистрацию жмут
-  // её баром); если сверху успели открыть другую — стоим на месте.
+  // Письмо было «новым» и зарегистрировалось (окном или кнопкой без окна) —
+  // обновляем списки, чтобы строка ушла из «Новые» и пришла во «Входящие»
+  // без перезагрузки страницы. Карточку НЕ меняем (вердикт владельца 28.10).
   const wasNew = useRef<boolean | null>(null);
 
-  // Замена верхней карточки (следующее «Новое») идёт без ремаунта панели —
-  // сбрасываем локальное состояние сами: вкладки и armed-флаг свежие.
   useEffect(() => {
     setTabsState(null);
     setPanelOpen(false);
@@ -157,12 +127,8 @@ export function LetterCard({ letterId }: { letterId: string }) {
       return;
     }
     wasNew.current = false;
-    const top = stack[stack.length - 1];
-    if (!top || top.kind !== 'letter' || top.id !== letter.id) return;
-    void nextNewLetterId(queryClient, letter.id).then((nextId) => {
-      if (nextId) replaceTopCard({ kind: 'letter', id: nextId });
-    });
-  }, [letter, queryClient, replaceTopCard, stack]);
+    void queryClient.invalidateQueries({ queryKey: lettersKeys.lists() });
+  }, [letter, queryClient]);
 
   if (!letter && error instanceof ApiError && error.status === 404) {
     return (
@@ -229,7 +195,6 @@ export function LetterCard({ letterId }: { letterId: string }) {
         >
           <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-4xl pb-4">
-              <LetterSenderLine letter={letter} showTime className="mb-5" />
               <LetterFieldsBoard letter={letter} />
               <LetterAttributes letter={letter} />
               <LetterFilesBlock letter={letter} activeId={activeFileId} onOpen={openAttachment} />

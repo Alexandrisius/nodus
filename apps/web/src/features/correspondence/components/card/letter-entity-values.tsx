@@ -46,20 +46,32 @@ export function CounterpartyValue({
       />
     );
   }
+  // Пустое значение — кнопка-подложка, как у прочих редакторов доски (карандаш
+  // нужен только там, где само значение — ссылка на карточку: без него клик
+  // по имени ушёл бы в CRM вместо правки).
+  if (!letter.counterparty) {
+    if (!editable) return empty;
+    return (
+      <button
+        type="button"
+        className={valueButton}
+        aria-label={editLabel(label)}
+        onClick={() => setEditing(true)}
+      >
+        {empty}
+      </button>
+    );
+  }
   return (
     <span className="group/value flex min-w-0 items-center gap-1">
-      {letter.counterparty ? (
-        <button
-          type="button"
-          title={letter.counterparty.name}
-          onClick={() => openCard({ kind: 'counterparty', id: letter.counterparty?.id ?? '' })}
-          className="min-w-0 truncate text-left text-sm text-info hover:underline"
-        >
-          {letter.counterparty.name}
-        </button>
-      ) : (
-        empty
-      )}
+      <button
+        type="button"
+        title={letter.counterparty.name}
+        onClick={() => openCard({ kind: 'counterparty', id: letter.counterparty?.id ?? '' })}
+        className="min-w-0 truncate text-left text-sm text-info hover:underline"
+      >
+        {letter.counterparty.name}
+      </button>
       {editable ? <EditButton label={label} onClick={() => setEditing(true)} /> : null}
     </span>
   );

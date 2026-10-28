@@ -89,9 +89,10 @@ export function FieldRow({
           {icon}
         </span>
         <span className="truncate">{label}</span>
-        {/* Обязательное поле — тонкая метка-звёздочка в тоне действия. */}
+        {/* Обязательное поле — тонкая метка-звёздочка в тоне действия; прижата
+            к слову (gap-2 метки оставлял бы её «висящей» отдельно). */}
         {required ? (
-          <span aria-hidden className="shrink-0 text-primary">
+          <span aria-hidden className="-ml-1 shrink-0 text-primary">
             *
           </span>
         ) : null}
@@ -101,7 +102,7 @@ export function FieldRow({
       </span>
       <span
         className={cn(
-          'flex min-w-[10rem] flex-1 items-center gap-2 text-sm',
+          'flex min-h-8 min-w-[10rem] flex-1 items-center gap-2 text-sm',
           wide && 'items-start',
         )}
         aria-describedby={hint && hintId ? hintId : undefined}

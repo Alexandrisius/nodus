@@ -9,18 +9,28 @@ import { ui } from '@nodus/contracts';
 export const valueButton =
   '-mx-1 inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-accent';
 
-export const notSet = <span className="text-muted-foreground">{ui.common.notSet}</span>;
+// «Не задано» — короткая фикс-метка: перенос по словам внутри кнопки-значения
+// ломал ритм строк доски (intrinsic-ширина вложенных flex сжимала кнопку до
+// полуслова), поэтому nowrap.
+export const notSet = (
+  <span className="text-muted-foreground whitespace-nowrap">{ui.common.notSet}</span>
+);
 
 /** Пустое ОБЯЗАТЕЛЬНОЕ поле формы незарегистрированного письма (редизайн
  *  #56): тот же «—», но предупреждающим тоном — пропуск заметен до
  *  «Зарегистрировать». */
 export const notSetRequired: ReactNode = (
-  <span className="text-warning" title={ui.letters.card.requiredField}>
+  <span className="text-warning whitespace-nowrap" title={ui.letters.card.requiredField}>
     {ui.common.notSet}
   </span>
 );
 
 export const editLabel = (label: string) => `${ui.letters.card.editHint}: ${label}`;
+
+/** Значение-дата/номер в строке доски: моно-кегль данных (типографика канона). */
+export const mono = (text: string): ReactNode => (
+  <span className="font-mono text-label-sm tabular-nums">{text}</span>
+);
 
 /** Карандаш значения-ссылки (клик по самому значению открывает карточку).
  *  Пропсы и ref прокидываются: кнопка бывает триггером поповера (asChild). */

@@ -140,7 +140,11 @@ export function makeLetterTableFields({
     {
       id: 'counterparty',
       label: ui.letters.fields.counterparty,
-      defaultVisible: counterpartyVisible,
+      // Очередь «Новые»: корреспондент и адресат до регистрации почти всегда
+      // пустые — дефолт очереди несёт отправителя, тему, время и файлы, а эти
+      // две колонки канцелярия берёт шестерёнкой (иначе полезные уезжают за
+      // горизонтальный скролл).
+      defaultVisible: counterpartyVisible && !fresh,
       defaultWidth: 220,
       minWidth: 140,
       maxWidth: 420,
@@ -162,23 +166,38 @@ export function makeLetterTableFields({
       minWidth: 180,
       maxWidth: 640,
       locked: true,
-      render: (letter) => (
-        <span className="min-w-0 truncate text-sm">
-          {/* «Я ещё не открывал» (редизайн #56): точка перед темой — только
-              очередь «Новые», журналы её не показывают. */}
-          {fresh && !letter.viewed ? (
+      render: (letter) => {
+        // «Я ещё не открывал» (редизайн #56): личная метка очереди «Новые»,
+        // журналы её не показывают. Грамматика непрочитанного мессенджера —
+        // счётчик NodeChip danger; здесь счётчика нет (письмо одно), поэтому
+        // бинарная метка: точка info-семантики (тон чат-действий, не чертёжный
+        // port и не кричащий danger на всей очереди) + полужирная тема по
+        // почтовому паттерну: необработанная строка читается весом, открытая
+        // стихает до обычного medium.
+        const unread = fresh && !letter.viewed;
+        return (
+          <span className="min-w-0 truncate text-sm" title={letter.subject ?? undefined}>
+            {unread ? (
+              <span
+                title={ui.letters.list.unreadDot}
+                className="mr-2 inline-block size-2 shrink-0 rounded-full bg-info align-middle"
+              />
+            ) : null}
             <span
-              title={ui.letters.list.unreadDot}
-              className="mr-1.5 inline-block size-1.5 shrink-0 rounded-full bg-port align-middle"
-            />
-          ) : null}
-          <span
-            className={cn('truncate', letter.subject ? 'font-medium' : 'text-muted-foreground')}
-          >
-            {letter.subject ?? ui.letters.noSubject}
+              className={cn(
+                'truncate',
+                letter.subject
+                  ? unread
+                    ? 'font-semibold'
+                    : 'font-medium'
+                  : 'text-muted-foreground',
+              )}
+            >
+              {letter.subject ?? ui.letters.noSubject}
+            </span>
           </span>
-        </span>
-      ),
+        );
+      },
       sortValue: (letter) => letter.subject,
     },
     {
@@ -203,7 +222,7 @@ export function makeLetterTableFields({
     {
       id: 'addressee',
       label: ui.letters.fields.addressee,
-      defaultVisible: true,
+      defaultVisible: !fresh,
       defaultWidth: 184,
       minWidth: 120,
       render: (letter) => <PersonCell user={letter.addressee} />,

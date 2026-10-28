@@ -24,6 +24,8 @@ export function AddresseeField({
   invalid,
   describedBy,
   autoFocus = false,
+  placeholder = ui.letters.form.addresseePlaceholder,
+  ariaLabel = ui.letters.fields.addressee,
 }: {
   value: UserRef | null;
   onChange: (user: UserRef | null) => void;
@@ -32,6 +34,9 @@ export function AddresseeField({
   describedBy?: string;
   /** Правка по месту в карточке: фокус в поле открывает список сразу. */
   autoFocus?: boolean;
+  /** Подсказка поля: у приглашения в обсуждение свой смысл выбора (#56). */
+  placeholder?: string;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -106,8 +111,8 @@ export function AddresseeField({
           <Input
             id={id}
             value={open ? text : value ? withoutPatronymic(value.displayName) : ''}
-            placeholder={ui.letters.form.addresseePlaceholder}
-            aria-label={ui.letters.fields.addressee}
+            placeholder={placeholder}
+            aria-label={ariaLabel}
             aria-invalid={invalid || undefined}
             aria-describedby={describedBy}
             aria-expanded={open}
@@ -166,12 +171,7 @@ export function AddresseeField({
         className="w-(--radix-popover-anchor-width) p-1"
       >
         {/* Фиксированная высота зоны списка — поповер не прыгает при поиске. */}
-        <div
-          ref={listRef}
-          role="listbox"
-          aria-label={ui.letters.fields.addressee}
-          className="h-64 overflow-y-auto"
-        >
+        <div ref={listRef} role="listbox" aria-label={ariaLabel} className="h-64 overflow-y-auto">
           {top.length > 0 ? <GroupTitle label={ui.letters.form.resolversGroup} /> : null}
           {top.map((user, index) => renderOption(user, index))}
           {rest.length > 0 ? <GroupTitle label={ui.letters.form.allEmployeesGroup} /> : null}

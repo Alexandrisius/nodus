@@ -90,6 +90,11 @@ export function LetterActionBar({
   const hasMenu = menu.length > 0 || letter.access.canDeleteSpam || letter.access.canEdit;
   const joinLabel =
     letter.registeredAt === null ? ui.letters.card.startDiscussion : ui.letters.card.join;
+  // В баре — короткая глагольная форма (полная — в гостевой вкладке «Чат» и в
+  // title/aria): «Начать обсуждение» / «Присоединиться к обсуждению» не
+  // влезают в узкую левую зону без обрезки, а действие частое.
+  const joinBarLabel =
+    letter.registeredAt === null ? ui.letters.card.startDiscussionBar : ui.letters.card.joinBar;
 
   /** Регистрация из карточки-формы (редизайн #56): обязательное заполнено —
    *  ввод собирается из самого письма, окно не нужно. */
@@ -150,7 +155,9 @@ export function LetterActionBar({
             flex-ряд сожмёт кнопку в огрызок. Пороги — замер суммы ширин кнопок
             бара: обе подписи влезают с ~780px контейнера, вторичная без
             «обсуждения» — с ~560px. */}
-        <span className={cn('max-w-44 min-w-0 truncate', !main && '@max-[580px]:hidden')}>
+        {/* max-w-56: «Закрыть без регистрации» (самая длинная подпись маршрута)
+            влезает целиком; уже — обрезка с title на самой кнопке. */}
+        <span className={cn('max-w-56 min-w-0 truncate', !main && '@max-[580px]:hidden')}>
           {t.name}
         </span>
       </button>
@@ -158,7 +165,9 @@ export function LetterActionBar({
   };
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-1.5">
+    // gap-1: при типовой ширине левой зоны (1600px экрана) в бар влезают все
+    // подписи маршрута без обрезки — замер живого DOM (#56 редизайн).
+    <div className="flex w-full min-w-0 items-center gap-1">
       {runner.dialog}
       {closed ? (
         <span
@@ -182,7 +191,10 @@ export function LetterActionBar({
           <DropdownMenuTrigger
             aria-label={ui.letters.pipeline.more}
             title={ui.letters.pipeline.more}
-            className={cn(btn, 'px-2 text-muted-foreground hover:bg-accent hover:text-foreground')}
+            className={cn(
+              btn,
+              'px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
           >
             <MoreHorizontal className="size-4" strokeWidth={1.75} />
           </DropdownMenuTrigger>
@@ -233,7 +245,7 @@ export function LetterActionBar({
           title={joinLabel}
           className={cn(
             btn,
-            'min-w-0 border border-border text-foreground hover:bg-accent disabled:opacity-60',
+            'min-w-0 border border-border px-2.5 text-foreground hover:bg-accent disabled:opacity-60',
           )}
         >
           {joining ? (
@@ -241,9 +253,9 @@ export function LetterActionBar({
           ) : (
             <MessageSquarePlus className="size-4 shrink-0" strokeWidth={1.75} />
           )}
-          {/* Подпись «обсуждения» уходит первой: действие дублируется гостевой
-              вкладкой «Чат», а кнопка маршрута важнее. */}
-          <span className="min-w-0 truncate @max-[800px]:hidden">{joinLabel}</span>
+          {/* Совсем узкая левая зона — икона с aria/title; действие дублируется
+              гостевой вкладкой «Чат» с полной подписью. */}
+          <span className="min-w-0 truncate @max-[560px]:hidden">{joinBarLabel}</span>
         </button>
       ) : null}
     </div>

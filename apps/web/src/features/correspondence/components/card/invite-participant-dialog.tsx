@@ -52,7 +52,15 @@ export function InviteParticipantDialog({
             {ui.letters.card.inviteLead}
           </DialogDescription>
         </DialogHeader>
-        <AddresseeField value={picked} onChange={setPicked} invalid={false} />
+        {/* Тот же селектор сотрудников, что у адресата, но со своей подсказкой:
+            выбираем коллегу в обсуждение, а не адресата письма. */}
+        <AddresseeField
+          value={picked}
+          onChange={setPicked}
+          invalid={false}
+          placeholder={ui.letters.card.invitePlaceholder}
+          ariaLabel={ui.letters.card.invitePlaceholder}
+        />
         <DialogFooter>
           <Button variant="ghost" onClick={() => close(false)} disabled={invite.isPending}>
             {ui.common.cancel}

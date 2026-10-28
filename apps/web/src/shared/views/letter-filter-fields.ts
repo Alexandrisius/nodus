@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { LetterListItem } from '@nodus/contracts';
+import type { LetterBox, LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { projectsAvailable } from '../api/projects-available.js';
@@ -77,20 +77,29 @@ function projectOptions(rows: readonly LetterListItem[]): FilterOption[] {
  */
 export function useLetterFilterDefs(
   rows: readonly LetterListItem[],
-  { counterpartyVisible = true }: { counterpartyVisible?: boolean } = {},
+  { counterpartyVisible = true, box }: { counterpartyVisible?: boolean; box?: LetterBox } = {},
 ): FilterFieldDef<LetterListItem>[] {
   const { data: users } = useUsersList();
   const meId = useAuthStore((s) => s.user?.id);
+  // Очередь «Новые» (редизайн #56): письма без регистрации — статус один
+  // («Новое»), дат регистрации и сроков ответа нет вовсе: фильтр по ним
+  // дал бы только пустой список (ловушка), поэтому поля очереди — кто
+  // принёс, кому назначено и как поступило.
+  const fresh = box === 'new';
 
   return useMemo(() => {
     const defs: FilterFieldDef<LetterListItem>[] = [
-      {
-        id: 'stage',
-        label: ui.letters.fields.stage,
-        type: 'select',
-        options: stageOptions(rows),
-        match: (letter, v) => letter.stage.name === v,
-      },
+      ...(fresh
+        ? []
+        : [
+            {
+              id: 'stage',
+              label: ui.letters.fields.stage,
+              type: 'select',
+              options: stageOptions(rows),
+              match: (letter, v) => letter.stage.name === v,
+            } as FilterFieldDef<LetterListItem>,
+          ]),
       {
         id: 'addressee',
         label: ui.letters.fields.addressee,
@@ -102,18 +111,22 @@ export function useLetterFilterDefs(
         })),
         match: (letter, v) => letter.addressee?.id === v,
       },
-      {
-        id: 'regDate',
-        label: ui.letters.fields.regDate,
-        type: 'dateRange',
-        match: (letter, v) => dayInRange(letter.regDate, v),
-      },
-      {
-        id: 'responseDeadline',
-        label: ui.letters.fields.responseDeadline,
-        type: 'dateRange',
-        match: (letter, v) => dayInRange(letter.responseDeadline, v),
-      },
+      ...(fresh
+        ? []
+        : [
+            {
+              id: 'regDate',
+              label: ui.letters.fields.regDate,
+              type: 'dateRange',
+              match: (letter, v) => dayInRange(letter.regDate, v),
+            } as FilterFieldDef<LetterListItem>,
+            {
+              id: 'responseDeadline',
+              label: ui.letters.fields.responseDeadline,
+              type: 'dateRange',
+              match: (letter, v) => dayInRange(letter.responseDeadline, v),
+            } as FilterFieldDef<LetterListItem>,
+          ]),
       {
         id: 'receiptMethod',
         label: ui.letters.fields.receiptMethod,
@@ -121,25 +134,41 @@ export function useLetterFilterDefs(
         options: namesOf(rows, (letter) => letter.receiptMethod?.name),
         match: (letter, v) => letter.receiptMethod?.name === v,
       },
-      {
-        id: 'mine',
-        label: ui.letters.list.presetMine,
-        type: 'select',
-        hidden: true,
-        options: yesOption,
-        match: (letter, v) => v !== 'yes' || (meId !== undefined && letter.addressee?.id === meId),
-      },
-      {
-        id: 'overdue',
-        label: ui.letters.list.presetOverdue,
-        type: 'select',
-        hidden: true,
-        options: yesOption,
-        match: (letter, v) => v !== 'yes' || isResponseOverdue(letter),
-      },
+      ...(projectsAvailable('letters')
+        ? [
+            {
+              id: 'project',
+              label: ui.letters.fields.project,
+              type: 'select',
+              options: projectOptions(rows),
+              match: (letter, v) => letter.project?.code === v,
+            } as FilterFieldDef<LetterListItem>,
+          ]
+        : []),
+      ...(fresh
+        ? []
+        : [
+            {
+              id: 'mine',
+              label: ui.letters.list.presetMine,
+              type: 'select',
+              hidden: true,
+              options: yesOption,
+              match: (letter, v) =>
+                v !== 'yes' || (meId !== undefined && letter.addressee?.id === meId),
+            } as FilterFieldDef<LetterListItem>,
+            {
+              id: 'overdue',
+              label: ui.letters.list.presetOverdue,
+              type: 'select',
+              hidden: true,
+              options: yesOption,
+              match: (letter, v) => v !== 'yes' || isResponseOverdue(letter),
+            } as FilterFieldDef<LetterListItem>,
+          ]),
     ];
     if (counterpartyVisible) {
-      defs.splice(1, 0, {
+      defs.splice(fresh ? 0 : 1, 0, {
         id: 'counterparty',
         label: ui.letters.fields.counterparty,
         type: 'select',
@@ -147,15 +176,6 @@ export function useLetterFilterDefs(
         match: (letter, v) => letter.counterparty?.name === v,
       });
     }
-    if (projectsAvailable('letters')) {
-      defs.splice(defs.length - 2, 0, {
-        id: 'project',
-        label: ui.letters.fields.project,
-        type: 'select',
-        options: projectOptions(rows),
-        match: (letter, v) => letter.project?.code === v,
-      });
-    }
     return defs;
-  }, [rows, users, meId, counterpartyVisible]);
+  }, [rows, users, meId, counterpartyVisible, fresh]);
 }

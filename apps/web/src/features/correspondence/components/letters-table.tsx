@@ -66,7 +66,7 @@ export function LettersTable({ box }: { box: LetterBox }) {
   const query = useLettersInfinite(box, { search: search || undefined });
   const serverRows = useMemo(() => letterRows(query.data), [query.data]);
   const fields = useMemo(() => makeLetterTableFields({ box }), [box]);
-  const defs = useLetterFilterDefs(serverRows);
+  const defs = useLetterFilterDefs(serverRows, { box });
   // Запрос уже применил сервер — локально только поля фильтра (иначе
   // совпадения по «их №» отсеялись бы клиентской подстрокой).
   const filter = useMemo<ActiveListFilter<LetterListItem>>(
@@ -92,14 +92,19 @@ export function LettersTable({ box }: { box: LetterBox }) {
           defs={defs}
           builtinPresets={box === 'new' ? [] : letterBuiltinPresets}
           searchPlaceholder={ui.letters.list.searchPlaceholder}
+          // Закон кнопки создания (вердикт владельца 15.09.26): первый элемент
+          // строки инструментов, СЛЕВА от поиска; бумажное письмо создают
+          // только в очереди «Новые».
+          left={
+            box === 'new' ? (
+              <Button onClick={() => setManualOpen(true)} className="shrink-0">
+                <FilePlus2 data-icon="inline-start" />
+                {ui.common.create}
+              </Button>
+            ) : undefined
+          }
           right={<ViewSettings viewKey={viewKey} defs={fields} />}
         />
-        {box === 'new' ? (
-          <Button onClick={() => setManualOpen(true)} className="shrink-0">
-            <FilePlus2 data-icon="inline-start" />
-            {ui.common.create}
-          </Button>
-        ) : null}
       </LettersHeader>
       <div className="min-h-0 flex-1">
         {failed ? (
