@@ -56,8 +56,8 @@ function defaultTabOf(letter: LetterDetail): LetterTabId {
 
 /** Регистрация письма в карточке (окном или кнопкой без окна): списки
  *  рефечатся сразу — строка уходит из «Новые» и появляется во «Входящих» без
- *  F5 (вердикт владельца 28.10). Автооткрытие следующего письма убрано тем
- *  же вердиктом: смена карточки выглядела как «предыдущее не зарегалось». */
+ *  F5, после чего карточка закрывается — возврат к списку «Новых»
+ *  (вердикт владельца 28.10). */
 
 /**
  * Карточка письма (#55, U7; редизайн #56, стек ADR-0009, `?cards=letter:<id>`)
@@ -128,7 +128,10 @@ export function LetterCard({ letterId }: { letterId: string }) {
     }
     wasNew.current = false;
     void queryClient.invalidateQueries({ queryKey: lettersKeys.lists() });
-  }, [letter, queryClient]);
+    // Вердикт владельца 28.10: после регистрации карточка закрывается —
+    // секретарь возвращается к списку «Новых» и сама выбирает следующее.
+    closeCard();
+  }, [letter, queryClient, closeCard]);
 
   if (!letter && error instanceof ApiError && error.status === 404) {
     return (
