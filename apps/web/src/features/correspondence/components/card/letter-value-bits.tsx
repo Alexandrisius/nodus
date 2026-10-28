@@ -16,15 +16,6 @@ export const notSet = (
   <span className="text-muted-foreground whitespace-nowrap">{ui.common.notSet}</span>
 );
 
-/** Пустое ОБЯЗАТЕЛЬНОЕ поле формы незарегистрированного письма (редизайн
- *  #56): тот же «—», но предупреждающим тоном — пропуск заметен до
- *  «Зарегистрировать». */
-export const notSetRequired: ReactNode = (
-  <span className="text-warning whitespace-nowrap" title={ui.letters.card.requiredField}>
-    {ui.common.notSet}
-  </span>
-);
-
 export const editLabel = (label: string) => `${ui.letters.card.editHint}: ${label}`;
 
 /** Значение-дата/номер в строке доски: моно-кегль данных (типографика канона). */

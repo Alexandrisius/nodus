@@ -32,7 +32,7 @@ import {
 } from './letter-entity-values.js';
 import { DateFieldValue, ReceiptMethodValue, TextFieldValue } from './letter-field-editors.js';
 import { infoFieldDefs } from './letter-fields-info.js';
-import { mono, notSet, notSetRequired } from './letter-value-bits.js';
+import { mono, notSet } from './letter-value-bits.js';
 
 const VISIBILITY_KEY = 'nodus-letter-fields-v1';
 
@@ -80,7 +80,7 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
         <CounterpartyValue
           letter={letter}
           editable={editable}
-          empty={unregistered ? notSetRequired : notSet}
+          empty={notSet}
           onCommit={(counterparty) =>
             save(
               { counterpartyId: counterparty.id, signerId: null },
@@ -113,7 +113,7 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
           label={ui.letters.fields.theirNumber}
           maxLength={LETTER_LIMITS.theirNumber}
           editable={editable}
-          empty={unregistered ? notSetRequired : notSet}
+          empty={notSet}
           onCommit={(theirNumber) => save({ theirNumber }, { theirNumber })}
         />
       ),
@@ -129,13 +129,7 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
           label={ui.letters.fields.theirDate}
           editable={editable}
           rule="not_future"
-          display={
-            letter.theirDate ? (
-              mono(formatIsoDate(letter.theirDate))
-            ) : (
-              <>{unregistered ? notSetRequired : notSet}</>
-            )
-          }
+          display={letter.theirDate ? mono(formatIsoDate(letter.theirDate)) : <>{notSet}</>}
           onRejected={rejectDate}
           onCommit={(theirDate) => theirDate && save({ theirDate }, { theirDate })}
         />
@@ -150,7 +144,7 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
         <AddresseeValue
           letter={letter}
           editable={editable && unregistered}
-          empty={unregistered ? notSetRequired : notSet}
+          empty={notSet}
           onCommit={(addressee) => save({ addresseeId: addressee?.id ?? null }, { addressee })}
         />
       ),
@@ -190,7 +184,7 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
         <ReceiptMethodValue
           letter={letter}
           editable={editable}
-          empty={unregistered ? notSetRequired : notSet}
+          empty={notSet}
           onCommit={(receiptMethod) =>
             save({ receiptMethodId: receiptMethod.id }, { receiptMethod })
           }
