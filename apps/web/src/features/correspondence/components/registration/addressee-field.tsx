@@ -26,6 +26,7 @@ export function AddresseeField({
   autoFocus = false,
   placeholder = ui.letters.form.addresseePlaceholder,
   ariaLabel = ui.letters.fields.addressee,
+  onDismiss,
 }: {
   value: UserRef | null;
   onChange: (user: UserRef | null) => void;
@@ -37,6 +38,9 @@ export function AddresseeField({
   /** Подсказка поля: у приглашения в обсуждение свой смысл выбора (#56). */
   placeholder?: string;
   ariaLabel?: string;
+  /** Закрытие без выбора (клик мимо, Escape) — правка по месту в карточке
+   *  закрывает поле, как у подписанта (приёмка 28.10). */
+  onDismiss?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -103,7 +107,10 @@ export function AddresseeField({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setText('');
+        if (!next) {
+          setText('');
+          onDismiss?.();
+        }
       }}
     >
       <PopoverAnchor asChild>

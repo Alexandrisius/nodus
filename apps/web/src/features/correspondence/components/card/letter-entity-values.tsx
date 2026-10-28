@@ -115,11 +115,23 @@ export function SignerValue({
       </div>
     );
   }
+  if (!signer) {
+    return (
+      <button
+        type="button"
+        className={cn(valueButton, 'shrink-0')}
+        aria-label={editLabel(label)}
+        onClick={() => setEditing(true)}
+      >
+        {text}
+      </button>
+    );
+  }
   return (
     <span className="group/value flex min-w-0 items-center gap-1">
       <button
         type="button"
-        className={cn(valueButton, !signer && 'shrink-0')}
+        className={valueButton}
         aria-label={editLabel(label)}
         onClick={() => setEditing(true)}
       >
@@ -167,6 +179,7 @@ export function AddresseeValue({
         <AddresseeField
           value={addressee}
           autoFocus
+          onDismiss={() => setEditing(false)}
           onChange={(user) => {
             setEditing(false);
             if ((user?.id ?? null) !== (addressee?.id ?? null)) onCommit(user);
@@ -175,13 +188,25 @@ export function AddresseeValue({
       </div>
     );
   }
+  // Пустое «Не задано» — отдельная несжимаемая кнопка прямо в слоте
+  // (одобренный рендер 28.10): nowrap-текст не вылезает за плашку ховера.
+  if (!addressee) {
+    return (
+      <button
+        type="button"
+        className={cn(valueButton, 'shrink-0')}
+        aria-label={editLabel(label)}
+        onClick={() => setEditing(true)}
+      >
+        {empty}
+      </button>
+    );
+  }
   return (
     <span className="group/value flex min-w-0 items-center gap-1">
       <button
         type="button"
-        // Пустое «Не задано» не сжимается: nowrap-текст шире плашки = ховер
-        // без последних символов (flex-слот давит кнопку, #56 приёмка 28.10).
-        className={cn(valueButton, !addressee && 'shrink-0')}
+        className={valueButton}
         aria-label={editLabel(label)}
         onClick={() => setEditing(true)}
       >
