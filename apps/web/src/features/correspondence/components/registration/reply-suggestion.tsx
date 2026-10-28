@@ -3,6 +3,7 @@ import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { NodeChip } from '@nodus/ui/components/node-chip';
+import { cn } from '@nodus/ui/lib/utils';
 
 import type { RegistrationDraft } from '../../lib/registration-draft.js';
 
@@ -36,7 +37,11 @@ export function ReplySuggestion({
   return (
     <div
       data-reg-field="replyToLetterId"
-      className="flex min-w-0 flex-col gap-1 rounded-[10px] bg-muted/50 px-3 py-2"
+      className={cn(
+        'flex min-w-0 flex-col gap-1 rounded-[10px] px-3 py-2 transition-colors',
+        // Галочка поставлена — решение видно тоном: связь будет.
+        value.linkReply ? 'bg-info-soft/60' : 'bg-muted/50',
+      )}
     >
       <label className="flex min-w-0 items-center gap-2 text-xs text-foreground">
         <Checkbox

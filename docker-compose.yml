@@ -95,6 +95,9 @@ services:
     networks:
       nodus_net:
         aliases: [nodus-api]
+      # Egress-изоляция конвертера (#56, Р10): api ходит в Gotenberg только
+      # по внутренней сети без выхода наружу.
+      nodus_internal:
 
   gateway:
     build:
@@ -299,13 +302,16 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
     restart: unless-stopped
-    # Первый потребитель — конвейер производных #139: прод-api ходит по
-    # docker-сети (GOTENBERG_URL=http://gotenberg:3000). Наружу — только
-    # loopback-бинд для песочницы live-stack (api на хосте), не в LAN
-    # (SSRF-аудит #123 сохранён).
+    # Первый потребитель — конвейер производных #139; офисные вложения
+    # ВНЕШНИХ отправителей приходят почтой (#56) — SSRF-поверхность конвертера
+    # закрыта egress-изоляцией: только внутренняя сеть БЕЗ выхода наружу
+    # (Р10, долг security-ревью #55). Прод-api ходит по ней
+    # (GOTENBERG_URL=http://gotenberg:3000); loopback-бинд живёт для песочницы
+    # live-stack (api на хосте; published-порт обслуживает docker-proxy на
+    # хосте, host→container во internal-сети доступен), не в LAN.
     ports:
       - '127.0.0.1:${NODUS_GOTENBERG_PORT:-3100}:3000'
-    networks: [nodus_net]
+    networks: [nodus_internal]
 
   # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.
   # Токен — из Cloudflare Zero Trust dashboard (см. docs/runbooks/repo-bootstrap.md).
@@ -322,6 +328,11 @@ services:
 networks:
   nodus_net:
     name: nodus_net
+  # Внутренний контур без выхода в интернет (#56, Р10): конвертер чужих
+  # документов не может ходить наружу; входящие извне недоступны.
+  nodus_internal:
+    name: nodus_internal
+    internal: true
 
 volumes:
   nodus_pgdata:

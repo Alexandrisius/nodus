@@ -91,6 +91,8 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.LETTER_REGISTRATION_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
   [ErrorCode.LETTER_NOT_DELETABLE]: HttpStatus.CONFLICT,
   [ErrorCode.LETTER_NOT_EDITABLE]: HttpStatus.CONFLICT,
+  // Подтверждение связи «ответ на» (#56) — негодное значение, не конфликт.
+  [ErrorCode.LETTER_RELATION_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
   // Кастомные поля (#431, ADR-0029): невалидное значение и недоступный тип —
   // 422 (семантика значения, не форма запроса); имя, лимит, архивное поле и
   // несовместимая смена типа — конфликт состояния; справочники — конфликт.

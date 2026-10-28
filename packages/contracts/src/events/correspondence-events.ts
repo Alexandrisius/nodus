@@ -46,6 +46,8 @@ export const letterReceivedPayloadSchema = z.object({
   typeId: z.uuid(),
   direction: letterDirectionSchema,
   source: letterSourceSchema,
+  /** Тема (null — без темы): превью уведомления «Поступило письмо» (#56). */
+  subject: z.string().nullable(),
   /** Файлы письма — вход конвейера PDF-производных офисных документов.
    *  Почта приносит до `LETTER_LIMITS.mailFiles` вложений + тело + исходник
    *  (#56, Р12). */
@@ -123,9 +125,10 @@ export const letterDeletedPayloadSchema = z.object({ letterId: z.uuid() });
 export type LetterDeletedPayload = z.infer<typeof letterDeletedPayloadSchema>;
 
 /** Ящик не читается: аккумулятор циклов дошёл до порога (#56, Р4/В4).
- *  `sourceCode` — код `mail_sources` ('chancery'), error — человекочитаемая
- *  причина последней неудачи. */
+ *  `sourceId`/`sourceCode` — строка mail_sources ('chancery'), error —
+ *  человекочитаемая причина последней неудачи. */
 export const mailSyncFailedPayloadSchema = z.object({
+  sourceId: z.uuid(),
   sourceCode: z.string().min(1),
   error: z.string().min(1),
   attempts: z.number().int().min(1),

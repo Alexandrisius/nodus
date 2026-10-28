@@ -41,6 +41,8 @@ export interface RegistrationValues {
   projectId: string | null;
   addresseeId: string;
   responseDeadline: string | null;
+  /** Подтверждение подсказки «ответ на» (#56, Р5): семантика — в апликере. */
+  replyToLetterId: string | null;
 }
 
 /** Изменение поля для события/истории (значения — сырые: id, ISO-дата). */
@@ -112,6 +114,7 @@ export class LetterFieldsValidator {
         projectId: value.projectId,
         addresseeId: value.addresseeId,
         responseDeadline: value.responseDeadline,
+        replyToLetterId: value.replyToLetterId ?? null,
       },
       customFields,
     };

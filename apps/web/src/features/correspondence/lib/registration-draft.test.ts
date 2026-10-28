@@ -115,6 +115,7 @@ describe('черновик регистрации (#55, U5)', () => {
       complete({ suggestedReply: suggested, linkReply: true }),
       '2026-10-26',
     );
+    if (!linked) throw new Error('с галочкой связи тело регистрации ожидается не пустым');
     expect(linked.replyToLetterId).toBe(suggested.id);
     // Подсказка берётся из карточки письма при монтировании формы.
     expect(initialDraft(letter, METHODS).linkReply).toBe(false);

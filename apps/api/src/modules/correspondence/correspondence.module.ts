@@ -15,6 +15,12 @@ import { LettersController } from './letters/letters.controller.js';
 import { LettersMutationService } from './letters/letters-mutation.service.js';
 import { LettersQueryService } from './letters/letters-query.service.js';
 import { LettersRepository } from './letters/letters.repository.js';
+import { LetterThreadingService } from './letters/letter-threading.service.js';
+import { MailInboxService } from './mail/mail-inbox.service.js';
+import { MailLetterWriter } from './mail/mail-letter-writer.js';
+import { MailModule } from './mail/mail.module.js';
+import { MailPollJob } from './mail/mail-poll.job.js';
+import { SmtpOutboxTransport } from './mail/smtp-outbox.transport.js';
 import { LetterFormApplier } from './workflow/letter-form.applier.js';
 import { LetterStageMover } from './workflow/letter-stage.mover.js';
 import { LetterTransitionsService } from './workflow/letter-transitions.service.js';
@@ -33,7 +39,13 @@ import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
  * по `static readonly workflowCategory = 'letter'`.
  */
 @Module({
-  imports: [WorkflowsPortsModule, CustomFieldsPortsModule, CrmPortsModule, DictionariesPortsModule],
+  imports: [
+    WorkflowsPortsModule,
+    CustomFieldsPortsModule,
+    CrmPortsModule,
+    DictionariesPortsModule,
+    MailModule,
+  ],
   controllers: [LettersController],
   providers: [
     UserProfileProvider,
@@ -45,12 +57,19 @@ import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
     LetterDtoMapper,
     LettersQueryService,
     LetterFieldsValidator,
+    LetterThreadingService,
     LetterFormApplier,
     LetterStageMover,
     LetterWorkflowAdapter,
     LettersMutationService,
     LetterTransitionsService,
     LetterHistoryService,
+    // Доменный цикл приёма почты (#56): живёт здесь — зависим от сервисов писем
+    // (репозиторий, цепочки), транспортная обвязка — MailModule.
+    MailLetterWriter,
+    MailInboxService,
+    MailPollJob,
+    SmtpOutboxTransport,
   ],
 })
 export class CorrespondenceModule {}

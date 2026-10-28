@@ -8,7 +8,6 @@ import type { ContactRef, CounterpartyRef } from '@nodus/contracts';
  *
  * Порт работает и при выключенном фичефлаге `crm`: флаг закрывает HTTP,
  * но письма и проекты продолжают показывать ссылки (I10).
- * Адреса контактов (почта, телефон) добавит #464.
  */
 export const COUNTERPARTY_READER = Symbol('COUNTERPARTY_READER');
 
@@ -32,4 +31,8 @@ export interface CounterpartyReader {
   /** Id контрагентов по подстроке названия (#55): поиск писем по
    *  корреспонденту без join между модулями. Живые, по алфавиту. */
   searchIds(query: string, limit: number): Promise<string[]>;
+
+  /** Контакты с точным адресом почты (нижний регистр), живые (#56, Р6):
+   *  подстановка контрагента и подписанта по отправителю письма. */
+  findContactsByEmail(email: string): Promise<{ counterpartyId: string; contactId: string }[]>;
 }

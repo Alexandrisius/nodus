@@ -143,10 +143,15 @@ function TextBody({
         {blocked > 0 && !allowImages ? (
           <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-4 text-xs text-muted-foreground">
             <ImageOff className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-            <span className="min-w-0 truncate">
-              {ui.letters.body.imagesBlocked}{' '}
-              <span className="font-mono tabular-nums">{blocked}</span>
+            {/* Узкая зона письма: обрезается подпись, счётчик скрытых картинок
+                остаётся видимым (число — данные, не текст). */}
+            <span
+              className="min-w-0 truncate"
+              title={`${ui.letters.body.imagesBlocked} ${blocked}`}
+            >
+              {ui.letters.body.imagesBlocked}
             </span>
+            <span className="shrink-0 font-mono tabular-nums">{blocked}</span>
             <Button
               variant="ghost"
               size="sm"

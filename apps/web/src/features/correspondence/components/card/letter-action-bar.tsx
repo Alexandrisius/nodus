@@ -86,8 +86,11 @@ export function LetterActionBar({
         )}
       >
         <Icon className={cn('size-4 shrink-0', running && 'animate-spin')} strokeWidth={1.75} />
-        {/* Узкая левая зона: вторичная кнопка — только значок с подсказкой. */}
-        <span className={cn('max-w-44 min-w-0 truncate', !main && '@max-[420px]:hidden')}>
+        {/* Узкая левая зона: подписи сбрасываются по контейнеру ДО того, как
+            flex-ряд сожмёт кнопку в огрызок. Пороги — замер суммы ширин кнопок
+            бара: обе подписи влезают с ~780px контейнера, вторичная без
+            «обсуждения» — с ~560px. */}
+        <span className={cn('max-w-44 min-w-0 truncate', !main && '@max-[580px]:hidden')}>
           {t.name}
         </span>
       </button>
@@ -153,6 +156,7 @@ export function LetterActionBar({
           onClick={onJoin}
           disabled={joining}
           aria-busy={joining || undefined}
+          aria-label={ui.letters.card.join}
           title={ui.letters.card.join}
           className={cn(
             btn,
@@ -164,7 +168,9 @@ export function LetterActionBar({
           ) : (
             <MessageSquarePlus className="size-4 shrink-0" strokeWidth={1.75} />
           )}
-          <span className="min-w-0 truncate @max-[520px]:hidden">{ui.letters.card.join}</span>
+          {/* Подпись «обсуждения» уходит первой: действие дублируется гостевой
+              вкладкой «Чат», а кнопка маршрута важнее. */}
+          <span className="min-w-0 truncate @max-[800px]:hidden">{ui.letters.card.join}</span>
         </button>
       ) : null}
     </div>

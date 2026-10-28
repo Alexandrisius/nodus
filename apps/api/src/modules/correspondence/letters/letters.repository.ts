@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { LetterBox } from '@nodus/contracts';
+import type { LetterBox, LetterRef } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
@@ -163,6 +163,98 @@ export class LettersRepository {
       where: { id: { in: [...ids] } },
       select: { id: true, regNumber: true, subject: true },
     });
+  }
+
+  // ===== Связи «ответ на» (#56, Р5; таблица letter_relations) =====
+
+  /** Связи «ответ на» страницы списков: бейдж очереди «Новые». */
+  async replyTos(letterIds: readonly string[]): Promise<Map<string, LetterRef>> {
+    if (letterIds.length === 0) return new Map();
+    const rows = await this.prisma.letterRelation.findMany({
+      where: { letterId: { in: [...letterIds] }, kind: 'reply_to' },
+      select: {
+        letterId: true,
+        relatedLetter: { select: { id: true, regNumber: true, subject: true } },
+      },
+    });
+    return new Map(rows.map((row) => [row.letterId, row.relatedLetter]));
+  }
+
+  /** Связь «ответ на» письма или null (карточка). */
+  async replyTo(letterId: string): Promise<LetterRef | null> {
+    const row = await this.prisma.letterRelation.findFirst({
+      where: { letterId, kind: 'reply_to' },
+      select: { relatedLetter: { select: { id: true, regNumber: true, subject: true } } },
+    });
+    return row?.relatedLetter ?? null;
+  }
+
+  /** Вставка связи идемпотентна (частичный unique «один reply_to») — в
+   *  транзакции создания/регистрации письма. true — вставили. */
+  async linkReplyTo(
+    tx: TransactionClient,
+    letterId: string,
+    relatedLetterId: string,
+    source: 'auto' | 'manual',
+  ): Promise<boolean> {
+    const existing = await tx.letterRelation.findFirst({
+      where: { letterId, kind: 'reply_to' },
+      select: { id: true },
+    });
+    if (existing) return false;
+    await tx.letterRelation.create({
+      data: { letterId, relatedLetterId, kind: 'reply_to', source },
+    });
+    return true;
+  }
+
+  /** Цель связи по id (валидация подтверждения, Р5): живое письмо с
+   *  направлением и регистрацией — в транзакции регистрации. */
+  replyTargetById(tx: TransactionClient, id: string) {
+    return tx.letter.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, direction: true, registeredAt: true },
+    });
+  }
+
+  /** Есть ли у письма уже связь «ответ на» (в транзакции регистрации). */
+  hasReplyTo(tx: TransactionClient, letterId: string): Promise<boolean> {
+    return tx.letterRelation
+      .findFirst({ where: { letterId, kind: 'reply_to' }, select: { id: true } })
+      .then(Boolean);
+  }
+
+  /** Живые письма по Message-ID (надгробия спама исключены — авто-связь не
+   *  должна цепляться к удалённому). */
+  findByMailMessageIds(messageIds: readonly string[]) {
+    if (messageIds.length === 0) return Promise.resolve([]);
+    return this.prisma.letter.findMany({
+      where: { mailMessageId: { in: [...messageIds] }, deletedAt: null },
+      select: { id: true, regNumber: true, subject: true, mailMessageId: true },
+    });
+  }
+
+  /** Существует ли письмо с Message-ID — дедуп приёма (Р3): надгробие тоже
+   *  «существует» (удалённый спам не возвращается). */
+  mailMessageIdTaken(messageId: string): Promise<boolean> {
+    return this.prisma.letter
+      .findFirst({ where: { mailMessageId: messageId }, select: { id: true } })
+      .then(Boolean);
+  }
+
+  /** Зарегистрированное исходящее по номеру «Исх-ГГГГ/N» — нечёткая
+   *  подсказка «ответ на» по теме (Р5). */
+  findRegisteredOutgoingByNumber(regNumber: string): Promise<LetterRef | null> {
+    return this.prisma.letter.findFirst({
+      where: { regNumber, direction: 'outgoing', registeredAt: { not: null }, deletedAt: null },
+      select: { id: true, regNumber: true, subject: true },
+    });
+  }
+
+  /** Надгробие спама (Р13): строка живёт, файлы и вложения снесены. */
+  async tombstone(tx: TransactionClient, id: string): Promise<void> {
+    await tx.letterAttachment.deleteMany({ where: { letterId: id } });
+    await tx.letter.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   /** Счётчики стадий (диалог публикации, мета списка). */

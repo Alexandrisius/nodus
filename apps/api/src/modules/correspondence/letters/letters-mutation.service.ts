@@ -128,6 +128,7 @@ export class LettersMutationService {
             typeId: type.id,
             direction: 'incoming',
             source: 'manual',
+            subject: null,
             fileIds: attachments.map((attachment) => attachment.fileId),
           },
           { actorId: user.id, aggregateType: 'letter', aggregateId: letterId },
@@ -159,6 +160,9 @@ export class LettersMutationService {
       responseDeadline: row.responseDeadline
         ? row.responseDeadline.toISOString().slice(0, 10)
         : null,
+      // Правка не касается связей «ответ на» (Р5) — в RegistrationValues
+      // поле присутствует, но PATCH его не меняет.
+      replyToLetterId: null,
     };
     const { data, changes } = await this.validator.patch(
       current,
@@ -189,7 +193,10 @@ export class LettersMutationService {
     return this.query.detail(user, id);
   }
 
-  /** `DELETE /letters/:id` — спам из «Новые» (физически, Р12). */
+  /** `DELETE /letters/:id` — спам из «Новые» (Р12 + надгробие #56, Р13):
+   *  файлы и вложения сносятся физически, строка письма живёт с deleted_at и
+   *  Message-ID — повторный импорт удалённого (сброс UIDVALIDITY, полный
+   *  переобход) не возвращает мусор в «Новые». */
   async deleteSpam(user: AuthUser, id: string): Promise<void> {
     const row = await this.query.visibleRow(user, id);
     if (!letterAccessOf(user, row, false).canDeleteSpam) {
@@ -198,7 +205,7 @@ export class LettersMutationService {
     const fileIds = await this.repo.fileIds(id);
     await this.txRunner.run(async (tx) => {
       await this.repo.lock(tx, id);
-      await this.repo.delete(tx, id);
+      await this.repo.tombstone(tx, id);
       await this.eventBus.emit(
         tx,
         CORRESPONDENCE_EVENTS.LETTER_DELETED,

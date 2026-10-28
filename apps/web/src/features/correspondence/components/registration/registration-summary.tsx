@@ -30,12 +30,14 @@ export function RegistrationSummary({
 
   return (
     <div className="flex flex-col gap-1 text-xs">
-      {flags.length > 0 ? (
-        <p className="flex items-center gap-1.5 text-warning">
+      {/* Флаги — отдельными строками, как на доске полей карточки: два
+          предупреждения не сливаются в одну строку через «·». */}
+      {flags.map((flag) => (
+        <p key={flag} className="flex items-center gap-1.5 text-warning">
           <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-          {flags.join(' · ')}
+          {flag}
         </p>
-      ) : null}
+      ))}
       {missing.length > 0 ? (
         <p className="text-muted-foreground" aria-live="polite">
           <span className="font-medium text-foreground">{ui.letters.pipeline.missing}</span>{' '}

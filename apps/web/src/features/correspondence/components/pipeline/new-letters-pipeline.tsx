@@ -89,7 +89,16 @@ export function NewLettersPipeline() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // Главное действие конвейера — «Зарегистрировать» в форме: шапочное
+  // «Создать» (бумага — редкий случай) тише, заливка остаётся пустому
+  // состоянию, где оно единственное.
   const createButton = (
+    <Button variant="outline" onClick={() => setManualOpen(true)}>
+      <FilePlus2 data-icon="inline-start" />
+      {ui.common.create}
+    </Button>
+  );
+  const createButtonPrimary = (
     <Button onClick={() => setManualOpen(true)}>
       <FilePlus2 data-icon="inline-start" />
       {ui.common.create}
@@ -173,11 +182,11 @@ export function NewLettersPipeline() {
               title={ui.letters.pipeline.empty}
               hint={ui.letters.pipeline.emptyHint}
             >
-              {createButton}
+              {createButtonPrimary}
             </LettersEmpty>
           ) : (
             <>
-              <div className="flex min-w-0 flex-1 flex-col border-r border-border">
+              <div className="@container flex min-w-0 flex-1 flex-col border-r border-border">
                 <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
                   {letter ? (
                     <>
@@ -203,8 +212,12 @@ export function NewLettersPipeline() {
                       >
                         {letterSubject(letter)}
                       </span>
+                      {/* Узкая зона письма: способ поступления дублирует значок
+                          строки очереди — уступает место теме. */}
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {ui.letters.source[letter.source]} ·{' '}
+                        <span className="@max-[600px]:hidden">
+                          {ui.letters.source[letter.source]} ·{' '}
+                        </span>
                         <span className="font-mono tabular-nums">
                           {receivedLabel(letter.receivedAt)}
                         </span>

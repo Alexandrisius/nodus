@@ -76,6 +76,26 @@ export class ContactsRepository {
     });
   }
 
+  /** Живые контакты с точным адресом (нижний регистр; индекс email — #56,
+   *  Р6): подстановка контрагента и подписанта по отправителю письма. */
+  async findByEmail(
+    email: string,
+  ): Promise<{ id: string; counterpartyId: string; counterpartyArchivedAt: Date | null }[]> {
+    const rows = await this.prisma.contactPerson.findMany({
+      where: {
+        email: email.trim().toLowerCase(),
+        archivedAt: null,
+        counterparty: { archivedAt: null },
+      },
+      select: { id: true, counterpartyId: true, counterparty: { select: { archivedAt: true } } },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      counterpartyId: row.counterpartyId,
+      counterpartyArchivedAt: row.counterparty.archivedAt,
+    }));
+  }
+
   /** Счётчики активных контактов пачкой по id страницы реестра. */
   async countActiveByCounterparties(ids: readonly string[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();

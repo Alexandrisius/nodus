@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import type { AuthUser } from '@nodus/contracts';
+import { ErrorCode, type AuthUser } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
 import type { WorkflowFormApplied } from '../../../core/ports/workflow-entity.port.js';
 import { companyDate } from '../../../core/time/company-time.js';
 import type { LetterDetailRow } from '../letters/letter-row.js';
+import { LetterThreadingService } from '../letters/letter-threading.service.js';
 import { LettersRepository } from '../letters/letters.repository.js';
 import { LetterFieldsValidator, asDate } from '../letters/letter-fields.validator.js';
 
@@ -14,17 +16,27 @@ const EMPTY: WorkflowFormApplied = { fields: {}, timeEntryId: null, result: null
 const isoOf = (value: Date | null): string | null =>
   value ? value.toISOString().slice(0, 10) : null;
 
+/** 422 подтверждения связи «ответ на» (#56, Р5). */
+const relationFail = (reason: 'not_found' | 'not_outgoing_registered' | 'suggestion_mismatch') =>
+  new DomainException(ErrorCode.LETTER_RELATION_INVALID, 'Letter relation is invalid', {
+    field: 'replyToLetterId',
+    reason,
+  });
+
 /**
- * Применение окна «Регистрация» (#55, Р1): проверка тех же полей, что у
- * формы, и запись реквизитов в письмо. Номер письма здесь НЕ ставится —
- * его выдаёт движок пост-действием `assign_number` и передаёт адаптеру в
- * `meta.numbering` (транзакция одна).
+ * Применение окна «Регистрация» (#55, Р1; #56 — связь «ответ на»): проверка
+ * тех же полей, что у формы, и запись реквизитов в письмо. Номер письма здесь
+ * НЕ ставится — его выдаёт движок пост-действием `assign_number` и передаёт
+ * адаптеру в `meta.numbering` (транзакция одна). Подтверждённая подсказка
+ * «ответ на» — только свежая цель-исходящее (произвольные связи — #461),
+ * вставка идемпотентна (частичный unique «один reply_to»).
  */
 @Injectable()
 export class LetterFormApplier {
   constructor(
     private readonly letters: LettersRepository,
     private readonly validator: LetterFieldsValidator,
+    private readonly threading: LetterThreadingService,
   ) {}
 
   async apply(
@@ -34,11 +46,12 @@ export class LetterFormApplier {
     input: { registration?: unknown },
   ): Promise<WorkflowFormApplied> {
     if (!input.registration) return EMPTY;
+    const today = companyDate(new Date());
     const { values, customFields } = await this.validator.registration(
       letter.typeId,
       input.registration,
       actor.id,
-      companyDate(new Date()),
+      today,
     );
     const fields: WorkflowFormApplied['fields'] = {};
     const diff = (field: string, from: unknown, to: unknown): void => {
@@ -67,6 +80,31 @@ export class LetterFormApplier {
       responseDeadline: asDate(values.responseDeadline),
       customFields: customFields as Prisma.InputJsonValue,
     });
+
+    if (values.replyToLetterId) {
+      await this.confirmReplyTo(tx, letter, values.replyToLetterId, today);
+    }
     return { fields, timeEntryId: null, result: null };
+  }
+
+  /** Галочка Вики подтверждает подсказку — цель обязана быть свежей
+   *  подсказкой сервера (зарегистрированное исходящее по теме). */
+  private async confirmReplyTo(
+    tx: TransactionClient,
+    letter: LetterDetailRow,
+    replyToLetterId: string,
+    today: string,
+  ): Promise<void> {
+    const target = await this.letters.replyTargetById(tx, replyToLetterId);
+    if (!target) throw relationFail('not_found');
+    if (target.direction !== 'outgoing' || target.registeredAt === null) {
+      throw relationFail('not_outgoing_registered');
+    }
+    const existing = await this.letters.hasReplyTo(tx, letter.id);
+    const suggestion = await this.threading.suggestionBySubject(letter.subject, today);
+    if (existing || suggestion?.id !== replyToLetterId) {
+      throw relationFail('suggestion_mismatch');
+    }
+    await this.letters.linkReplyTo(tx, letter.id, replyToLetterId, 'manual');
   }
 }

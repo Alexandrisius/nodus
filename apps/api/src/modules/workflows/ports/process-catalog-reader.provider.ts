@@ -89,6 +89,17 @@ export class ProcessCatalogReaderProvider implements ProcessCatalogReader {
     return processTypeDto(type, workflowId, { creation });
   }
 
+  async resolveTypeByCode(
+    code: string,
+    opts: { category: ProcessCategory },
+  ): Promise<ProcessType | null> {
+    const type = await this.types.findByCode(code);
+    if (!type || type.archivedAt || type.category !== opts.category) return null;
+    const workflowId = await this.types.workflowIdOf(type.id);
+    const creation = await this.workflows.creationOf(workflowId);
+    return processTypeDto(type, workflowId, { creation });
+  }
+
   async typeRefs(ids: readonly string[], opts: { live?: boolean } = {}): Promise<ProcessTypeRef[]> {
     if (ids.length === 0) return [];
     const rows = await this.types.findByIds(ids);

@@ -60,6 +60,8 @@ export const notificationSourceSchema = z.enum([
   'task',
   'letter',
   'workflow',
+  /** Ящик приёма почты (#56): клика нет — источник «почта молчит». */
+  'mail',
 ]);
 export type NotificationSource = z.infer<typeof notificationSourceSchema>;
 

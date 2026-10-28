@@ -7,8 +7,11 @@ import {
   type LetterAccess,
   type LetterAttachment,
   type LetterBody,
+  type LetterCounterpartySuggestion,
   type LetterDetail,
   type LetterListItem,
+  type LetterMailInfo,
+  type LetterRef,
   type ProcessTypeRef,
   type ReceiptMethodRef,
   type UserRef,
@@ -119,6 +122,7 @@ export class LetterDtoMapper {
     row: LetterListRow | LetterDetailRow,
     refs: LetterRefs,
     attachmentCount: number,
+    replyTo: LetterRef | null = null,
   ): LetterListItem {
     const stage = refs.stages.get(row.stageId);
     return {
@@ -139,6 +143,8 @@ export class LetterDtoMapper {
       registeredAt: row.registeredAt?.toISOString() ?? null,
       receivedAt: row.receivedAt.toISOString(),
       source: row.source as LetterListItem['source'],
+      mailFromName: row.mailFromName,
+      mailFromAddress: row.mailFromAddress,
       subject: row.subject,
       counterparty: row.counterpartyId
         ? (refs.counterparties.get(row.counterpartyId) ?? null)
@@ -150,6 +156,7 @@ export class LetterDtoMapper {
       project: null,
       addressee: row.addresseeId ? (refs.users.get(row.addresseeId) ?? null) : null,
       responseDeadline: dateOnly(row.responseDeadline),
+      replyTo,
       attachmentCount,
     };
   }
@@ -157,16 +164,26 @@ export class LetterDtoMapper {
   async toListItems(
     rows: readonly LetterListRow[],
     counts: Map<string, number>,
+    replyTos: ReadonlyMap<string, LetterRef> = new Map(),
   ): Promise<LetterListItem[]> {
     const refs = await this.refsOf(rows);
-    return rows.map((row) => this.toListItem(row, refs, counts.get(row.id) ?? 0));
+    return rows.map((row) =>
+      this.toListItem(row, refs, counts.get(row.id) ?? 0, replyTos.get(row.id) ?? null),
+    );
   }
 
-  /** Деталь: тип, подписант, регистратор, файлы, тело и атрибуты. */
+  /** Деталь: тип, подписант, регистратор, файлы, тело и атрибуты.
+   *  Почтовые подсказки (#56) вычисляет сервис чтения (динамика: контакт
+   *  могут завести позже — Р6) и передаёт сюда готовыми. */
   async toDetail(
     row: LetterDetailRow,
     attachments: readonly LetterAttachmentRow[],
     access: LetterAccess,
+    extra: {
+      replyTo: LetterRef | null;
+      replySuggestion: LetterRef | null;
+      counterpartySuggestion: LetterCounterpartySuggestion | null;
+    },
   ): Promise<LetterDetail> {
     const refs = await this.refsOf([row], {
       contacts: row.signerId ? [row.signerId] : [],
@@ -187,6 +204,8 @@ export class LetterDtoMapper {
         name,
         mime,
         size: file?.size ?? 0,
+        contentId: a.contentId,
+        inline: a.inline,
         url: this.signedUrls.fileContentUrl(a.fileId),
         pdfUrl:
           previewKind === 'office' && isPdfDerivativeCandidate(name)
@@ -197,7 +216,12 @@ export class LetterDtoMapper {
     });
     const values = (row.customFields ?? {}) as LetterDetail['customFields'];
     return {
-      ...this.toListItem(row, refs, files.filter((file) => file.role !== 'source').length),
+      ...this.toListItem(
+        row,
+        refs,
+        files.filter((file) => file.role !== 'source' && !file.inline).length,
+        extra.replyTo,
+      ),
       type: refs.types.get(row.typeId) ?? {
         id: row.typeId,
         code: 'letter',
@@ -206,6 +230,9 @@ export class LetterDtoMapper {
       },
       signer: row.signerId ? (refs.contacts.get(row.signerId) ?? null) : null,
       registrar: row.registrarId ? (refs.users.get(row.registrarId) ?? null) : null,
+      mail: mailInfoOf(row),
+      replySuggestion: extra.replyTo ? null : extra.replySuggestion,
+      counterpartySuggestion: extra.counterpartySuggestion,
       attachments: files,
       body: bodyOf(files),
       customFields: values,
@@ -213,6 +240,18 @@ export class LetterDtoMapper {
       access,
     };
   }
+}
+
+/** Конверт в DTO (#56): null — бумажное письмо, внесённое вручную. */
+function mailInfoOf(row: LetterDetailRow): LetterMailInfo | null {
+  if (!row.mailFromAddress && !row.mailMessageId) return null;
+  return {
+    fromAddress: row.mailFromAddress ?? '',
+    fromName: row.mailFromName,
+    messageId: row.mailMessageId,
+    parseIssue: row.mailParseIssue,
+    storageIncomplete: row.mailStorageIncomplete,
+  };
 }
 
 /** Тело (Р8): главный документ во вьювере, иначе HTML/текст почты, иначе пусто. */
