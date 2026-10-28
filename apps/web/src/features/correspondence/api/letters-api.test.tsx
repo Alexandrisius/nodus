@@ -196,3 +196,130 @@ describe('useDeleteSpamLetter — удаление спама оптимисти
     ).toHaveLength(1);
   });
 });
+
+describe('useUpdateLetter — параллельные мутации (patterns.md:108)', () => {
+  it('откат одной правки не затирает подтверждённый патч другого письма', async () => {
+    const client = new QueryClient();
+    const letterX = detail({ id: '80000000-0000-4000-8000-000000000101', subject: 'X original' });
+    const letterY = detail({ id: '80000000-0000-4000-8000-000000000102', subject: 'Y original' });
+    client.setQueryData(lettersKeys.detail(letterX.id), letterX);
+    client.setQueryData(lettersKeys.detail(letterY.id), letterY);
+    client.setQueryData(
+      lettersKeys.list('incoming'),
+      pages([listItemOf(letterX), listItemOf(letterY)]),
+    );
+
+    const gateX = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes(letterX.id)) return gateX.promise;
+        return json(200, { ...letterY, subject: 'Y patched' });
+      }),
+    );
+
+    const { result: hookX } = renderHook(() => useUpdateLetter(letterX.id), {
+      wrapper: wrapper(client),
+    });
+    const { result: hookY } = renderHook(() => useUpdateLetter(letterY.id), {
+      wrapper: wrapper(client),
+    });
+
+    await act(async () => {
+      hookX.current.mutate({ body: { subject: 'X patched' }, patch: { subject: 'X patched' } });
+      hookY.current.mutate({ body: { subject: 'Y patched' }, patch: { subject: 'Y patched' } });
+    });
+
+    await waitFor(() => expect(hookY.current.isSuccess).toBe(true));
+    expect(
+      client
+        .getQueryData<LettersPages>(lettersKeys.list('incoming'))
+        ?.pages[0]?.items.find((i) => i.id === letterY.id)?.subject,
+    ).toBe('Y patched');
+
+    await act(async () => {
+      gateX.resolve(json(409, { code: 'LETTER_NOT_EDITABLE', message: 'x' }));
+    });
+    await waitFor(() => expect(hookX.current.isError).toBe(true));
+
+    expect(
+      client
+        .getQueryData<LettersPages>(lettersKeys.list('incoming'))
+        ?.pages[0]?.items.find((i) => i.id === letterY.id)?.subject,
+    ).toBe('Y patched');
+    expect(
+      client
+        .getQueryData<LettersPages>(lettersKeys.list('incoming'))
+        ?.pages[0]?.items.find((i) => i.id === letterX.id)?.subject,
+    ).toBe('X original');
+  });
+});
+
+describe('useDeleteSpamLetter — параллельные мутации (patterns.md:108)', () => {
+  it('откат удаления одного письма не затимает удаление другого', async () => {
+    const client = new QueryClient();
+    const itemX = listItemOf(
+      detail({
+        id: '80000000-0000-4000-8000-000000000103',
+        subject: 'X spam',
+        regNumber: null,
+        regDate: null,
+        registeredAt: null,
+        stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
+      }),
+    );
+    const itemY = listItemOf(
+      detail({
+        id: '80000000-0000-4000-8000-000000000104',
+        subject: 'Y spam',
+        regNumber: null,
+        regDate: null,
+        registeredAt: null,
+        stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
+      }),
+    );
+    client.setQueryData(lettersKeys.list('new'), pages([itemX, itemY]));
+
+    const gateX = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes(itemX.id)) return gateX.promise;
+        return new Response(null, { status: 204 });
+      }),
+    );
+
+    const { result: hookX } = renderHook(() => useDeleteSpamLetter(), { wrapper: wrapper(client) });
+    const { result: hookY } = renderHook(() => useDeleteSpamLetter(), { wrapper: wrapper(client) });
+
+    await act(async () => {
+      hookX.current.mutate(itemX.id);
+      hookY.current.mutate(itemY.id);
+    });
+
+    await waitFor(() => expect(hookY.current.isSuccess).toBe(true));
+    expect(
+      client
+        .getQueryData<LettersPages>(lettersKeys.list('new'))
+        ?.pages[0]?.items.find((i) => i.id === itemY.id),
+    ).toBeUndefined();
+
+    await act(async () => {
+      gateX.resolve(json(409, { code: 'LETTER_NOT_DELETABLE', message: 'x' }));
+    });
+    await waitFor(() => expect(hookX.current.isError).toBe(true));
+
+    expect(
+      client
+        .getQueryData<LettersPages>(lettersKeys.list('new'))
+        ?.pages[0]?.items.find((i) => i.id === itemY.id),
+    ).toBeUndefined();
+    expect(
+      client
+        .getQueryData<LettersPages>(lettersKeys.list('new'))
+        ?.pages[0]?.items.find((i) => i.id === itemX.id)?.subject,
+    ).toBe('X spam');
+  });
+});
