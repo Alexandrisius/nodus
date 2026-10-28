@@ -185,6 +185,12 @@ async function up(mode, mock) {
     }
   }
 
+  // Эфемерный конвертер песочницы (план-Б #56, Р10): прод-gotenberg теперь
+  // только во internal-сети без портов — api песочницы (хост) ходит в свой
+  // экземпляр профиля sandbox на loopback-порту. Живёт, пока песочница:
+  // down() его останавливает.
+  run('docker compose --profile sandbox up -d gotenberg-sandbox', [], { ...process.env });
+
   // Изоляция песочницы (#178, урок-инцидент #175): без явного env процесса
   // песочница САМА уходит на изолированные nodus_night + Redis db1 — из .env
   // (там прод-значения) конструируем песочные. Явный env процесса главнее;
@@ -323,6 +329,8 @@ function down() {
   }
   fs.rmSync(PID_FILE, { force: true });
   fs.rmSync(MODE_FILE, { force: true });
+  // Эфемерный конвертер песочницы (план-Б #56, Р10) — гасим вместе со стеком.
+  run('docker compose --profile sandbox stop gotenberg-sandbox', [], { ...process.env });
   console.log(
     stopped === 0 ? 'Stack was not running (no/empty PID file).' : `Stopped processes: ${stopped}`,
   );

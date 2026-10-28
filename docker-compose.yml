@@ -302,16 +302,27 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
     restart: unless-stopped
-    # Первый потребитель — конвейер производных #139; офисные вложения
-    # ВНЕШНИХ отправителей приходят почтой (#56) — SSRF-поверхность конвертера
-    # закрыта egress-изоляцией: только внутренняя сеть БЕЗ выхода наружу
-    # (Р10, долг security-ревью #55). Прод-api ходит по ней
-    # (GOTENBERG_URL=http://gotenberg:3000); loopback-бинд живёт для песочницы
-    # live-stack (api на хосте; published-порт обслуживает docker-proxy на
-    # хосте, host→container во internal-сети доступен), не в LAN.
+    # Конвейер производных #139; офисные вложения ВНЕШНИХ отправителей
+    # приходят почтой (#56) — SSRF-поверхность конвертера закрыта
+    # egress-изоляцией: ТОЛЬКО внутренняя сеть без выхода наружу и без
+    # опубликованных портов (Р10, долг security-ревью #55; Docker на
+    # internal-сети не публикует порты и не пускает хост — проба #56).
+    # Прод-api ходит по ней: GOTENBERG_URL=http://gotenberg:3000.
+    networks: [nodus_internal]
+
+  # Эфемерный конвертер песочницы live-stack (план-Б #56, Р10): api песочницы
+  # живёт на хосте, до internal-сети не достучаться — отдельный экземпляр с
+  # loopback-портом поднимается профилем sandbox вместе с live-stack
+  # (scripts/live-stack.mjs), живёт только пока песочница. Изоляция прода
+  # не ослабляется: прод-конвертер остаётся без egress и без портов.
+  gotenberg-sandbox:
+    image: gotenberg/gotenberg:8
+    container_name: nodus_gotenberg_sandbox
+    restart: unless-stopped
     ports:
       - '127.0.0.1:${NODUS_GOTENBERG_PORT:-3100}:3000'
-    networks: [nodus_internal]
+    networks: [nodus_net]
+    profiles: [sandbox]
 
   # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.
   # Токен — из Cloudflare Zero Trust dashboard (см. docs/runbooks/repo-bootstrap.md).
