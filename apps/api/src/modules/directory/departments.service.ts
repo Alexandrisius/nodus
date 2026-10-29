@@ -2,16 +2,22 @@ import { Injectable } from '@nestjs/common';
 import {
   DIRECTORY_EVENTS,
   ErrorCode,
+  type AuthUser,
   type CreateDepartmentDto,
   type DepartmentNode,
   type OrgUnitKind,
   type UpdateDepartmentDto,
 } from '@nodus/contracts';
 
-import { TransactionRunner } from '../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../core/database/transaction-runner.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { EventBus } from '../../core/events/event-bus.js';
+import { RoleAssignmentGuard } from './role-assignment-guard.service.js';
 import { DepartmentsRepository, type DepartmentRow } from './departments.repository.js';
+import { UsersRepository } from './users.repository.js';
 
 function toNode(row: DepartmentRow, children: DepartmentNode[]): DepartmentNode {
   return {
@@ -33,11 +39,15 @@ function toNode(row: DepartmentRow, children: DepartmentNode[]): DepartmentNode 
 /**
  * Оргструктура: дерево подразделений (управленческое и юридическое).
  * Узел — руководитель (head) и постоянный заместитель (deputy) — эпик M2.
+ * Перенос подразделения меняет роли сотрудников поддерева — под bind-правилом
+ * #490 (появившиеся роли — только из прав актора).
  */
 @Injectable()
 export class DepartmentsService {
   constructor(
     private readonly departments: DepartmentsRepository,
+    private readonly users: UsersRepository,
+    private readonly guard: RoleAssignmentGuard,
     private readonly tx: TransactionRunner,
     private readonly eventBus: EventBus,
   ) {}
@@ -80,8 +90,11 @@ export class DepartmentsService {
     });
   }
 
-  async update(id: string, dto: UpdateDepartmentDto, actorId: string): Promise<DepartmentNode> {
-    await this.ensureExists(id);
+  async update(id: string, dto: UpdateDepartmentDto, actor: AuthUser): Promise<DepartmentNode> {
+    const current = await this.departments.findById(id);
+    if (!current) {
+      throw DomainException.notFound('Department not found');
+    }
     if (dto.parentId !== undefined && dto.parentId !== null) {
       await this.ensureExists(dto.parentId);
       // Защита от цикла: новый родитель не должен быть потомком узла.
@@ -94,12 +107,30 @@ export class DepartmentsService {
       }
     }
     return this.tx.run(async (tx) => {
+      // bind (#490): перенос меняет роли сотрудников поддерева. Снимок «до» —
+      // до смены родителя; отказ проверки после мутации откатывает перенос.
+      // Строка под `FOR UPDATE`, состояние перечитывается в транзакции:
+      // параллельный перенос коммитится до нас — решение о снимке принимается
+      // по зафиксированному parentId, а не по чтению вне транзакции.
+      if (!(await this.departments.lockForUpdate(id, tx))) {
+        throw DomainException.notFound('Department not found');
+      }
+      const locked = (await this.departments.findById(id, tx)) ?? current;
+      const beforeByIds = await this.escalationSnapshot(id, locked, dto, tx);
       const updated = await this.departments.update(id, dto, tx);
+      if (beforeByIds !== null) {
+        await this.guard.assertNoEscalationForUsers(
+          actor,
+          [...beforeByIds.keys()],
+          beforeByIds,
+          tx,
+        );
+      }
       await this.eventBus.emit(
         tx,
         DIRECTORY_EVENTS.DEPARTMENT_UPDATED,
         { departmentId: id, changedFields: Object.keys(dto) },
-        { actorId, aggregateType: 'department', aggregateId: id },
+        { actorId: actor.id, aggregateType: 'department', aggregateId: id },
       );
       return toNode(updated, []);
     });
@@ -117,6 +148,21 @@ export class DepartmentsService {
         { actorId, aggregateType: 'department', aggregateId: id },
       );
     });
+  }
+
+  /** Снимок «до» для bind-проверки (#490): сотрудники поддерева, если перенос
+   *  меняет позицию узла; null — роли никого не затронут (проверка не нужна). */
+  private async escalationSnapshot(
+    id: string,
+    current: DepartmentRow,
+    dto: UpdateDepartmentDto,
+    tx: TransactionClient,
+  ): Promise<Map<string, string[]> | null> {
+    if (dto.parentId === undefined || dto.parentId === current.parentId) return null;
+    const subtree = await this.departments.findSubtreeIds(id, tx);
+    const userIds = await this.users.findActiveIdsByDepartmentIds(subtree, tx);
+    if (userIds.length === 0) return null;
+    return this.guard.snapshotEffectiveRoles(userIds, tx);
   }
 
   private async ensureExists(id: string): Promise<void> {

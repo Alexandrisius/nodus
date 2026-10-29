@@ -68,11 +68,14 @@ export type CreateDepartmentDto = z.infer<typeof createDepartmentSchema>;
  * — Zod 4 подставляет `.default()` и в необязательные поля, поэтому PATCH с одним
  * `name` затирал родителя, руководителя, заместителя, вид и порядок (#492, урок #379).
  * Пустое тело отклоняется: правка без полей — ошибка клиента, а не no-op.
+ * kind НЕ входит: вид структуры неизменяем после создания — переключение
+ * management↔legal «усыпляло»/реактивировало привязки ролей в обход bind (#490);
+ * права подразделения считает только management-цепочка. Неизвестные ключи
+ * zod отбрасывает.
  */
 export const updateDepartmentSchema = z
   .object({
     name: z.string().trim().min(1).max(256).optional(),
-    kind: orgUnitKindSchema.optional(),
     parentId: z.uuid().nullable().optional(),
     headId: z.uuid().nullable().optional(),
     deputyId: z.uuid().nullable().optional(),

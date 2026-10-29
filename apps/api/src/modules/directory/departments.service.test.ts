@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ErrorCode } from '@nodus/contracts';
+import { ErrorCode, Permission, type AuthUser } from '@nodus/contracts';
 
+import { RoleAssignmentGuard } from './role-assignment-guard.service.js';
 import { DepartmentsService } from './departments.service.js';
+
+const actor = (permissions: string[] = []): AuthUser => ({
+  id: 'admin-1',
+  email: 'a@b.by',
+  displayName: 'Админ',
+  permissions,
+});
 
 function row(
   id: string,
@@ -29,10 +37,15 @@ describe('DepartmentsService', () => {
   const departments = {
     findAllByKind: vi.fn(),
     findById: vi.fn(),
+    lockForUpdate: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     findParentChain: vi.fn(),
+    findSubtreeIds: vi.fn(),
   };
+  const users = { findActiveIdsByDepartmentIds: vi.fn() };
+  const roles = { permissionsByIds: vi.fn(), lockForUpdate: vi.fn(), lockByCodeForUpdate: vi.fn() };
+  const membership = { effectiveRoleIds: vi.fn() };
   const tx = { run: vi.fn((cb: (t: string) => unknown) => cb('tx-handle')) };
   const eventBus = { emit: vi.fn() };
 
@@ -40,7 +53,16 @@ describe('DepartmentsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new DepartmentsService(departments as never, tx as never, eventBus as never);
+    membership.effectiveRoleIds.mockResolvedValue([]);
+    departments.lockForUpdate.mockResolvedValue(true);
+    const guard = new RoleAssignmentGuard(roles as never, membership as never);
+    service = new DepartmentsService(
+      departments as never,
+      users as never,
+      guard,
+      tx as never,
+      eventBus as never,
+    );
   });
 
   describe('getTree', () => {
@@ -67,7 +89,7 @@ describe('DepartmentsService', () => {
       departments.findById.mockResolvedValue(row('dep', null));
       departments.findParentChain.mockResolvedValue(['parent', 'dep']); // dep — предок parent
 
-      await expect(service.update('dep', { parentId: 'parent' }, 'admin-1')).rejects.toMatchObject({
+      await expect(service.update('dep', { parentId: 'parent' }, actor())).rejects.toMatchObject({
         code: ErrorCode.CONFLICT,
       });
       expect(departments.update).not.toHaveBeenCalled();
@@ -91,7 +113,7 @@ describe('DepartmentsService', () => {
         }),
       );
 
-      const node = await service.update('dep', { name: 'Новое имя' }, 'admin-1');
+      const node = await service.update('dep', { name: 'Новое имя' }, actor());
 
       // В репозиторий уходит ровно присланное — без подставленных дефолтов.
       expect(departments.update).toHaveBeenCalledWith('dep', { name: 'Новое имя' }, 'tx-handle');
@@ -114,9 +136,11 @@ describe('DepartmentsService', () => {
     it('валидная смена родителя → update + событие в транзакции', async () => {
       departments.findById.mockResolvedValue(row('dep', null));
       departments.findParentChain.mockResolvedValue(['new-parent']);
+      departments.findSubtreeIds.mockResolvedValue(['dep']);
+      users.findActiveIdsByDepartmentIds.mockResolvedValue([]); // поддерево без сотрудников
       departments.update.mockResolvedValue(row('dep', 'new-parent'));
 
-      const node = await service.update('dep', { parentId: 'new-parent' }, 'admin-1');
+      const node = await service.update('dep', { parentId: 'new-parent' }, actor());
 
       expect(departments.update).toHaveBeenCalledWith(
         'dep',
@@ -130,6 +154,64 @@ describe('DepartmentsService', () => {
         expect.objectContaining({ actorId: 'admin-1' }),
       );
       expect(node.parentId).toBe('new-parent');
+    });
+
+    it('правка без смены родителя — bind-проверка не запускается', async () => {
+      departments.findById.mockResolvedValue(row('dep', 'root'));
+      departments.update.mockResolvedValue(row('dep', 'root'));
+
+      await service.update('dep', { name: 'Новое имя' }, actor());
+
+      expect(departments.findSubtreeIds).not.toHaveBeenCalled();
+      expect(membership.effectiveRoleIds).not.toHaveBeenCalled();
+    });
+
+    it('bind (#490): перенос выдаёт сотруднику роль сверх прав актора → 403', async () => {
+      departments.findById.mockResolvedValue(row('dep', null));
+      departments.findParentChain.mockResolvedValue(['new-parent']);
+      departments.findSubtreeIds.mockResolvedValue(['dep', 'child']);
+      users.findActiveIdsByDepartmentIds.mockResolvedValue(['u-1', 'u-2']);
+      // Снимок «до» (u-1, u-2) — без ролей; «после» переноса u-1 получает роль.
+      membership.effectiveRoleIds
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(['role-dept'])
+        .mockResolvedValueOnce([]);
+      roles.permissionsByIds.mockResolvedValue(new Map([['role-dept', [Permission.CRM_MANAGE]]]));
+
+      await expect(
+        service.update('dep', { parentId: 'new-parent' }, actor()),
+      ).rejects.toMatchObject({ code: ErrorCode.ROLE_PERMISSION_NOT_HELD });
+      expect(eventBus.emit).not.toHaveBeenCalled();
+    });
+
+    it('bind (#490): перенос, добавляющий роль из прав актора — разрешён', async () => {
+      departments.findById.mockResolvedValue(row('dep', null));
+      departments.findParentChain.mockResolvedValue(['new-parent']);
+      departments.findSubtreeIds.mockResolvedValue(['dep']);
+      users.findActiveIdsByDepartmentIds.mockResolvedValue(['u-1']);
+      membership.effectiveRoleIds
+        .mockResolvedValueOnce([]) // до: снимок
+        .mockResolvedValueOnce(['role-dept']); // после: перенос добавил
+      roles.permissionsByIds.mockResolvedValue(new Map([['role-dept', [Permission.CRM_MANAGE]]]));
+      departments.update.mockResolvedValue(row('dep', 'new-parent'));
+
+      await service.update('dep', { parentId: 'new-parent' }, actor([Permission.CRM_MANAGE]));
+
+      expect(eventBus.emit).toHaveBeenCalled();
+    });
+
+    it('перенос в корень снимает роли — правами не ограничен', async () => {
+      departments.findById.mockResolvedValue(row('dep', 'root'));
+      departments.findSubtreeIds.mockResolvedValue(['dep']);
+      users.findActiveIdsByDepartmentIds.mockResolvedValue(['u-1']);
+      membership.effectiveRoleIds.mockResolvedValueOnce(['role-dept']).mockResolvedValueOnce([]);
+      departments.update.mockResolvedValue(row('dep', null));
+
+      await service.update('dep', { parentId: null }, actor());
+
+      expect(eventBus.emit).toHaveBeenCalled();
+      expect(roles.permissionsByIds).not.toHaveBeenCalled();
     });
   });
 

@@ -123,4 +123,19 @@ export class UsersRepository {
   async countByIds(ids: string[]): Promise<number> {
     return this.prisma.user.count({ where: { id: { in: ids } } });
   }
+
+  /** Активные сотрудники управленческих подразделений (bind #490: затронутые
+   *  переносом подразделения). Порядок детерминирован. */
+  async findActiveIdsByDepartmentIds(
+    departmentIds: string[],
+    tx?: TransactionClient,
+  ): Promise<string[]> {
+    if (departmentIds.length === 0) return [];
+    const rows = await (tx ?? this.prisma).user.findMany({
+      where: { departmentId: { in: departmentIds }, status: 'active' },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+    return rows.map((row) => row.id);
+  }
 }

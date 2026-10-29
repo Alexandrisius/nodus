@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { Permission } from '@nodus/contracts';
 
 import {
+  addedRoleIds,
   catalogPermissions,
   isLockedRole,
   notHeld,
   permissionsDiff,
+  rolesNotHeld,
   uniquePermissions,
 } from './role-permission-rules.js';
 
@@ -46,5 +48,25 @@ describe('role-permission-rules', () => {
     expect(catalogPermissions(['legacy.permission', Permission.DIRECTORY_READ])).toEqual([
       Permission.DIRECTORY_READ,
     ]);
+  });
+
+  it('addedRoleIds: только новые роли относительно снимка «до» (#490)', () => {
+    expect(addedRoleIds(['r1', 'r2'], ['r2', 'r3', 'r1'])).toEqual(['r3']);
+    expect(addedRoleIds([], ['r1'])).toEqual(['r1']);
+    expect(addedRoleIds(['r1'], [])).toEqual([]);
+  });
+
+  it('rolesNotHeld: объединение прав набора ролей минус права актора, без дублей (#490)', () => {
+    expect(
+      rolesNotHeld(
+        [Permission.TASK_CREATE],
+        [
+          [Permission.TASK_CREATE, Permission.CRM_MANAGE],
+          [Permission.CRM_MANAGE, Permission.WORKFLOW_MANAGE],
+        ],
+      ),
+    ).toEqual([Permission.CRM_MANAGE, Permission.WORKFLOW_MANAGE]);
+    expect(rolesNotHeld([Permission.CRM_MANAGE], [[Permission.CRM_MANAGE]])).toEqual([]);
+    expect(rolesNotHeld([], [])).toEqual([]);
   });
 });

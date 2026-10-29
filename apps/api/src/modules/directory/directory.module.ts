@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 
+import { ROLE_MEMBERSHIP_READER } from '../../core/ports/role-membership.port.js';
+import { RoleMembershipProvider } from '../../core/ports/role-membership.provider.js';
 import { DepartmentsController } from './departments.controller.js';
 import { DepartmentsRepository } from './departments.repository.js';
 import { DepartmentsService } from './departments.service.js';
 import { PositionsController } from './positions.controller.js';
 import { PositionsRepository } from './positions.repository.js';
 import { PositionsService } from './positions.service.js';
+import { RoleAssignmentGuard } from './role-assignment-guard.service.js';
 import { RoleMembersService } from './role-members.service.js';
 import { RolesController } from './roles.controller.js';
 import { RolesRepository } from './roles.repository.js';
@@ -30,7 +33,11 @@ import { UsersService } from './users.service.js';
     PositionsRepository,
     RolesService,
     RoleMembersService,
+    RoleAssignmentGuard,
     RolesRepository,
+    // bind-правило #490 считает добавленные роли портом; биндинг токена —
+    // в модуле-потребителе (ADR-0012, как в workflows-ports.module).
+    { provide: ROLE_MEMBERSHIP_READER, useClass: RoleMembershipProvider },
   ],
 })
 export class DirectoryModule {}

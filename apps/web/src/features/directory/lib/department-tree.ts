@@ -54,7 +54,6 @@ export function patchDepartment(
         ? {
             ...current,
             ...patch,
-            kind: patch.kind ?? current.kind,
             parentId: patch.parentId === undefined ? current.parentId : patch.parentId,
           }
         : current;

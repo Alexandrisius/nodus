@@ -148,7 +148,7 @@ export class UsersController {
     dto: CreateUserDto,
     @GetUser() actor: AuthUser,
   ): Promise<UserCard> {
-    return this.usersService.createUser(dto, actor.id);
+    return this.usersService.createUser(dto, actor);
   }
 
   @Patch(':id')
@@ -168,7 +168,7 @@ export class UsersController {
     dto: UpdateUserDto,
     @GetUser() actor: AuthUser,
   ): Promise<UserCard> {
-    return this.usersService.updateUser(id, dto, actor.id);
+    return this.usersService.updateUser(id, dto, actor);
   }
 
   @Post(':id/deactivate')
@@ -185,7 +185,7 @@ export class UsersController {
   @ApiErrors(401, 403, 404, 409)
   @ApiIdempotencyKey()
   deactivate(@Param('id') id: string, @GetUser() actor: AuthUser): Promise<UserCard> {
-    return this.usersService.deactivateUser(id, actor.id);
+    return this.usersService.deactivateUser(id, actor);
   }
 
   /** Первая file-часть + текстовые поля ДО неё (канон @fastify/multipart,
