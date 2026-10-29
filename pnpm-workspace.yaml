@@ -39,6 +39,11 @@ overrides:
   # @boundaries/elements пинят ровно 4.7.9 — патч той же линии, dev-цепочка
   # линтера (#372; снимает прежний ignore #263).
   handlebars@>=4.0.0 <4.7.10: 4.7.10
+  # systeminformation high GHSA-3f7j-7jwc-fxfj (инъекция команд Windows в
+  # services() через юникодные кавычки, патч 5.33.16, 10.2026): транзитивно из
+  # shadcn CLI > @dotenvx/dotenvx — dev-инструментарий ui, не рантайм прода;
+  # свежий advisory блокировал CI-аудит всех веток с кодом (#529).
+  systeminformation@<5.33.16: 5.33.16
 
 # pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
