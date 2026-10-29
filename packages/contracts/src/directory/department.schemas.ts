@@ -63,6 +63,21 @@ export const createDepartmentSchema = z.object({
 
 export type CreateDepartmentDto = z.infer<typeof createDepartmentSchema>;
 
-export const updateDepartmentSchema = createDepartmentSchema.partial();
+/**
+ * Правка подразделения: только присланные поля. Не `createDepartmentSchema.partial()`
+ * — Zod 4 подставляет `.default()` и в необязательные поля, поэтому PATCH с одним
+ * `name` затирал родителя, руководителя, заместителя, вид и порядок (#492, урок #379).
+ * Пустое тело отклоняется: правка без полей — ошибка клиента, а не no-op.
+ */
+export const updateDepartmentSchema = z
+  .object({
+    name: z.string().trim().min(1).max(256).optional(),
+    kind: orgUnitKindSchema.optional(),
+    parentId: z.uuid().nullable().optional(),
+    headId: z.uuid().nullable().optional(),
+    deputyId: z.uuid().nullable().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: 'at least one field required' });
 
 export type UpdateDepartmentDto = z.infer<typeof updateDepartmentSchema>;

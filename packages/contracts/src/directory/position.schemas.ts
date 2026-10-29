@@ -26,6 +26,18 @@ export const createPositionSchema = z.object({
 
 export type CreatePositionDto = z.infer<typeof createPositionSchema>;
 
-export const updatePositionSchema = createPositionSchema.partial();
+/**
+ * Правка должности: только присланные поля. Не `createPositionSchema.partial()`
+ * — Zod 4 подставляет `.default()` и в необязательные поля, поэтому PATCH с одним
+ * `name` превращал юридическую должность в управленческую и обнулял порядок
+ * (#492, урок #379). Пустое тело отклоняется.
+ */
+export const updatePositionSchema = z
+  .object({
+    name: z.string().trim().min(1).max(256).optional(),
+    kind: orgUnitKindSchema.optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: 'at least one field required' });
 
 export type UpdatePositionDto = z.infer<typeof updatePositionSchema>;
