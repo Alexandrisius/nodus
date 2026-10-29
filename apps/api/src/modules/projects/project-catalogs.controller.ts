@@ -104,11 +104,11 @@ export class ProjectCatalogsController {
   @RequirePermissions(Permission.PROJECT_SETUP_MANAGE)
   @Audit({ action: 'project.type_update', entity: 'project_type' })
   @ApiParam({ name: 'id', description: 'UUID типа', schema: { type: 'string', format: 'uuid' } })
-  @ApiOperation({ summary: 'Переименовать тип проекта' })
+  @ApiOperation({ summary: 'Правка типа проекта: имя и политика поля «Шифр»' })
   @ApiOkResponse({ standardSchema: projectTypeSchema })
   @ApiErrors(400, 401, 403, 404, 409)
   @ApiIdempotencyKey()
-  typeRename(
+  typeUpdate(
     @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
     @Body({
       schema: projectTypeUpdateBodySchema,
@@ -120,9 +120,9 @@ export class ProjectCatalogsController {
       if (dto.name !== undefined && (await this.types.nameTaken(dto.name))) {
         throw DomainException.conflict('Project type name is already taken');
       }
-      const renamed = await this.types.rename(tx, id, dto.name ?? '');
-      if (!renamed) throw DomainException.notFound('Project type not found');
-      return renamed;
+      const updated = await this.types.update(tx, id, dto);
+      if (!updated) throw DomainException.notFound('Project type not found');
+      return updated;
     });
   }
 

@@ -6,6 +6,7 @@ import {
   PROJECT_LIMITS,
   type AuthUser,
   type CreateProjectBody,
+  type ProjectCodeField,
   type ProjectDetail,
   type UpdateProjectBody,
 } from '@nodus/contracts';
@@ -73,6 +74,7 @@ export class ProjectsService {
     }
     const type = await this.types.findActive(body.typeId);
     if (!type) throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown project type');
+    assertCodePolicy(type.codeField, body.code ?? null);
     if (body.portfolioId && !(await this.groups.findActive(body.portfolioId))) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown portfolio');
     }
@@ -136,11 +138,18 @@ export class ProjectsService {
 
   async update(user: AuthUser, id: string, body: UpdateProjectBody): Promise<ProjectDetail> {
     const { row } = await this.loadForManage(user, id);
+    // Архив — заморозка: поля правит только project.manage (Р1/Т6); вернуть
+    // в работу руководитель может статусным действием.
+    if (row.status === 'archived' && !user.permissions.includes(Permission.PROJECT_MANAGE)) {
+      throw DomainException.forbidden('Archived project fields are managed by project.manage');
+    }
     const facts = this.factsOf(row);
     const patch: ProjectFieldsPatch = {};
     const fields: string[] = [];
     if (body.code !== undefined) {
       const next = body.code ?? null;
+      const type = await this.types.findById(row.typeId);
+      assertCodePolicy(type?.codeField ?? 'optional', next);
       if (next && (await this.repo.codeTaken(next, id))) {
         throw DomainException.conflict('Project code is already taken');
       }
@@ -293,5 +302,18 @@ export class ProjectsService {
     if (!clientId) return;
     const client = await this.counterparties.activeRef(clientId);
     if (!client) throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown counterparty');
+  }
+}
+
+/** Политика системного поля «Шифр» у типа проекта (вердикт владельца
+ *  07.11.2026): «Договор» — шифр обязателен, «Тема» — поля нет. Сервер —
+ *  истина (I7/I8): клиент, приславший поле, которого у типа нет, получает 400,
+ *  а не «тихо потерянный» шифр. */
+function assertCodePolicy(policy: ProjectCodeField, code: string | null): void {
+  if (policy === 'required' && !code) {
+    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project code is required by its type');
+  }
+  if (policy === 'hidden' && code) {
+    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project type has no code field');
   }
 }

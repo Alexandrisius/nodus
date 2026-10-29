@@ -61,10 +61,19 @@ export const projectRefSchema = z.object({
 
 export type ProjectRef = z.infer<typeof projectRefSchema>;
 
-/** Тип проекта — справочник «Автоматизации» (сид: «Договор», «Тема»). */
+/** Политика системного поля «Шифр» у типа: hidden — поля в форме нет
+ *  («Тема»), optional — по желанию, required — обязательно («Договор»).
+ *  Мост к формам типов (#38/#468): полный набор полей типа — схемой формы. */
+export const projectCodeFieldSchema = z.enum(['hidden', 'optional', 'required']);
+export type ProjectCodeField = z.infer<typeof projectCodeFieldSchema>;
+
+/** Тип проекта — справочник «Автоматизации» (сид: «Договор», «Тема»).
+ *  `codeField` — политика системного поля «Шифр» (см. ниже): карточка и
+ *  окна создания/правки показывают поле только там, где оно есть у типа. */
 export const projectTypeRefSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
+  codeField: projectCodeFieldSchema,
 });
 export type ProjectTypeRef = z.infer<typeof projectTypeRefSchema>;
 
@@ -246,11 +255,43 @@ export const projectMemberAddBodySchema = z.object({
 
 export type ProjectMemberAddBody = z.infer<typeof projectMemberAddBodySchema>;
 
+// ===== История проекта (вкладка «История») =====
+
+/** Вид события ленты: создание, правка полей, смена состава, смена статуса.
+ *  Источник — outbox `project.*` (I9): лента не дублирует данные, а читает
+ *  журнал событий агрегата. */
+export const projectHistoryKindSchema = z.enum([
+  'created',
+  'updated',
+  'participants_changed',
+  'status_changed',
+]);
+export type ProjectHistoryKind = z.infer<typeof projectHistoryKindSchema>;
+
+export const projectHistoryEntrySchema = z.object({
+  id: z.uuid(),
+  kind: projectHistoryKindSchema,
+  /** Автор действия; null — системное событие. */
+  actor: userRefSchema.nullable(),
+  createdAt: z.iso.datetime(),
+  /** Изменённые ключи (`updated`): системные ключи и `cf.<id>` атрибутов. */
+  fields: z.array(z.string()),
+  /** Новый статус (`status_changed`). */
+  status: projectStatusSchema.nullable(),
+  /** Люди события (`participants_changed`) — состав изменился у них. */
+  users: z.array(userRefSchema),
+  /** Название на момент события (`created`). */
+  name: z.string().nullable(),
+});
+
+export type ProjectHistoryEntry = z.infer<typeof projectHistoryEntrySchema>;
+
 // ===== Типы проектов («Автоматизация», право project.setup.manage) =====
 
 export const projectTypeSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
+  codeField: projectCodeFieldSchema,
   archivedAt: z.iso.datetime().nullable(),
 });
 
@@ -265,6 +306,7 @@ export type ProjectTypeCreateBody = z.infer<typeof projectTypeCreateBodySchema>;
 export const projectTypeUpdateBodySchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
+    codeField: projectCodeFieldSchema.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 

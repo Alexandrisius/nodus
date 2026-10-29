@@ -126,7 +126,13 @@ export class ProjectDtoMapper {
       myMembership: membership,
       visibility: facts.visibility,
       status: facts.status,
-      type: row.type ? ({ id: row.type.id, name: row.type.name } satisfies ProjectTypeRef) : null,
+      type: row.type
+        ? ({
+            id: row.type.id,
+            name: row.type.name,
+            codeField: row.type.codeField as ProjectTypeRef['codeField'],
+          } satisfies ProjectTypeRef)
+        : null,
       portfolio: row.portfolio ? { id: row.portfolio.id, name: row.portfolio.name } : null,
       client: row.clientId ? (clients.get(row.clientId) ?? null) : null,
       membersCount: new Set(participants.map((p) => p.userId)).size,

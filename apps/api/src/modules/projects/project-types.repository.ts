@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import type { ProjectType } from '@nodus/contracts';
+import type { ProjectCodeField, ProjectType, ProjectTypeUpdateBody } from '@nodus/contracts';
 
 import { PrismaService } from '../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../core/database/transaction-runner.js';
 
-const typeSelect = { id: true, name: true, archivedAt: true } as const;
-type Row = { id: string; name: string; archivedAt: Date | null };
+const typeSelect = { id: true, name: true, codeField: true, archivedAt: true } as const;
+type Row = { id: string; name: string; codeField: string; archivedAt: Date | null };
 
 /** Справочник типов проектов «Автоматизации» (#52; шаблоны — следующие issues). */
 @Injectable()
@@ -14,7 +14,12 @@ export class ProjectTypesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private toDto(row: Row): ProjectType {
-    return { id: row.id, name: row.name, archivedAt: row.archivedAt?.toISOString() ?? null };
+    return {
+      id: row.id,
+      name: row.name,
+      codeField: row.codeField as ProjectCodeField,
+      archivedAt: row.archivedAt?.toISOString() ?? null,
+    };
   }
 
   async list(includeArchived: boolean): Promise<ProjectType[]> {
@@ -34,6 +39,12 @@ export class ProjectTypesRepository {
     return row ? this.toDto(row) : null;
   }
 
+  /** Тип без фильтра архива: правка полей проекта живёт и у архивного типа. */
+  async findById(id: string): Promise<ProjectType | null> {
+    const row = await this.prisma.projectType.findUnique({ select: typeSelect, where: { id } });
+    return row ? this.toDto(row) : null;
+  }
+
   async nameTaken(name: string): Promise<boolean> {
     const row = await this.prisma.projectType.findFirst({ select: { id: true }, where: { name } });
     return row !== null;
@@ -47,8 +58,13 @@ export class ProjectTypesRepository {
     return this.toDto(row);
   }
 
-  async rename(tx: TransactionClient, id: string, name: string): Promise<ProjectType | null> {
-    const result = await tx.projectType.updateMany({ where: { id }, data: { name } });
+  /** Правка типа: имя и/или политика поля «Шифр» (null — тип не найден). */
+  async update(
+    tx: TransactionClient,
+    id: string,
+    patch: ProjectTypeUpdateBody,
+  ): Promise<ProjectType | null> {
+    const result = await tx.projectType.updateMany({ where: { id }, data: patch });
     if (result.count === 0) return null;
     const row = await tx.projectType.findUnique({ select: typeSelect, where: { id } });
     return row ? this.toDto(row) : null;

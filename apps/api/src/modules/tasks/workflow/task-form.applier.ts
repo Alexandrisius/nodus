@@ -8,6 +8,7 @@ import type {
   WorkflowFormApplied,
 } from '../../../core/ports/workflow-entity.port.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 import { actorRoles, taskAccess } from '../access/task-access.js';
 import { ResultRevisions } from '../activity/result-revisions.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
@@ -29,6 +30,7 @@ export class TaskFormApplier {
     private readonly time: TimeService,
     private readonly revisions: ResultRevisions,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   async apply(
@@ -71,6 +73,10 @@ export class TaskFormApplier {
         fields.plannedMinutes = { from: task.plannedMinutes, to: input.fields.plannedMinutes };
       }
       if (input.fields.assigneeId !== undefined && input.fields.assigneeId !== task.assigneeId) {
+        // Секретный проект: новый ответственный — только участник проекта.
+        if (task.projectId) {
+          await this.projects.assertMembersAllowed(task.projectId, [input.fields.assigneeId]);
+        }
         patch.assigneeId = input.fields.assigneeId;
         keys.push('assigneeId');
         fields.assignee = { from: task.assigneeId, to: input.fields.assigneeId };

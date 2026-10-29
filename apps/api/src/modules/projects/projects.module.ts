@@ -7,6 +7,7 @@ import { CustomFieldsPortsModule } from '../custom-fields/custom-fields-ports.mo
 import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
 import { ProjectCatalogsController } from './project-catalogs.controller.js';
 import { ProjectGroupsRepository } from './project-groups.repository.js';
+import { ProjectHistoryRepository } from './project-history.repository.js';
 import { ProjectMembersController } from './project-members.controller.js';
 import { ProjectLifecycleService } from './project-lifecycle.service.js';
 import { ProjectMembersService } from './project-members.service.js';
@@ -42,6 +43,7 @@ import {
     ProjectParticipantsRepository,
     ProjectTypesRepository,
     ProjectGroupsRepository,
+    ProjectHistoryRepository,
     ProjectDtoMapper,
     ProjectMembersService,
     ProjectsService,

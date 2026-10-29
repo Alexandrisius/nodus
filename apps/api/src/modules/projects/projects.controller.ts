@@ -11,18 +11,22 @@ import { z } from 'zod';
 import {
   Permission,
   createProjectBodySchema,
+  cursorQuerySchema,
   listProjectsQuerySchema,
   paginatedSchema,
   projectDetailSchema,
+  projectHistoryEntrySchema,
   projectListItemSchema,
   projectStatusBodySchema,
   projectTransferBodySchema,
   updateProjectBodySchema,
   type AuthUser,
   type CreateProjectBody,
+  type CursorQuery,
   type ListProjectsQuery,
   type Paginated,
   type ProjectDetail,
+  type ProjectHistoryEntry,
   type ProjectListItem,
   type ProjectStatusBody,
   type ProjectTransferBody,
@@ -108,6 +112,22 @@ export class ProjectsController {
     @GetUser() user: AuthUser,
   ): Promise<ProjectDetail> {
     return this.queries.detail(user, id);
+  }
+
+  @Get(':id/history')
+  @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
+  @ApiOperation({
+    summary: 'История проекта (вкладка «История»): outbox-события агрегата, новые первыми',
+  })
+  @ApiOkResponse({ standardSchema: paginatedSchema(projectHistoryEntrySchema) })
+  @ApiErrors(400, 401, 404)
+  history(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @Query({ schema: cursorQuerySchema, pipes: [new ZodValidationPipe(cursorQuerySchema)] })
+    query: CursorQuery,
+    @GetUser() user: AuthUser,
+  ): Promise<Paginated<ProjectHistoryEntry>> {
+    return this.queries.history(user, id, query.cursor ?? null, query.limit);
   }
 
   @Patch(':id')

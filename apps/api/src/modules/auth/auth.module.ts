@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
+import { FeatureFlagsModule } from '../../core/feature-flags/feature-flags.module.js';
 import { ROLE_MEMBERSHIP_READER } from '../../core/ports/role-membership.port.js';
 import { RoleMembershipProvider } from '../../core/ports/role-membership.provider.js';
 import { AUTH_PROVIDER } from './auth-provider.js';
@@ -26,6 +27,8 @@ import { TokenService } from './token.service.js';
  */
 @Module({
   imports: [
+    // Включённые модули в карточке `/auth/me` (Р14 #52).
+    FeatureFlagsModule,
     JwtModule.register({
       secret: getAuthConfig().jwtSecret,
       signOptions: { expiresIn: getAuthConfig().accessTtlSeconds },

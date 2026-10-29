@@ -30,6 +30,13 @@ export class FeatureFlagService {
     return enabled;
   }
 
+  /** Включённые модули для `/auth/me` (Р14 #52): клиенту нужен список
+   *  флагов, чтобы не звать закрытые модулем маршруты. Кэш общий с
+   *  isEnabled не ведётся — вызов редкий (bootstrap сессии). */
+  async enabledModules(): Promise<string[]> {
+    return this.repository.findEnabledKeys();
+  }
+
   /** Управление флагом (админка — отдельный issue); сбрасывает кэш ключа. */
   async setEnabled(key: string, enabled: boolean): Promise<void> {
     await this.repository.setEnabled(key, enabled);

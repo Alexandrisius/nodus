@@ -7,7 +7,9 @@
  * `ADMIN_EXCLUDED_PERMISSIONS` — права каталога, которые «Администратор»
  * НЕ получает по умолчанию (#52, вердикт 29.10): секретные проекты админы
  * не видят — надзор идёт через отдельную роль «Системный надзор»
- * (`project.view_secret`, выдаётся точечно в матрице «Права доступа»).
+ * (`project.view_secret`), а публикация в канал проекта — только руководству
+ * проекта и точечной выдаче матрицей (`project.channel.post`, Slack
+ * announcement-паттерн; миграция 20261105000000 тоже никому не выдаёт).
  */
 export const ALL_PERMISSIONS = [
   'core.admin',
@@ -41,8 +43,9 @@ export const ALL_PERMISSIONS = [
   'project.view_secret',
 ] as const;
 
-/** Не входит в дефолт «Администратора» (системный надзор — отдельная роль). */
-export const ADMIN_EXCLUDED_PERMISSIONS = ['project.view_secret'] as const;
+/** Не входит в дефолт «Администратора»: системный надзор — отдельная роль,
+ *  публикация в канал проекта — руководство/точечная выдача. */
+export const ADMIN_EXCLUDED_PERMISSIONS = ['project.view_secret', 'project.channel.post'] as const;
 
 /** Что сид выдаёт роли admin: каталог минус исключения надзора. */
 export const GRANTED_ADMIN_PERMISSIONS: readonly string[] = ALL_PERMISSIONS.filter(

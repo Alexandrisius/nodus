@@ -106,6 +106,7 @@ export class TasksService {
     if (body.projectId) {
       await this.projects.assertTaskProjectVisible(user, body.projectId);
       await this.projects.assertMembersAllowed(body.projectId, [
+        user.id,
         assigneeId,
         ...participants.map((p) => p.userId),
       ]);

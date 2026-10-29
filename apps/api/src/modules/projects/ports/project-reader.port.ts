@@ -49,6 +49,9 @@ export interface ProjectReader {
   /** Права руководства проекта на задачи (Р12): supervisor — уровень
    *  постановщика на все задачи проекта. */
   projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }>;
+
+  /** Видимость проекта (для гейта выноса задачи из секретного). */
+  visibilityOf(projectId: string): Promise<'open' | 'secret' | null>;
 }
 
 /**

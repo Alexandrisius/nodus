@@ -43,6 +43,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     time as never,
     revisions as never,
     messages as never,
+    { assertMembersAllowed: vi.fn() } as never,
   );
   return { applier, tasks, writer, time, revisions, messages };
 }

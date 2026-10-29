@@ -50,6 +50,20 @@ export class ProjectChatService {
       const current = await this.repo.members(tx, id);
       const currentSet = new Set(current);
       const desired = new Set([roster.managerId, ...roster.memberIds]);
+      // Роль owner — ТОЛЬКО действующий руководитель: после передачи
+      // руководства прежний РП становится member (иначе сохраняет
+      // manageSettings/removeMembers канала).
+      const roleChanges = (await this.repo.roles(tx, id))
+        .filter(
+          (row) =>
+            desired.has(row.userId) &&
+            row.role !== (row.userId === roster.managerId ? 'owner' : 'member'),
+        )
+        .map((row) => ({
+          userId: row.userId,
+          role: row.userId === roster.managerId ? 'owner' : 'member',
+        }));
+      if (roleChanges.length > 0) await this.repo.updateRoles(tx, id, roleChanges);
       const added = await this.repo.addMembers(
         tx,
         id,

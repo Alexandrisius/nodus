@@ -17,6 +17,16 @@ export class FeatureFlagRepository {
     return row?.enabled ?? null;
   }
 
+  /** Ключи включённых модулей (карточка `/auth/me` — клиентский гейт). */
+  async findEnabledKeys(): Promise<string[]> {
+    const rows = await this.prisma.featureFlag.findMany({
+      select: { key: true },
+      where: { enabled: true },
+      orderBy: { key: 'asc' },
+    });
+    return rows.map((row) => row.key);
+  }
+
   async setEnabled(key: string, enabled: boolean): Promise<void> {
     await this.prisma.featureFlag.upsert({
       where: { key },

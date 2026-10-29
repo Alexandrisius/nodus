@@ -68,6 +68,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   // Чтение (#334)
   'GET /projects': PROJECT_VISIBILITY,
   'GET /projects/:id': PROJECT_VISIBILITY,
+  'GET /projects/:id/history': PROJECT_VISIBILITY,
   'GET /projects/types': PROJECTS_CATALOG,
   'GET /projects/groups': PROJECTS_CATALOG,
   'GET /settings/portal': PORTAL_SETTINGS,

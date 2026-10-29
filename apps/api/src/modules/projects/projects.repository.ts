@@ -34,7 +34,7 @@ export const projectSelect = {
   creatorId: true,
   createdAt: true,
   updatedAt: true,
-  type: { select: { id: true, name: true } },
+  type: { select: { id: true, name: true, codeField: true } },
   portfolio: { select: { id: true, name: true } },
 } as const;
 

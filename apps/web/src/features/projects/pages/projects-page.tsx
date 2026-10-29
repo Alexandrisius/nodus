@@ -1,53 +1,125 @@
-import { useMemo } from 'react';
-import { Plus } from 'lucide-react';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { Archive, CheckCircle2, Plus, RotateCcw } from 'lucide-react';
 import type { ProjectListItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { Permission, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { useAuthStore } from '../../../shared/auth-store.js';
+import { primaryProjectRole } from '../../../shared/lib/project-role.js';
+import { openProjectCreate } from '../../../shared/projects/project-create-store.js';
+import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
-import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
-import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
+import { activeFiltersCount } from '../../../shared/views/list-filters.js';
+import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
+import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
+import type { RowMenuItem } from '../../../shared/views/row-menu.js';
 import {
   projectBuiltinPresets,
-  projectSearchText,
   useProjectFilterDefs,
 } from '../../../shared/views/project-filter-fields.js';
 import { projectListFields } from '../../../shared/views/project-table-fields.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
-import { useProjectsList } from '../api/projects-api.js';
-import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
+import { useProjectStatus } from '../api/project-mutations.js';
+import { useProjectsJournal } from '../api/projects-api.js';
+import { ProjectArchiveDialog } from '../components/project-archive-dialog.js';
+import type {
+  ProjectJournalFilters,
+  ProjectRoleFilter,
+} from '../lib/project-journal.js';
+
+const SCOPE_KEY = 'nodus-projects-scope-v1';
+
+/** «Все / Мои» журнала: «Все» — весь видимый срез (открытые + секретные
+ *  моего участия), «Мои» — только моё участие; выбор помнится. */
+function useJournalScope(): ['all' | 'mine', (scope: 'all' | 'mine') => void] {
+  const [scope, setScope] = useState<'all' | 'mine'>(() =>
+    localStorage.getItem(SCOPE_KEY) === 'mine' ? 'mine' : 'all',
+  );
+  return [
+    scope,
+    (next) => {
+      localStorage.setItem(SCOPE_KEY, next);
+      setScope(next);
+    },
+  ];
+}
 
 /**
- * Проекты: журнал канонической таблицей (shared/views, ключ `projects.list`) —
- * колонки-реестр, видимость шестерёнкой, ширина ручкой, память между сессиями.
- * Шапка — ОДНА строка (вердикт владельца): заголовок, счётчик, строка
- * инструментов (поиск с панелью фильтра из строки — модель Битрикс24:
- * пресеты «Я — руководитель»/«Открытые»/«Закрытые» + поля: приватность,
- * моя роль, руководитель, окончание), шестерёнка представления. Открытие —
- * карточка проекта в стеке (shared-element раскрытие из rect строки).
+ * Проекты: журнал канонической таблицей (shared/views, ключ `projects.list`).
+ * Шапка — одна строка: заголовок, счётчик, «Создать» слева от поиска,
+ * переключатель «Все/Мои», шестерёнка колонок. Фильтры — СЕРВЕРНЫЕ
+ * (портфель/моя роль/видимость/статус, Р14 #52) с курсорной пагинацией;
+ * чипы активных фильтров и пресеты — общая строка инструментов. Открытие —
+ * карточка проекта в стеке (shared-element из rect строки).
  */
 export function ProjectsPage() {
-  const { data, isLoading } = useProjectsList();
-  const openCard = useOpenCard();
-  const toolbar = useListToolbar('projects.list', projectBuiltinPresets);
+  const [scope, setScope] = useJournalScope();
+  const toolbar = useListToolbar('projects.journal', projectBuiltinPresets);
   const filterDefs = useProjectFilterDefs();
-  const filter = useMemo<ActiveListFilter<ProjectListItem>>(
-    () => ({
-      defs: filterDefs,
-      state: toolbar.filters,
-      query: toolbar.query,
-      searchText: projectSearchText,
-    }),
-    [filterDefs, toolbar.filters, toolbar.query],
-  );
+  const search = useDeferredValue(toolbar.query);
+  const filters = useMemo<ProjectJournalFilters>(() => {
+    const state = toolbar.filters;
+    return {
+      scope,
+      search,
+      role: typeof state.role === 'string' ? (state.role as ProjectRoleFilter) : undefined,
+      visibility:
+        state.visibility === 'open' || state.visibility === 'secret'
+          ? state.visibility
+          : undefined,
+      status:
+        state.status === 'active' || state.status === 'completed' || state.status === 'archived'
+          ? state.status
+          : undefined,
+      portfolioId: typeof state.portfolio === 'string' ? state.portfolio : undefined,
+    };
+  }, [scope, search, toolbar.filters]);
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useProjectsJournal(filters);
+  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
+  const openCard = useOpenCard();
+  const status = useProjectStatus();
+  const permissions = useAuthStore((s) => s.user?.permissions);
+  const canManageAny = (permissions ?? []).includes(Permission.PROJECT_MANAGE);
+  const [archiveTarget, setArchiveTarget] = useState<ProjectListItem | null>(null);
 
-  const items = data?.items ?? [];
-  const rows = useFilteredList(items, filter);
+  const filtering =
+    toolbar.query.trim() !== '' || activeFiltersCount(filterDefs, toolbar.filters) > 0;
 
-  function openProject(project: ProjectListItem, rowEl: HTMLElement) {
-    openCard({ kind: 'project', id: project.id }, rowEl.getBoundingClientRect());
+  function rowMenu(project: ProjectListItem): RowMenuItem[] {
+    const base = makeCardRowMenuItems({ kind: 'project', id: project.id }, openCard);
+    const role = primaryProjectRole(project.myMembership);
+    const management = role === 'manager' || role === 'assistant' || canManageAny;
+    if (!management) return base;
+    const actions: RowMenuItem[] = [];
+    if (project.status === 'active') {
+      actions.push({
+        id: 'complete',
+        icon: <CheckCircle2 className="size-3.5" />,
+        label: ui.projects.statusComplete,
+        separatorBefore: true,
+        onSelect: () => status.mutate({ id: project.id, status: 'completed' }),
+      });
+    }
+    if (project.status !== 'archived') {
+      actions.push({
+        id: 'archive',
+        icon: <Archive className="size-3.5" />,
+        label: ui.projects.statusArchive,
+        onSelect: () => setArchiveTarget(project),
+      });
+    } else {
+      actions.push({
+        id: 'reactivate',
+        icon: <RotateCcw className="size-3.5" />,
+        label: ui.projects.statusReactivate,
+        separatorBefore: true,
+        onSelect: () => status.mutate({ id: project.id, status: 'active' }),
+      });
+    }
+    return [...base, ...actions];
   }
 
   return (
@@ -65,29 +137,59 @@ export function ProjectsPage() {
           defs={filterDefs}
           builtinPresets={projectBuiltinPresets}
           left={
-            // Вердикт владельца 15.09.2026: кнопку показать БЕЗ ДЕЙСТВИЯ —
-            // окна создания проекта пока нет (экспресс-форма проекту не
-            // нужна; появится окно — поведение подключим тем же паттерном,
-            // что задача).
-            <Button type="button">
+            <Button type="button" onClick={() => openProjectCreate()}>
               <Plus data-icon="inline-start" />
               {ui.common.create}
             </Button>
           }
-          right={<ViewSettings viewKey="projects.list" defs={projectListFields} />}
+          right={
+            <>
+              <SegmentedControl
+                size="sm"
+                ariaLabel={ui.projects.title}
+                value={scope}
+                options={[
+                  { value: 'all', label: ui.projects.scopeAll },
+                  { value: 'mine', label: ui.projects.scopeMine },
+                ]}
+                onChange={setScope}
+                activeClassName="bg-accent text-foreground"
+                className="w-32 shrink-0"
+              />
+              <ViewSettings viewKey="projects.list" defs={projectListFields} />
+            </>
+          }
         />
       </div>
       <div className="min-h-0 flex-1">
         <DataTable
           viewKey="projects.list"
           defs={projectListFields}
-          rows={rows}
+          rows={items}
           rowKey={(project) => project.id}
           isLoading={isLoading}
-          onOpenRow={openProject}
-          rowMenu={(project) => makeCardRowMenuItems({ kind: 'project', id: project.id }, openCard)}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadMore={() => void fetchNextPage()}
+          onOpenRow={(project, rowEl) =>
+            openCard({ kind: 'project', id: project.id }, rowEl.getBoundingClientRect())
+          }
+          rowMenu={rowMenu}
+          label={ui.projects.title}
+          emptyTitle={filtering ? ui.projects.journalEmptyFiltered : ui.projects.journalEmpty}
         />
       </div>
+      <ProjectArchiveDialog
+        name={archiveTarget?.name ?? null}
+        open={archiveTarget !== null}
+        onCancel={() => setArchiveTarget(null)}
+        onConfirm={() => {
+          if (archiveTarget) {
+            status.mutate({ id: archiveTarget.id, status: 'archived' });
+          }
+          setArchiveTarget(null);
+        }}
+      />
     </div>
   );
 }

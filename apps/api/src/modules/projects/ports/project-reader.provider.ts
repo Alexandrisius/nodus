@@ -85,6 +85,13 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
         projectId,
       });
     }
+    // Архив — заморозка: новые задачи в архивный проект не создаются (Р1).
+    const project = await this.projects.findById(projectId);
+    if (!project || project.status === 'archived') {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived', {
+        projectId,
+      });
+    }
   }
 
   async assertProjectAttachable(projectId: string): Promise<void> {
@@ -121,7 +128,12 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
     const unique = [...new Set(userIds)];
     if (unique.length === 0) return;
     const rows = await this.participants.rowsOfProject(projectId);
-    const members = new Set(rows.map((row) => row.userId));
+    // Наблюдатель секретного проекта — только просмотр (Р2): получать задачи
+    // (и права правки) он не может; участники для назначения — руководство,
+    // member и task-источники.
+    const members = new Set(
+      rows.filter((row) => row.source !== 'observer').map((row) => row.userId),
+    );
     const outsiders = unique.filter((id) => !members.has(id));
     if (outsiders.length > 0) {
       throw new DomainException(
@@ -135,6 +147,12 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
   async projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }> {
     if (!(await this.enabled())) return { supervisor: false };
     return { supervisor: await this.participants.isManagement(projectId, actorId) };
+  }
+
+  async visibilityOf(projectId: string): Promise<'open' | 'secret' | null> {
+    if (!(await this.enabled())) return null;
+    const project = await this.projects.findById(projectId);
+    return project ? (project.visibility as 'open' | 'secret') : null;
   }
 
   // ===== ProjectChatReader (Р8) =====

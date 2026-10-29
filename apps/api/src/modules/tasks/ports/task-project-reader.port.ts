@@ -13,6 +13,11 @@ export interface TaskProjectReader {
    *  уникальные id. Пустой массив — задач нет. */
   membersOf(projectId: string): Promise<string[]>;
 
+  /** ВСЕ носители ролей задач проекта (включая наблюдателей) — гейт снятия
+   *  из секретного проекта: иначе снятый продолжает получать push/уведомления
+   *  по задачам (security #52). */
+  roleHolderIds(projectId: string): Promise<string[]>;
+
   /** projectId живой задачи; null — задачи нет (или удалена). */
   projectIdOf(taskId: string): Promise<string | null>;
 }

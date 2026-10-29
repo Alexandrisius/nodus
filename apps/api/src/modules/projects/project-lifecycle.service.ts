@@ -59,7 +59,7 @@ export class ProjectLifecycleService {
       await this.eventBus.emit(
         tx,
         PROJECT_EVENTS.UPDATED,
-        { projectId: id, fields: ['status'] },
+        { projectId: id, fields: ['status'], status },
         { actorId: user.id, aggregateType: 'project', aggregateId: id },
       );
     });
@@ -72,6 +72,10 @@ export class ProjectLifecycleService {
     const { row } = await this.projects.loadForManage(user, id);
     if (row.managerId !== user.id) {
       throw DomainException.forbidden('Only the manager can transfer management');
+    }
+    // Архив — заморозка: смена руководства — тоже правка поля проекта.
+    if (row.status === 'archived' && !user.permissions.includes(Permission.PROJECT_MANAGE)) {
+      throw DomainException.forbidden('Archived project fields are managed by project.manage');
     }
     if ((await this.profiles.filterActiveUserIds([managerId])).length === 0) {
       throw DomainException.notFound('User not found');

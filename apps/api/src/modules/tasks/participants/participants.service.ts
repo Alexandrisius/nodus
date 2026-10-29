@@ -25,6 +25,7 @@ import {
   PROCESS_CATALOG_READER,
   type ProcessCatalogReader,
 } from '../../workflows/ports/process-catalog-reader.port.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 
 /**
  * Соисполнители и наблюдатели (мини-спека #37): менять — постановщик,
@@ -45,6 +46,7 @@ export class ParticipantsService {
     private readonly tasksRepo: TasksRepository,
     private readonly repo: ParticipantsRepository,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   async add(user: AuthUser, taskId: string, body: TaskParticipantAddBody): Promise<TaskDetail> {
@@ -59,6 +61,11 @@ export class ParticipantsService {
       throw DomainException.conflict('Creator is already on the task');
     }
     await this.tasks.assertActiveUsers([body.userId]);
+    // Секретный проект: в задачу нельзя добавить никого (даже наблюдателем),
+    // кто не состоит в проекте (вердикт 29.10, Р5).
+    if (row.projectId) {
+      await this.projects.assertMembersAllowed(row.projectId, [body.userId]);
+    }
     await this.placements.prepare([body.userId]);
     await this.txRunner.run(async (tx) => {
       await this.repo.assignRole(tx, taskId, body.userId, body.role);
@@ -146,6 +153,7 @@ export class ParticipantsService {
       {
         taskId,
         number: task.number,
+        projectId: task.projectId ?? null,
         audience: audienceIds(task, removed),
         title: task.title,
         added,

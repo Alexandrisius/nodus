@@ -3,6 +3,7 @@ import { ErrorCode, type AuthUser } from '@nodus/contracts';
 
 import { AuditRepository } from '../../core/audit/audit.repository.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
+import { FeatureFlagService } from '../../core/feature-flags/feature-flag.service.js';
 import { AUTH_PROVIDER, type AuthProvider } from './auth-provider.js';
 import { AuthRepository, type SessionRow } from './auth.repository.js';
 import { IdentityLoader } from './identity.loader.js';
@@ -54,6 +55,7 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly audit: AuditRepository,
     private readonly loginThrottle: LoginThrottleService,
+    private readonly featureFlags: FeatureFlagService,
   ) {}
 
   async login(
@@ -280,12 +282,14 @@ export class AuthService {
     await this.authRepository.revokeAllSessions(userId, currentSessionId ?? undefined);
   }
 
+  /** Карточка текущего пользователя: свежие права + включённые модули
+   *  (Р14 #52 — клиент не зовёт маршруты выключенного модуля). */
   async getMe(userId: string): Promise<AuthUser> {
     const identity = await this.identityLoader.load(userId);
     if (!identity || identity.status !== 'active') {
       throw DomainException.unauthenticated();
     }
-    return toAuthUser(identity);
+    return { ...toAuthUser(identity), modules: await this.featureFlags.enabledModules() };
   }
 
   private refreshExpiresAt(): Date {

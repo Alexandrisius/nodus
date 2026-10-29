@@ -36,7 +36,7 @@ function row(overrides: Record<string, unknown> = {}): ProjectRow {
     creatorId: CREATOR,
     createdAt: new Date('2026-10-01T10:00:00.000Z'),
     updatedAt: new Date('2026-10-01T10:00:00.000Z'),
-    type: { id: TYPE, name: 'Договор' },
+    type: { id: TYPE, name: 'Договор', codeField: 'optional' },
     portfolio: null,
     ...overrides,
   } as ProjectRow;
@@ -52,7 +52,7 @@ describe('ProjectsService (#52)', () => {
     settingValue: vi.fn(),
     putSetting: vi.fn(),
   };
-  const types = { findActive: vi.fn() };
+  const types = { findActive: vi.fn(), findById: vi.fn() };
   const groups = { findActive: vi.fn() };
   const participantsRepo = { rowsOfProject: vi.fn(), add: vi.fn(), hasRow: vi.fn() };
   const members = {
@@ -73,7 +73,8 @@ describe('ProjectsService (#52)', () => {
     repo.settingValue.mockResolvedValue(null);
     repo.create.mockImplementation(async (data: Record<string, unknown>) => row(data));
     repo.findById.mockResolvedValue(row());
-    types.findActive.mockResolvedValue({ id: TYPE, name: 'Договор' });
+    types.findActive.mockResolvedValue({ id: TYPE, name: 'Договор', codeField: 'optional' });
+    types.findById.mockResolvedValue({ id: TYPE, name: 'Договор', codeField: 'optional' });
     groups.findActive.mockResolvedValue({ id: 'g-1' });
     profiles.filterActiveUserIds.mockImplementation(async (ids: string[]) => ids);
     customFields.prepareCreate.mockResolvedValue({});
@@ -127,6 +128,23 @@ describe('ProjectsService (#52)', () => {
         visibility: 'open',
       } as never);
       expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'open' }), {});
+    });
+
+    it('политика «Шифр» типа: required без шифра → 400, hidden с шифром → 400', async () => {
+      types.findActive.mockResolvedValue({ id: TYPE, name: 'Договор', codeField: 'required' });
+      await expect(
+        service.create(user(CREATOR), { name: 'x', typeId: TYPE } as never),
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+
+      types.findActive.mockResolvedValue({ id: TYPE, name: 'Тема', codeField: 'hidden' });
+      await expect(
+        service.create(user(CREATOR), { name: 'x', typeId: TYPE, code: '2026-01' } as never),
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+
+      // optional — шифр по желанию.
+      types.findActive.mockResolvedValue({ id: TYPE, name: 'Тип', codeField: 'optional' });
+      await service.create(user(CREATOR), { name: 'x', typeId: TYPE, code: '2026-02' } as never);
+      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ code: '2026-02' }), {});
     });
 
     it('создатель-не-руководитель → наблюдатель-создатель; РП по умолчанию — создатель', async () => {

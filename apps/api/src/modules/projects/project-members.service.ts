@@ -13,6 +13,7 @@ import {
 } from '../../core/database/transaction-runner.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { EventBus } from '../../core/events/event-bus.js';
+import { encodeCursor } from '../../core/pagination/cursor.util.js';
 import { USER_PROFILE_READER, type UserProfileReader } from '../../core/ports/user-profile.port.js';
 import {
   TASK_PROJECT_READER,
@@ -62,7 +63,7 @@ export class ProjectMembersService {
     }));
     const nextCursor =
       rows.length > limit && page.length > 0
-        ? JSON.stringify({
+        ? encodeCursor({
             userId: page[page.length - 1]!.userId,
             source: page[page.length - 1]!.source,
           })
@@ -75,6 +76,9 @@ export class ProjectMembersService {
     const project = await this.projects.findById(projectId);
     if (!project || project.visibility !== 'open') {
       throw DomainException.notFound('Project not found');
+    }
+    if (project.status === 'archived') {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
     }
     const mine = await this.participants.rowsOfProject(projectId);
     if (mine.some((row) => row.userId === user.id)) {
@@ -111,6 +115,9 @@ export class ProjectMembersService {
         'Open project membership lives from its tasks',
       );
     }
+    if (project.status === 'archived') {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
+    }
     const active = await this.profiles.filterActiveUserIds([targetId]);
     if (active.length === 0) throw DomainException.notFound('User not found');
     await this.txRunner.run(async (tx) => {
@@ -136,6 +143,19 @@ export class ProjectMembersService {
       throw new DomainException(
         ErrorCode.VALIDATION_FAILED,
         'Open project membership lives from its tasks',
+      );
+    }
+    if (project.status === 'archived') {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
+    }
+    // Сотрудник с ролями в задачах проекта остаётся адресатом уведомлений и
+    // push даже после снятия участия — сначала снимите его с задач (иначе
+    // заголовки секретных задач продолжают утекать).
+    if ((await this.tasks.roleHolderIds(projectId)).includes(targetId)) {
+      throw new DomainException(
+        ErrorCode.VALIDATION_FAILED,
+        'Remove the employee from the project tasks first',
+        { userId: targetId },
       );
     }
     await this.txRunner.run(async (tx) => {
@@ -205,7 +225,7 @@ export class ProjectMembersService {
 
   /** Секретный проект виден участию/надзору; открытый — всем (404 без
    *  оракула, паттерн letter-access). */
-  async assertVisible(user: AuthUser, projectId: string): Promise<void> {
+  async assertVisible(user: AuthUser, projectId: string) {
     const project = await this.projects.findById(projectId);
     if (!project) throw DomainException.notFound('Project not found');
     if (project.visibility === 'secret') {
@@ -213,6 +233,7 @@ export class ProjectMembersService {
       const supervisor = participant || user.permissions.includes(Permission.PROJECT_VIEW_SECRET);
       if (!supervisor) throw DomainException.notFound('Project not found');
     }
+    return project;
   }
 
   async membershipOf(projectId: string): Promise<MembershipRow[]> {
@@ -220,8 +241,9 @@ export class ProjectMembersService {
   }
 
   private async assertManageMembers(user: AuthUser, projectId: string) {
-    const project = await this.projects.findById(projectId);
-    if (!project) throw DomainException.notFound('Project not found');
+    // Видимость — ДО прав: секретный проект не-участнику отдаёт 404 без
+    // оракула существования (Т1), как карточка и состав.
+    const project = await this.assertVisible(user, projectId);
     const membership = await this.participants.rowsOfProject(projectId);
     const mine = membership.filter((row) => row.userId === user.id);
     const isManagement = mine.some((row) => row.source === 'manager' || row.source === 'assistant');

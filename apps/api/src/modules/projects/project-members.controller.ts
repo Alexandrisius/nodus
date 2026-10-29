@@ -27,8 +27,7 @@ import { RequireFeature } from '../../core/decorators/require-feature.decorator.
 import { ApiErrors } from '../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
-import { DomainException } from '../../core/errors/domain-exception.js';
-import { ErrorCode } from '@nodus/contracts';
+import { decodeCursor } from '../../core/pagination/cursor.util.js';
 import { ProjectMembersService } from './project-members.service.js';
 
 const idParamSchema = z.uuid();
@@ -142,10 +141,8 @@ export class ProjectMembersController {
   }
 }
 
+const membersCursorSchema = z.object({ userId: z.uuid(), source: z.string().min(1) });
+
 function parseCursor(cursor: string): { userId: string; source: string } {
-  const parsed = JSON.parse(cursor) as { userId?: string; source?: string };
-  if (!parsed.userId || !parsed.source) {
-    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Invalid cursor');
-  }
-  return { userId: parsed.userId, source: parsed.source };
+  return decodeCursor(cursor, membersCursorSchema);
 }

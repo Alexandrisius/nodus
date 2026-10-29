@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   ErrorCode,
+  Permission,
   TASK_EVENTS,
   type AuthUser,
   type TaskListItem,
@@ -77,14 +78,35 @@ export class TaskEditService {
       body.customFields !== undefined && Object.keys(body.customFields).length > 0;
     if ((fields.length > 0 || hasCustomFields) && !access.canEdit)
       throw DomainException.forbidden('Task edit not allowed');
-    if (body.assigneeId) await this.tasks.assertActiveUsers([body.assigneeId]);
+    if (body.assigneeId) {
+      await this.tasks.assertActiveUsers([body.assigneeId]);
+      // Секретный проект: новый ответственный обязан состоять в проекте —
+      // проверка нужна и без переноса (PATCH assigneeId, вердикт 29.10).
+      // При переносе ответственного проверит целевой проект (ниже), а не
+      // покидаемый: иначе вынос из секретного требует членства в нём.
+      if (row.projectId && (body.projectId === undefined || body.projectId === row.projectId)) {
+        await this.projects.assertMembersAllowed(row.projectId, [body.assigneeId]);
+      }
+    }
     // Перенос между проектами (#52 Р5): видимость проекту актёру, состав
     // секретного (все люди задачи после правки — участники), не-архивность.
     if (body.projectId !== undefined && body.projectId !== row.projectId) {
+      // Вынос из СЕКРЕТНОГО проекта открывает содержимое всему порталу —
+      // только руководство проекта или project.manage (иначе — эксфильтрация).
+      if (row.projectId) {
+        const previous = await this.projects.visibilityOf(row.projectId);
+        if (previous === 'secret') {
+          const rights = await this.projects.projectTaskRights(user.id, row.projectId);
+          if (!rights.supervisor && !user.permissions.includes(Permission.PROJECT_MANAGE)) {
+            throw DomainException.forbidden('Only project management can move a secret task out');
+          }
+        }
+      }
       if (body.projectId) {
         await this.projects.assertTaskProjectVisible(user, body.projectId);
         const assignee = body.assigneeId ?? row.assigneeId;
         await this.projects.assertMembersAllowed(body.projectId, [
+          row.creatorId,
           assignee,
           ...row.participants.map((p) => p.userId),
         ]);

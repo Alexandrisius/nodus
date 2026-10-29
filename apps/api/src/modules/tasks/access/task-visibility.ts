@@ -46,13 +46,17 @@ function notHiddenProjectIds(hidden: readonly string[]): Prisma.TaskWhereInput |
  */
 export function visibleTasksWhere(viewer: Viewer, scope: 'mine' | 'all'): Prisma.TaskWhereInput {
   const mine = involves([viewer.id]);
-  if (scope === 'mine') return { deletedAt: null, OR: mine };
-  const or: Prisma.TaskWhereInput[] = [...mine];
+  const gate = notHiddenProjectIds(viewer.hiddenProjectIds);
+  // «Моё участие» тоже гейтится скрытыми секретными: исключённый из проекта
+  // (removeManual, open→secret) не сохраняет доступ к его задачам через
+  // роль постановщика/ответственного (вердикт 29.10).
+  const mineGated: Prisma.TaskWhereInput = gate ? { AND: [{ OR: mine }, gate] } : { OR: mine };
+  if (scope === 'mine') return { deletedAt: null, ...mineGated };
+  const or: Prisma.TaskWhereInput[] = [mineGated];
   if (viewer.subordinateIds.length > 0) {
     const subordinateTasks: Prisma.TaskWhereInput = { OR: involves(viewer.subordinateIds) };
     // Подчинённый — участник секретного проекта не раскрывает его задачи
     // начальнику: ветка гейтится скрытыми проектами (Т1).
-    const gate = notHiddenProjectIds(viewer.hiddenProjectIds);
     or.push(gate ? { AND: [subordinateTasks, gate] } : subordinateTasks);
   }
   if (viewer.visibleProjectIds.length > 0) {
@@ -61,7 +65,6 @@ export function visibleTasksWhere(viewer: Viewer, scope: 'mine' | 'all'): Prisma
   if (viewer.permissions.includes(Permission.TASK_VIEW_ALL)) {
     // Не ранний return: task.view_all не открывает чужие секретные проекты
     // (Т1) — гейт скрытых остаётся и у админа.
-    const gate = notHiddenProjectIds(viewer.hiddenProjectIds);
     return gate ? { deletedAt: null, AND: [gate] } : { deletedAt: null };
   }
   return { deletedAt: null, OR: or };

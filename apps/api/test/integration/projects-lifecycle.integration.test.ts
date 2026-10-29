@@ -272,6 +272,25 @@ describe.skipIf(!process.env.DATABASE_URL)('projects: трассы Т3–Т6 (in
       });
       expect(editByOutsider.status).toBe(403);
 
+      // Архив заморожен: руководитель БЕЗ project.manage поля не правит
+      // (только возврат в работу), а с project.manage — правит.
+      const bobProject = await createProject(bob, {
+        name: `Архив Боба ${fx.runId}`,
+        managerId: bob.id,
+      });
+      const bobArchive = await fx.api(bob, 'POST', `/projects/${bobProject.id}/status`, {
+        body: { status: 'archived' },
+      });
+      expect(bobArchive.status).toBe(200);
+      const editByManagerInArchive = await fx.api(bob, 'PATCH', `/projects/${bobProject.id}`, {
+        body: { description: 'правка в архиве' },
+      });
+      expect(editByManagerInArchive.status).toBe(403);
+      const bobRestore = await fx.api(bob, 'POST', `/projects/${bobProject.id}/status`, {
+        body: { status: 'active' },
+      });
+      expect(bobRestore.status).toBe(200);
+
       // Возврат в работу — руководителем
       const restore = await fx.api(alice, 'POST', `/projects/${project.id}/status`, {
         body: { status: 'active' },

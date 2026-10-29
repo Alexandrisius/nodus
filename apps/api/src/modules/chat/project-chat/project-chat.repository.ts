@@ -58,6 +58,30 @@ export class ProjectChatRepository {
     return rows.map((r) => r.user_id);
   }
 
+  /** Роли текущих участников (owner/member) — для даунгрейда при transfer. */
+  async roles(
+    tx: TransactionClient,
+    conversationId: string,
+  ): Promise<{ userId: string; role: string }[]> {
+    const rows = await tx.$queryRaw<{ user_id: string; role: string }[]>(Prisma.sql`
+      SELECT user_id, role FROM conversation_members WHERE conversation_id = ${conversationId}::uuid
+    `);
+    return rows.map((row) => ({ userId: row.user_id, role: row.role }));
+  }
+
+  async updateRoles(
+    tx: TransactionClient,
+    conversationId: string,
+    entries: { userId: string; role: string }[],
+  ): Promise<void> {
+    for (const entry of entries) {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE conversation_members SET role = ${entry.role}, updated_at = now()
+        WHERE conversation_id = ${conversationId}::uuid AND user_id = ${entry.userId}::uuid
+      `);
+    }
+  }
+
   async addMembers(
     tx: TransactionClient,
     conversationId: string,

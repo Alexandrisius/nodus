@@ -155,6 +155,7 @@ export class TaskFieldsWriter {
         {
           ...base,
           title: after.title,
+          projectId: after.projectId ?? null,
           assigneeId: after.assigneeId,
           previousAssigneeId: row.assigneeId,
         },

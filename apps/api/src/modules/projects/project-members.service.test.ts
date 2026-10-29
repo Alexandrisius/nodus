@@ -36,7 +36,7 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
     replaceTaskSource: vi.fn(),
     syncManagement: vi.fn(),
   };
-  const tasks = { membersOf: vi.fn(), projectIdOf: vi.fn() };
+  const tasks = { membersOf: vi.fn(), roleHolderIds: vi.fn(), projectIdOf: vi.fn() };
   const profiles = { filterActiveUserIds: vi.fn(), findRefs: vi.fn() };
   const txRunner = { run: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})) };
   const eventBus = { emit: vi.fn() };
@@ -45,6 +45,10 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
   beforeEach(() => {
     vi.clearAllMocks();
     projects.findById.mockResolvedValue(projectRow());
+    // Руководитель — участник: assertVisible секретного проекта проходит.
+    participants.hasRow.mockResolvedValue(true);
+    tasks.membersOf.mockResolvedValue([]);
+    tasks.roleHolderIds.mockResolvedValue([]);
     profiles.filterActiveUserIds.mockImplementation(async (ids: string[]) => ids);
     service = new ProjectMembersService(
       txRunner as never,

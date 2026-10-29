@@ -21,12 +21,12 @@ describe('visibleTasksWhere (#37 + #52 Р3)', () => {
     expect(JSON.stringify(where)).not.toContain('projectId');
   });
 
-  it('all — плюс задачи подчинённых и видимых проектов', () => {
+  it('all — своё участие (гейтнутое), подчинённые и видимые проекты', () => {
     const where = visibleTasksWhere(
       { ...viewer, subordinateIds: ['sub'], visibleProjectIds: ['p-1'] },
       'all',
     );
-    expect(where.OR).toHaveLength(5);
+    expect(where.OR).toHaveLength(3);
     expect(JSON.stringify(where)).toContain('"in"');
   });
 
@@ -35,7 +35,8 @@ describe('visibleTasksWhere (#37 + #52 Р3)', () => {
       { ...viewer, subordinateIds: ['sub'], hiddenProjectIds: ['secret-1'] },
       'all',
     );
-    const subordinateBranch = where.OR![3] as { AND: unknown[] };
+    // [0] — моё участие (тоже гейтнуто), [1] — подчинённые
+    const subordinateBranch = where.OR![1] as { AND: unknown[] };
     expect(subordinateBranch.AND).toHaveLength(2); // involves + гейт
     const gate = subordinateBranch.AND[1] as { OR: unknown[] };
     // NULL-ветка обязательна: NULL NOT IN прячет задачи без проекта (Р3)
@@ -45,7 +46,7 @@ describe('visibleTasksWhere (#37 + #52 Р3)', () => {
 
   it('без скрытых проектов ветка подчинённых без гейта (как до Р3)', () => {
     const where = visibleTasksWhere({ ...viewer, subordinateIds: ['sub'] }, 'all');
-    const subordinateBranch = where.OR![3] as { OR: unknown[]; AND?: unknown[] };
+    const subordinateBranch = where.OR![1] as { OR: unknown[]; AND?: unknown[] };
     expect(subordinateBranch.AND).toBeUndefined();
     expect(subordinateBranch.OR).toHaveLength(3);
   });
@@ -63,7 +64,9 @@ describe('visibleTasksWhere (#37 + #52 Р3)', () => {
     expect(visibleTasksWhere(viewAll, 'mine').OR).toHaveLength(3);
   });
 
-  it('без прав, подчинённых и проектов all = mine', () => {
-    expect(visibleTasksWhere(viewer, 'all').OR).toHaveLength(3);
+  it('без прав, подчинённых и проектов all = mine (гейт-обёртка)', () => {
+    const where = visibleTasksWhere(viewer, 'all');
+    expect(where.OR).toHaveLength(1);
+    expect((where.OR![0] as { OR: unknown[] }).OR).toHaveLength(3);
   });
 });

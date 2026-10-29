@@ -1482,6 +1482,11 @@ model CounterpartyUsage {
 model ProjectType {
   id         String    @id @default(uuid()) @db.Uuid
   name       String    @unique
+  /// Политика системного поля «Шифр» в форме проекта этого типа
+  /// (hidden | optional | required, CHECK в миграции): «Договор» — шифр
+  /// обязателен, «Тема» — поля нет. Мост к формам типов «Автоматизации»
+  /// (#38/#468): полный набор полей типа придёт схемой формы.
+  codeField  String    @default("optional") @map("code_field")
   archivedAt DateTime? @map("archived_at") @db.Timestamptz()
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
