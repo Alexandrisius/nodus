@@ -143,4 +143,21 @@ describe('DomainExceptionFilter', () => {
       traceId: 'req-1',
     });
   });
+
+  it('фреймворк-ошибка ≥500 (Fastify-плагин) → INTERNAL_ERROR без деталей наружу (#535)', () => {
+    const { filter } = createFilter();
+    const { host, status, send } = createHost();
+
+    const upstreamDown = Object.assign(new Error('upstream connection reset'), {
+      statusCode: 502,
+    });
+    filter.catch(upstreamDown, host);
+
+    expect(status).toHaveBeenCalledWith(502);
+    expect(send).toHaveBeenCalledWith({
+      code: 'INTERNAL_ERROR',
+      message: 'upstream connection reset',
+      traceId: 'req-1',
+    });
+  });
 });
