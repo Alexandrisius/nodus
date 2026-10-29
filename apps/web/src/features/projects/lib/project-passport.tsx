@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarClock,
   CalendarPlus,
+  Eye,
   FolderOpen,
   Hash,
   Lock,
@@ -157,6 +158,21 @@ export function projectPassportDefs(
           <span className="font-mono text-label-sm tabular-nums">{project.membersCount}</span>
         </>
       ),
+    },
+    {
+      key: 'observers',
+      icon: <Eye className="size-3.5" />,
+      label: ui.projects.observers,
+      render: () =>
+        project.observers.length === 0 ? (
+          ui.common.notSet
+        ) : (
+          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            {project.observers.map((observer) => (
+              <span key={observer.id}>{personLink(observer, openCard)}</span>
+            ))}
+          </span>
+        ),
     },
     {
       key: 'creator',

@@ -62,7 +62,7 @@ export function ProjectMembersTab({ project }: { project: ProjectDetail }) {
           {secret ? ui.projects.membersHintSecret : ui.projects.membersHintOpen}
         </p>
 
-        {canManage ? <AddMemberRow projectId={project.id} /> : null}
+        {canManage ? <AddMemberRow projectId={project.id} secret={secret} /> : null}
 
         {isLoading ? (
           <div className="flex flex-col gap-2">
@@ -81,9 +81,19 @@ export function ProjectMembersTab({ project }: { project: ProjectDetail }) {
               <MemberRow
                 key={group.user.id}
                 group={group}
-                canRemove={canManage && manualMembershipKind(group) !== null}
+                canRemove={
+                  canManage &&
+                  manualMembershipKind(group) !== null &&
+                  !group.sources.includes('manager') &&
+                  !group.sources.includes('assistant')
+                }
                 onOpen={() => openCard({ kind: 'employee', id: group.user.id })}
-                onRemove={() => remove.mutate(group.user.id)}
+                onRemove={() =>
+                  remove.mutate({
+                    userId: group.user.id,
+                    kind: manualMembershipKind(group) ?? 'member',
+                  })
+                }
               />
             ))}
           </ul>
@@ -153,9 +163,10 @@ function MemberRow({
   );
 }
 
-/** Добавление в секретный проект: сотрудник + вид участия (участник может
- *  получать задачи, наблюдатель — только просмотр). */
-function AddMemberRow({ projectId }: { projectId: string }) {
+/** Добавление руководством: в секретный — участник или наблюдатель (участник
+ *  может получать задачи, наблюдатель — только просмотр); в открытый —
+ *  ТОЛЬКО наблюдатель (участники живут из задач, вердикт 29.10 В2). */
+function AddMemberRow({ projectId, secret }: { projectId: string; secret: boolean }) {
   const { data: users } = useUsersList();
   const add = useAddProjectMember(projectId);
   const [open, setOpen] = useState(false);
@@ -167,13 +178,13 @@ function AddMemberRow({ projectId }: { projectId: string }) {
     return (
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="sm"
-        className="self-start"
+        className="-ml-2 self-start text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
       >
         <Plus className="size-3.5" strokeWidth={1.75} />
-        {ui.projects.addMember}
+        {secret ? ui.projects.addMember : ui.projects.addObserver}
       </Button>
     );
   }
@@ -204,25 +215,27 @@ function AddMemberRow({ projectId }: { projectId: string }) {
           )}
         </button>
       </PeoplePicker>
-      <SegmentedControl
-        size="sm"
-        ariaLabel={ui.projects.addMember}
-        value={kind}
-        options={[
-          { value: 'member', label: ui.projects.memberKind.member },
-          { value: 'observer', label: ui.projects.memberKind.observer },
-        ]}
-        onChange={setKind}
-        activeClassName="bg-accent text-foreground"
-        className="w-48"
-      />
+      {secret ? (
+        <SegmentedControl
+          size="sm"
+          ariaLabel={ui.projects.addMember}
+          value={kind}
+          options={[
+            { value: 'member', label: ui.projects.memberKind.member },
+            { value: 'observer', label: ui.projects.memberKind.observer },
+          ]}
+          onChange={setKind}
+          activeClassName="bg-accent text-foreground"
+          className="w-48"
+        />
+      ) : null}
       <Button
         type="button"
         size="sm"
         disabled={!userId || add.isPending}
         onClick={() =>
           add.mutate(
-            { userId, kind },
+            { userId, kind: secret ? kind : 'observer' },
             {
               onSuccess: () => {
                 setUserId('');

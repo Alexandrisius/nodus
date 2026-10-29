@@ -85,9 +85,15 @@ export class ProjectDtoMapper {
   async toDetail(input: ProjectDtoInput): Promise<ProjectDetail> {
     const [item] = await this.toListItems([input]);
     const { row, participants, viewer } = input;
-    const [refs, creatorRefs] = await Promise.all([
+    const observerIds = [
+      ...new Set(
+        participants.filter((entry) => entry.source === 'observer').map((entry) => entry.userId),
+      ),
+    ];
+    const [refs, creatorRefs, observerRefs] = await Promise.all([
       this.customFields.refs('project', row.customFields as Record<string, never>, viewer),
       this.profiles.findRefs([row.creatorId]),
+      this.profiles.findRefs(observerIds),
     ]);
     const membership = myMembership(participants, viewer.id);
     return {
@@ -96,6 +102,11 @@ export class ProjectDtoMapper {
       creator:
         creatorRefs[0] ??
         ({ id: row.creatorId, displayName: '', avatarUrl: null } satisfies UserRef),
+      observers: observerIds.map(
+        (id) =>
+          observerRefs.find((ref) => ref.id === id) ??
+          ({ id, displayName: '', avatarUrl: null } satisfies UserRef),
+      ),
       startDate: row.startedAt?.toISOString().slice(0, 10) ?? null,
       completedAt: row.completedAt?.toISOString() ?? null,
       archivedAt: row.archivedAt?.toISOString() ?? null,
@@ -115,6 +126,7 @@ export class ProjectDtoMapper {
   ): ProjectListItem {
     const facts = toFacts(row);
     const membership: ProjectMyMembership = myMembership(participants, viewer.id);
+    const roster = participants.filter((entry) => entry.source !== 'observer');
     const fallback = (id: string): UserRef => ({ id, displayName: '', avatarUrl: null });
     return {
       id: row.id,
@@ -135,8 +147,10 @@ export class ProjectDtoMapper {
         : null,
       portfolio: row.portfolio ? { id: row.portfolio.id, name: row.portfolio.name } : null,
       client: row.clientId ? (clients.get(row.clientId) ?? null) : null,
-      membersCount: new Set(participants.map((p) => p.userId)).size,
-      membersPreview: [...new Set(participants.map((p) => p.userId))]
+      // «Участники» — roster БЕЗ наблюдателей: наблюдатель видит проект без
+      // прав правки и живёт отдельным полем карточки (вердикт 07.11.2026).
+      membersCount: new Set(roster.map((p) => p.userId)).size,
+      membersPreview: [...new Set(roster.map((p) => p.userId))]
         .slice(0, 5)
         .map((id) => users.get(id) ?? fallback(id)),
       endDate: row.endsAt?.toISOString().slice(0, 10) ?? null,

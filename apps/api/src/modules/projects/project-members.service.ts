@@ -100,8 +100,11 @@ export class ProjectMembersService {
     });
   }
 
-  /** Ручное добавление в секретный проект (руководство): участник или
-   *  наблюдатель; вторая роль того же человека заменяется. */
+  /** Ручное добавление руководством: в секретный — участник или наблюдатель,
+   *  в открытый — ТОЛЬКО наблюдатель (участники открытого живут из задач,
+   *  вердикт владельца 29.10 В2: «задавали наблюдателей для проектов, а
+   *  участники добавляются автоматически из задач»). Вторая роль того же
+   *  человека заменяется. */
   async addManual(
     user: AuthUser,
     projectId: string,
@@ -109,7 +112,7 @@ export class ProjectMembersService {
     kind: 'member' | 'observer',
   ): Promise<void> {
     const project = await this.assertManageMembers(user, projectId);
-    if (project.visibility !== 'secret') {
+    if (project.visibility !== 'secret' && kind === 'member') {
       throw new DomainException(
         ErrorCode.VALIDATION_FAILED,
         'Open project membership lives from its tasks',
@@ -136,17 +139,19 @@ export class ProjectMembersService {
     });
   }
 
-  /** Снятие ручного состава (секретный). */
+  /** Снятие ручного состава: секретный — участник и наблюдатель; открытый —
+   *  только наблюдатель (состав из задач не трогаем). */
   async removeManual(user: AuthUser, projectId: string, targetId: string): Promise<void> {
     const project = await this.assertManageMembers(user, projectId);
-    if (project.visibility !== 'secret') {
-      throw new DomainException(
-        ErrorCode.VALIDATION_FAILED,
-        'Open project membership lives from its tasks',
-      );
-    }
     if (project.status === 'archived') {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
+    }
+    if (project.visibility !== 'secret') {
+      await this.txRunner.run(async (tx) => {
+        await this.participants.remove(tx, projectId, [targetId], 'observer');
+        await this.emitChanged(tx, projectId, [targetId]);
+      });
+      return;
     }
     // Сотрудник с ролями в задачах проекта остаётся адресатом уведомлений и
     // push даже после снятия участия — сначала снимите его с задач (иначе

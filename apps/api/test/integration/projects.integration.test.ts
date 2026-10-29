@@ -350,12 +350,26 @@ describe.skipIf(!process.env.DATABASE_URL)('projects: трассы Т1/Т2/Т2b 
       await fx.prisma.task.update({ where: { id: okTask.id }, data: { projectId: null } });
     });
 
-    it('открытый проект: ручное управление составом запрещено (422)', async () => {
+    it('открытый проект: участников руками нельзя (400), наблюдателей — можно', async () => {
       const open = await createProject(alice, { name: `Открытый без ручного ${fx.runId}` });
       const res = await fx.api(alice, 'POST', `/projects/${open.id}/members`, {
         body: { userId: carol.id, kind: 'member' },
       });
       expect(res.status).toBe(400);
+
+      // Вердикт владельца 29.10 В2: наблюдатели — ручной механизм состава,
+      // участники открытого проекта приходят из задач.
+      const observer = await fx.api(alice, 'POST', `/projects/${open.id}/members`, {
+        body: { userId: carol.id, kind: 'observer' },
+      });
+      expect(observer.status).toBe(201);
+      const detail = (await (await fx.api(alice, 'GET', `/projects/${open.id}`)).json()) as {
+        observers: { id: string }[];
+      };
+      expect(detail.observers.map((entry) => entry.id)).toContain(carol.id);
+
+      const removed = await fx.api(alice, 'DELETE', `/projects/${open.id}/members/${carol.id}`);
+      expect(removed.status).toBe(200);
     });
   });
 

@@ -155,9 +155,10 @@ export const projectMutationHandlers = [
     if (!row) return notFound();
     const membership = myMembershipOf(row.id, actor.id);
     if (!accessOf(row, membership, actor.permissions).canManageMembers) return forbidden();
-    if (row.visibility !== 'secret') return invalid();
     const parsed = projectMemberAddBodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return invalid();
+    // Открытый проект: участники живут из задач, руками — только наблюдатель.
+    if (row.visibility !== 'secret' && parsed.data.kind === 'member') return invalid();
     const target = demoUserListItems.find(
       (user) => user.id === parsed.data.userId && user.status === 'active',
     );
@@ -172,8 +173,7 @@ export const projectMutationHandlers = [
     if (!row) return notFound();
     const membership = myMembershipOf(row.id, actor.id);
     if (!accessOf(row, membership, actor.permissions).canManageMembers) return forbidden();
-    if (row.visibility !== 'secret') return invalid();
-    removeDemoProjectMember(row.id, String(params.userId), actor.id);
+    removeDemoProjectMember(row.id, String(params.userId), actor.id, row.visibility !== 'secret');
     return new HttpResponse(null, { status: 200 });
   }),
 ];

@@ -112,7 +112,8 @@ export const projectListItemSchema = z.object({
   portfolio: projectGroupRefSchema.nullable(),
   /** Заказчик — контрагент справочника (#460, ADR-0033). */
   client: counterpartyRefSchema.nullable(),
-  /** Живой состав (все источники, уникальные сотрудники). */
+  /** Участники — живой состав БЕЗ наблюдателей (руководство, задачи,
+   *  ручное добавление); наблюдатели — отдельным полем карточки. */
   membersCount: z.number().int().min(0),
   membersPreview: z.array(userRefSchema),
   endDate: z.iso.date().nullable(),
@@ -142,6 +143,11 @@ export type ProjectAccess = z.infer<typeof projectAccessSchema>;
 export const projectDetailSchema = projectListItemSchema.extend({
   description: z.string(),
   creator: userRefSchema,
+  /** Наблюдатели проекта (источник `observer`: приглашённые руководством,
+   *  вступившие сами, создатель-не-руководитель) — просмотр без прав правки.
+   *  Вердикт владельца 29.10 (В2): наблюдатель — ручной механизм состава,
+   *  участники же приходят из задач. */
+  observers: z.array(userRefSchema),
   startDate: z.iso.date().nullable(),
   completedAt: z.iso.datetime().nullable(),
   archivedAt: z.iso.datetime().nullable(),

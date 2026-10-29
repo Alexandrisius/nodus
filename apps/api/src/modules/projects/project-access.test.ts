@@ -96,7 +96,7 @@ describe('projectAccess (#52, вердикты 29.10)', () => {
     const manager = projectAccess(f, myMembership(rows('manager'), MANAGER), []);
     expect(manager).toMatchObject({
       canManage: true,
-      canManageMembers: false, // открытый проект — состав не редактируется
+      canManageMembers: true, // открытый: ручные НАБЛЮДАТЕЛИ (участники — из задач)
       canJoin: false,
       canLeave: false,
       canPostToChannel: true,
@@ -163,9 +163,9 @@ describe('projectAccess (#52, вердикты 29.10)', () => {
     expect(observerHolder.canPostToChannel).toBe(true);
   });
 
-  it('project.manage равен управлению, но не передаче и не составу открытого', () => {
+  it('project.manage равен управлению, но не передаче; состав — да', () => {
     const admin = projectAccess(facts(), myMembership([], OUTSIDER), [Permission.PROJECT_MANAGE]);
-    expect(admin).toMatchObject({ canManage: true, canTransfer: false, canManageMembers: false });
+    expect(admin).toMatchObject({ canManage: true, canTransfer: false, canManageMembers: true });
     const adminSecret = projectAccess(facts({ visibility: 'secret' }), myMembership([], OUTSIDER), [
       Permission.PROJECT_MANAGE,
     ]);

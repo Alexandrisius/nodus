@@ -268,8 +268,13 @@ export function addDemoProjectMember(
   return true;
 }
 
-export function removeDemoProjectMember(id: string, userId: string, actorId: string): void {
-  removeDemoParticipant(id, userId, 'member');
+export function removeDemoProjectMember(
+  id: string,
+  userId: string,
+  actorId: string,
+  observerOnly = false,
+): void {
+  if (!observerOnly) removeDemoParticipant(id, userId, 'member');
   removeDemoParticipant(id, userId, 'observer');
   const row = findDemoProjectRow(id);
   if (row) touch(row);

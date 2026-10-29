@@ -137,15 +137,20 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
       ]);
     });
 
-    it('открытый проект: ручное управление составом запрещено (состав живёт из задач)', async () => {
+    it('открытый проект: участников руками не добавляют (они из задач), наблюдателей — можно', async () => {
       participants.rowsOfProject.mockResolvedValue(managementRows());
       await expect(service.addManual(user(MANAGER), ID, WORKER, 'member')).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_FAILED,
       });
-      await expect(service.removeManual(user(MANAGER), ID, WORKER)).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_FAILED,
-      });
-      expect(participants.add).not.toHaveBeenCalled();
+
+      await service.addManual(user(MANAGER), ID, WORKER, 'observer');
+      expect(participants.add).toHaveBeenCalledWith({}, [
+        { projectId: ID, userId: WORKER, source: 'observer', observerKind: 'invited' },
+      ]);
+
+      // Снятие наблюдателя в открытом проекте — только ряд observer.
+      await service.removeManual(user(MANAGER), ID, WORKER);
+      expect(participants.remove).toHaveBeenLastCalledWith({}, ID, [WORKER], 'observer');
     });
 
     it('не-руководство без project.manage → 403; неактивный пользователь → 404', async () => {

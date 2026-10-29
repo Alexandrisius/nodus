@@ -110,9 +110,15 @@ export function useAddProjectMember(id: string) {
         ];
       });
       if (added) {
-        queryClient.setQueryData<ProjectDetail>(projectsKeys.detail(id), (data) =>
-          data ? { ...data, membersCount: data.membersCount + 1 } : data,
-        );
+        queryClient.setQueryData<ProjectDetail>(projectsKeys.detail(id), (data) => {
+          if (!data) return data;
+          if (kind === 'observer') {
+            return data.observers.some((entry) => entry.id === userId)
+              ? data
+              : { ...data, observers: [...data.observers, user] };
+          }
+          return { ...data, membersCount: data.membersCount + 1 };
+        });
       }
     },
     onError: (error) => {
@@ -120,7 +126,10 @@ export function useAddProjectMember(id: string) {
       void queryClient.invalidateQueries({ queryKey: projectsKeys.detail(id) });
       toastApiError(error);
     },
-    onSuccess: () => toast.success(ui.projects.memberAddedDone),
+    onSuccess: (_data, vars) =>
+      toast.success(
+        vars.kind === 'observer' ? ui.projects.observerAddedDone : ui.projects.memberAddedDone,
+      ),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectsKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['chat'] });
@@ -128,33 +137,35 @@ export function useAddProjectMember(id: string) {
   });
 }
 
-/** Снятие ручного состава секретного проекта. */
+/** Снятие ручного состава: секретный — участник и наблюдатель, открытый —
+ *  только наблюдатель (сервер снимает ровно то, что разрешено видимостью). */
 export function useRemoveProjectMember(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) =>
-      api<void>(`/projects/${id}/members/${userId}`, { method: 'DELETE' }),
-    onMutate: async (userId) => {
-      let last = false;
-      patchMemberPages(queryClient, id, (items) => {
-        const rest = items.filter(
+    mutationFn: (vars: { userId: string; kind: 'member' | 'observer' }) =>
+      api<void>(`/projects/${id}/members/${vars.userId}`, { method: 'DELETE' }),
+    onMutate: async ({ userId, kind }) => {
+      patchMemberPages(queryClient, id, (items) =>
+        items.filter(
           (row) => !(row.user.id === userId && ['member', 'observer'].includes(row.source)),
-        );
-        last = rest.every((row) => row.user.id !== userId);
-        return rest;
+        ),
+      );
+      queryClient.setQueryData<ProjectDetail>(projectsKeys.detail(id), (data) => {
+        if (!data) return data;
+        return kind === 'observer'
+          ? { ...data, observers: data.observers.filter((entry) => entry.id !== userId) }
+          : { ...data, membersCount: Math.max(data.membersCount - 1, 0) };
       });
-      if (last) {
-        queryClient.setQueryData<ProjectDetail>(projectsKeys.detail(id), (data) =>
-          data ? { ...data, membersCount: Math.max(data.membersCount - 1, 0) } : data,
-        );
-      }
     },
     onError: (error) => {
       void queryClient.invalidateQueries({ queryKey: projectsKeys.members(id) });
       void queryClient.invalidateQueries({ queryKey: projectsKeys.detail(id) });
       toastApiError(error);
     },
-    onSuccess: () => toast.success(ui.projects.memberRemovedDone),
+    onSuccess: (_data, vars) =>
+      toast.success(
+        vars.kind === 'observer' ? ui.projects.observerRemovedDone : ui.projects.memberRemovedDone,
+      ),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectsKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['chat'] });

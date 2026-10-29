@@ -68,7 +68,7 @@ export function accessOf(
     manager || membership.assistant || permissions.includes(Permission.PROJECT_MANAGE);
   return {
     canManage,
-    canManageMembers: canManage && row.visibility === 'secret',
+    canManageMembers: canManage,
     canJoin:
       row.visibility === 'open' &&
       row.status !== 'archived' &&
@@ -85,7 +85,11 @@ export function accessOf(
 
 function participantIdsOf(projectId: string): string[] {
   const seen = new Set<string>();
-  for (const entry of demoParticipantRowsOf(projectId)) seen.add(entry.userId);
+  for (const entry of demoParticipantRowsOf(projectId)) {
+    // Наблюдатели — отдельное поле карточки, в «Участников» не входят.
+    if (entry.source === 'observer') continue;
+    seen.add(entry.userId);
+  }
   return [...seen];
 }
 
@@ -116,10 +120,18 @@ export function listItemOf(row: DemoProjectRow, actor: DemoActor): ProjectListIt
 
 export function detailOf(row: DemoProjectRow, actor: DemoActor): ProjectDetail {
   const membership = myMembershipOf(row.id, actor.id);
+  const observers = [
+    ...new Set(
+      demoParticipantRowsOf(row.id)
+        .filter((entry) => entry.source === 'observer')
+        .map((entry) => entry.userId),
+    ),
+  ];
   return {
     ...listItemOf(row, actor),
     description: row.description,
     creator: safeUserRef(row.creatorId),
+    observers: observers.map(safeUserRef),
     startDate: row.startDate,
     completedAt: row.completedAt,
     archivedAt: row.archivedAt,

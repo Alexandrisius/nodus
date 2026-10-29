@@ -45,7 +45,9 @@ export function projectAccess(
   const canManage = manager || membership.assistant || managePermission;
   return {
     canManage,
-    canManageMembers: canManage && facts.visibility === 'secret',
+    // Ручной состав: секретный — участники и наблюдатели; открытый — только
+    // наблюдатели (участники живут из задач, вердикт 29.10 В2).
+    canManageMembers: canManage,
     canJoin:
       facts.visibility === 'open' &&
       facts.status !== 'archived' &&

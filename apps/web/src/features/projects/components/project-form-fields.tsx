@@ -58,7 +58,10 @@ export function ManagerField({
   );
 }
 
-/** Несколько помощников: выбранные — чипами, добавление — поповером. */
+/** Несколько помощников: поле — САМ триггер выбора (клик по любой точке
+ *  поля открывает поповер со поиском и списком снизу — модель Битрикс24),
+ *  выбранные — чипами с крестиком. Кнопки «+» справа нет: она сужала поле
+ *  «лесенкой» (вердикт владельца 07.11.2026). */
 export function AssistantsField({
   value,
   onChange,
@@ -78,55 +81,59 @@ export function AssistantsField({
     onChange(value.includes(id) ? value.filter((entry) => entry !== id) : [...value, id]);
 
   return (
-    <div
-      className={cn(
-        'flex min-h-8 min-w-0 flex-wrap items-center gap-1.5 rounded-lg border border-input px-1.5 py-1 dark:bg-input/30',
-        disabled && 'opacity-60',
-      )}
+    <PeoplePicker
+      selectedIds={value}
+      excludeIds={excludeIds}
+      multiple
+      ariaLabel={label}
+      onToggle={(id) => toggle(id)}
     >
-      {value.length === 0 ? (
-        <span className="px-1 text-xs text-muted-foreground">{ui.common.notSet}</span>
-      ) : (
-        value.map((id) => (
-          <span
-            key={id}
-            className="flex items-center gap-1 rounded-md bg-accent py-0.5 pr-1 pl-0.5 text-xs"
-          >
-            <PersonAvatar
-              name={byId.get(id)?.displayName ?? ''}
-              avatarUrl={byId.get(id)?.avatarUrl ?? null}
-              className="size-4"
-            />
-            <span className="max-w-32 truncate">{byId.get(id)?.displayName ?? id}</span>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => toggle(id)}
-              aria-label={`${ui.common.remove}: ${byId.get(id)?.displayName ?? ''}`}
-              className="rounded-sm text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-3" strokeWidth={2} />
-            </button>
-          </span>
-        ))
-      )}
-      <PeoplePicker
-        selectedIds={value}
-        excludeIds={excludeIds}
-        multiple
-        ariaLabel={label}
-        onToggle={(id) => toggle(id)}
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-label={label}
+        aria-disabled={disabled || undefined}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          event.currentTarget.click();
+        }}
+        className={cn(
+          'flex min-h-8 w-full min-w-0 cursor-pointer flex-wrap items-center gap-1.5 rounded-lg border border-input px-2 py-1 text-sm transition-colors hover:bg-accent/40 dark:bg-input/30',
+          disabled && 'pointer-events-none opacity-60',
+        )}
       >
-        <button
-          type="button"
-          disabled={disabled}
-          className="ml-auto flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-          aria-label={`${ui.common.add}: ${label}`}
-        >
-          <Plus className="size-3.5" strokeWidth={1.75} />
-        </button>
-      </PeoplePicker>
-    </div>
+        {value.length === 0 ? (
+          <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>
+        ) : (
+          value.map((id) => (
+            <span
+              key={id}
+              className="flex items-center gap-1 rounded-md bg-accent py-0.5 pr-1 pl-0.5 text-xs"
+            >
+              <PersonAvatar
+                name={byId.get(id)?.displayName ?? ''}
+                avatarUrl={byId.get(id)?.avatarUrl ?? null}
+                className="size-4"
+              />
+              <span className="max-w-32 truncate">{byId.get(id)?.displayName ?? id}</span>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggle(id);
+                }}
+                aria-label={`${ui.common.remove}: ${byId.get(id)?.displayName ?? ''}`}
+                className="rounded-sm text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" strokeWidth={2} />
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+    </PeoplePicker>
   );
 }
 
