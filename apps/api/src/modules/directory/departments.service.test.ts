@@ -73,6 +73,44 @@ describe('DepartmentsService', () => {
       expect(departments.update).not.toHaveBeenCalled();
     });
 
+    it('переименование пишет только присланное поле: родитель, руководитель, зам, вид и порядок не трогаются (#492)', async () => {
+      departments.findById.mockResolvedValue(
+        row('dep', 'parent', 'Старое имя', {
+          kind: 'legal',
+          headId: 'head-1',
+          deputyId: 'deputy-1',
+          sortOrder: 5,
+        }),
+      );
+      departments.update.mockResolvedValue(
+        row('dep', 'parent', 'Новое имя', {
+          kind: 'legal',
+          headId: 'head-1',
+          deputyId: 'deputy-1',
+          sortOrder: 5,
+        }),
+      );
+
+      const node = await service.update('dep', { name: 'Новое имя' }, 'admin-1');
+
+      // В репозиторий уходит ровно присланное — без подставленных дефолтов.
+      expect(departments.update).toHaveBeenCalledWith('dep', { name: 'Новое имя' }, 'tx-handle');
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        'tx-handle',
+        'directory.department.updated',
+        { departmentId: 'dep', changedFields: ['name'] },
+        expect.objectContaining({ actorId: 'admin-1' }),
+      );
+      expect(node).toMatchObject({
+        parentId: 'parent',
+        kind: 'legal',
+        headId: 'head-1',
+        deputyId: 'deputy-1',
+        sortOrder: 5,
+        name: 'Новое имя',
+      });
+    });
+
     it('валидная смена родителя → update + событие в транзакции', async () => {
       departments.findById.mockResolvedValue(row('dep', null));
       departments.findParentChain.mockResolvedValue(['new-parent']);

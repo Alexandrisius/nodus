@@ -10,7 +10,7 @@
 
 ## Контракты (`@nodus/contracts`)
 
-`userCardSchema`, `userListItemSchema`, `listUsersQuerySchema`, `createUserSchema`, `updateUserSchema`, `updateMyProfileSchema`; `departmentNodeSchema`, `createDepartmentSchema`; `positionSchema`; `roleSchema` (со счётчиками состава и `preview`), `createRoleSchema`, `updateRoleSchema`, `roleMembersSchema`, `SystemRole`.
+`userCardSchema`, `userListItemSchema`, `listUsersQuerySchema`, `createUserSchema`, `updateUserSchema`, `updateMyProfileSchema`; `departmentNodeSchema`, `createDepartmentSchema`, `updateDepartmentSchema`; `positionSchema`, `createPositionSchema`, `updatePositionSchema`; `roleSchema` (со счётчиками состава и `preview`), `createRoleSchema`, `updateRoleSchema`, `roleMembersSchema`, `SystemRole`.
 
 ## Эндпоинты (`/api/v1/directory`)
 
@@ -38,6 +38,7 @@
 
 - Создание сотрудника — только администратором (self-registration нет); начальный пароль — Argon2id через core `PasswordService`.
 - Email уникален **без учёта регистра** (#321): контракт входа (`emailInputSchema`) приводит адрес к `trim + lower`, БД хранит только нормализованную форму (CHECK `users_email_normalized`), поэтому обычный unique `users.email` регистронезависим; предпроверка → `DIRECTORY_EMAIL_TAKEN` (409).
+- **Частичная правка — только присланные поля** (#492): `updateDepartmentSchema`/`updatePositionSchema` — явные `optional()`-поля без значений по умолчанию (Zod 4 подставляет `.default()` и в необязательные поля, из-за чего `PATCH { name }` затирал родителя, руководителя, вида и порядка). Пустое тело → `400 VALIDATION_FAILED`; `changedFields` события — реально присланные ключи. Страж — `packages/contracts/src/update-schemas.guard.test.ts` (все схемы правки).
 - Архивация вместо удаления: пользователи (status), отделы и должности (isActive), роли — удаляются только несистемные и неназначенные.
 - Роли — данные, не код: права из каталога `Permission` контрактов. Права сотрудника считает порт `ROLE_MEMBERSHIP_READER` (прямые роли ∪ роли управленческого подразделения и всех его предков) — единственный источник для входа, refresh и `/auth/me` (#379, ADR-0034).
 - **«Администратор» неизменяем**: `PUT/DELETE …/permissions` и `PATCH` с `permissions` → `409 ROLE_LOCKED`; имя и описание менять можно. Состав роли `admin` — только конкретные сотрудники: подразделение → `409 ROLE_LOCKED` (`details.reason = 'departments'`).

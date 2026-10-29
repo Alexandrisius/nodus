@@ -17,6 +17,8 @@ const MANAGER_PERMISSIONS = [
 ] as const;
 const LIMITED_PERMISSIONS = [Permission.ROLE_MANAGE, Permission.DIRECTORY_READ] as const;
 const EMPLOYEE_PERMISSIONS = [Permission.DIRECTORY_READ] as const;
+/** Администратор оргструктуры (#492): правка подразделений/должностей и справочник. */
+const DIRECTORY_PERMISSIONS = [Permission.DIRECTORY_MANAGE, Permission.DIRECTORY_READ] as const;
 
 export interface RoleUser {
   id: string;
@@ -38,7 +40,7 @@ export interface RoleEventRow {
  * тем же `IdentityLoader`, что у входа и refresh (права из БД, не из фикстуры).
  */
 export async function setupRolesFixture() {
-  const chat = await setupChatFixture(['alice', 'bob', 'carol']);
+  const chat = await setupChatFixture(['alice', 'bob', 'carol', 'dave']);
   const prisma = chat.prisma;
   const runId = chat.runId;
   const roleIds: string[] = [];
@@ -63,11 +65,13 @@ export async function setupRolesFixture() {
   const managerRole = await role('role-manager', MANAGER_PERMISSIONS);
   const limitedRole = await role('role-limited', LIMITED_PERMISSIONS);
   const employeeRole = await role('role-employee', EMPLOYEE_PERMISSIONS);
+  const directoryRole = await role('role-directory', DIRECTORY_PERMISSIONS);
   await prisma.userRole.createMany({
     data: [
       { userId: chat.users.alice.id, roleId: managerRole },
       { userId: chat.users.bob.id, roleId: limitedRole },
       { userId: chat.users.carol.id, roleId: employeeRole },
+      { userId: chat.users.dave.id, roleId: directoryRole },
     ],
     skipDuplicates: true,
   });
@@ -113,6 +117,7 @@ export async function setupRolesFixture() {
       manager: await mint(chat.users.alice),
       limited: await mint(chat.users.bob),
       employee: await mint(chat.users.carol),
+      directory: await mint(chat.users.dave),
     },
     adminRoleId: admin.id,
     roleIds,
