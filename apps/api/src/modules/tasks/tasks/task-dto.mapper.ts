@@ -175,6 +175,9 @@ export class TaskDtoMapper {
       // Секретный проект без участия смотрящего — null, без оракула (Т1).
       project: r.projectId ? (projects.get(r.projectId) ?? null) : null,
       parentId: r.parentId,
+      // Узел структуры проекта (#467): null — «Без узла»; дерево собирает
+      // клиент (ADR-0030 п.7).
+      nodeId: r.nodeId,
       spentMinutes: r.spentMinutes,
       commentsCount: r.commentsCount,
       checklistDone: r.checklistDone,

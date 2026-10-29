@@ -96,6 +96,28 @@ describe('CatalogBootstrap — «засев один раз» (ADR-0021)', () =>
       expect.stringContaining('skip_customized'),
     );
   });
+
+  it('имя системного типа занято пользовательским — skip+warn, без схемы и маршрута (#467)', async () => {
+    const { bootstrap, repo, logger } = setup();
+    // Пользователь уже создал свой тип «Комплект» — системный не сеем.
+    repo.ensureType.mockImplementation((_tx: unknown, def: { code: string }) =>
+      def.code === 'kit' ? Promise.resolve(null) : Promise.resolve({ id: `type-${def.code}` }),
+    );
+    await bootstrap.ensure();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'kit', name: 'Комплект' }),
+      expect.stringContaining('skip_name_clash'),
+    );
+    // Схема/маршрут kit не создаются; «Изменение» (chg) сеется как обычно.
+    const schemeTypes = repo.ensureSchemeEntry.mock.calls.map((call) => call[2]);
+    expect(schemeTypes).toContain('type-chg');
+    expect(schemeTypes).not.toContain('type-kit');
+    expect(repo.ensureWorkflow).not.toHaveBeenCalledWith(expect.anything(), {
+      code: 'task.kit',
+      name: 'Комплект',
+      kind: 'task',
+    });
+  });
 });
 
 describe('stageDrift', () => {

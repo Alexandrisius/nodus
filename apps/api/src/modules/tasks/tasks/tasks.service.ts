@@ -111,6 +111,16 @@ export class TasksService {
         ...participants.map((p) => p.userId),
       ]);
     }
+    // Узел структуры («+ задача» на узле дерева, #467): только вместе с
+    // проектом и только узел этого проекта (порт, 422 без оракула).
+    if (body.nodeId) {
+      if (!body.projectId) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'nodeId requires projectId', {
+          nodeId: body.nodeId,
+        });
+      }
+      await this.projects.assertNodeAllowed(body.projectId, body.nodeId);
+    }
     if (body.parentId) await this.assertCanEditParent(user, body.parentId);
     const message = body.sourceMessageId
       ? await this.messages.snapshot(body.sourceMessageId, user.id)
@@ -172,6 +182,7 @@ export class TasksService {
             assigneeId,
             parentId: body.parentId ?? null,
             projectId: body.projectId ?? null,
+            nodeId: body.nodeId ?? null,
             source: body.sourceMessageId ? 'chat_message' : 'manual',
             sourceId: body.sourceMessageId ?? null,
             checklistTotal: body.checklist?.length ?? 0,

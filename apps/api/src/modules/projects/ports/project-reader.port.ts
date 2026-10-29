@@ -50,6 +50,10 @@ export interface ProjectReader {
    *  постановщика на все задачи проекта. */
   projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }>;
 
+  /** Узел пригоден задаче этого проекта: существует и принадлежит проекту;
+   *  иначе — 422 PROJECT_NODE_INVALID без оракула существования (#467). */
+  assertNodeAllowed(projectId: string, nodeId: string): Promise<void>;
+
   /** Видимость проекта (для гейта выноса задачи из секретного). */
   visibilityOf(projectId: string): Promise<'open' | 'secret' | null>;
 }

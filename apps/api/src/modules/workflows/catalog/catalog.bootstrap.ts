@@ -80,6 +80,16 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
           description: typeDef.description,
           ...(series ? { config: { numbering: { seriesId: series.id } } } : {}),
         });
+        if (!type) {
+          // Имя занято пользовательским типом (своё «Комплект» до системного,
+          // #467): системный не сеем — дубль имён собьёт выбор типа; старт
+          // не рушим. Схема/маршрут тоже не создаются — тип весь пропускается.
+          this.logger.warn(
+            { type: typeDef.code, name: typeDef.name },
+            'catalog.skip_name_clash: имя занято пользовательским типом',
+          );
+          continue;
+        }
         const workflow = await this.repo.ensureWorkflow(tx, {
           code: workflowDef.code,
           name: workflowDef.name,

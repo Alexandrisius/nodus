@@ -9,6 +9,7 @@ import type {
 
 import { TASK_CATALOG_REVISION } from './catalog-revisions.js';
 import { commentWindow, resultWindow } from './catalog-forms.js';
+import { KIT_CATALOG_PROCESS_TYPES } from './system-catalog-kit.js';
 import { LETTER_CATALOG_PROCESS_TYPES } from './system-catalog-letters.js';
 import { buildQuickWorkflow, QUICK_PROCESS_TYPE } from './system-catalog-quick.js';
 
@@ -269,7 +270,10 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
   ],
 };
 
-/** Каталог: задачи (спека #378, раздел 10) и письма (#55, Р5). */
+/** Каталог: задачи (спека #378, раздел 10), письма (#55, Р5) и маршруты
+ *  Вашурова «Комплект»/«Изменение» (#467, система не рушится на коллизии
+ *  имён с пользовательскими типами — skip+warn в бутстрапе). Порядок важен:
+ *  индексы массива читают тесты (письма — [2]); новые — в конец. */
 export const CATALOG_PROCESS_TYPES: readonly {
   type: CatalogProcessType;
   workflow: CatalogWorkflow;
@@ -287,6 +291,7 @@ export const CATALOG_PROCESS_TYPES: readonly {
     }),
   },
   ...LETTER_CATALOG_PROCESS_TYPES,
+  ...KIT_CATALOG_PROCESS_TYPES,
 ];
 
 /** Пост-функции каталога: явные (#55 `assign_number`) + route_if с целью по

@@ -62,7 +62,9 @@ notification.acked       # выпилено ревизией 05.10 (ack-меха
 # Задел (модуль ещё не реализован; имена зарезервированы — уточняются тем же PR, что вводит модуль)
 dictionary.created / updated · dictionary.item_created / updated / deleted  # реализованы #431 (Р10): запись вариантов атрибутов; reorder эмитит dictionary.updated
 workflow.press_recorded / press_round_completed   # «кнопку жмут несколько» (ADR-0025): отметка участника, кворум набран
-project.created / updated / archived / participants_changed / roles_changed / node_created / node_updated / node_archived / schema_published  # ADR-0030
+project.created / updated / participants_changed  # ADR-0030, реализованы #52
+project.node_created / node_updated / node_moved / node_deleted  # дерево проекта (#467, ADR-0030 «Дополнение»): узлы-папки, события — аудит-след структуры; node_created {projectId, nodeId, parentId, levelId, name} (пакет — по событию на узел), node_updated {projectId, nodeId, fields[], name?, code?, levelId?}, node_moved {projectId, nodeId, parentId, previousParentId}, node_deleted {projectId, nodeId, parentId}; gateway их не маршрутизирует (реалтайма структуры до пилота нет)
+project.archived / roles_changed / schema_published  # ADR-0030, имена зарезервированы (не эмитятся)
 crm.counterparty_created / counterparty_updated / counterparty_archived / counterparty_restored / counterparty_deleted / contact_changed  # ADR-0033, реализованы #460
 correspondence.letter_received / letter_registered / letter_closed_unregistered / letter_stage_changed / letter_updated / letter_sent  # ADR-0027
 correspondence.assignments_requested        # «Расписать сразу»: черновики поручений с id → модуль задач создаёт задачи (source=letter), идемпотентно

@@ -1,9 +1,10 @@
 # Модуль projects (API)
 
 Ядро «Проектов» (#52, ADR-0030): проект-договор и «темы», типы, портфели,
-двухрежимное участие, видимость `open|secret`, канал. Проект — контейнер
-задач: `Task.projectId` — plain UUID без FK (I3), задачи живут в модуле
-tasks и видимость их фидов расширена скоупом проектов (Р3 — в README tasks).
+двухрежимное участие, видимость `open|secret`, канал и дерево структуры
+(#467, ADR-0030 «Дополнение»). Проект — контейнер задач: `Task.projectId` и
+`Task.nodeId` — plain UUID без FK (I3), задачи живут в модуле tasks и
+видимость их фидов расширена скоупом проектов (Р3 — в README tasks).
 
 Модуль за фичефлагом `projects` (I10): флаг и права доезжают миграцией
 `20261105000000_projects_core`, сид повторяет для свежей установки;
@@ -65,23 +66,63 @@ previousClientId для crm-проекции, `status` при статусном
 Валидация шифра по типу (I7/I8): `required` без шифра и `hidden` с шифром —
 400 `VALIDATION_FAILED` на create/update.
 
+## Дерево проекта (#467, ADR-0030 «Дополнение»)
+
+Узлы-папки со свободной вложенностью («папки в проводнике, задачи — файлы»,
+вердикт владельца 30.10); задачи — листья (`tasks.node_id`, модуль tasks).
+Узлы БЕЗ архивации: пустой удаляется, непустой — 409 `PROJECT_NODE_NOT_EMPTY`.
+Лимиты (контракты `NODE_LIMITS`): ≤500 узлов на проект, глубина ≤10, детей
+≤100, пакет ≤50; срез узлов одного проекта — без курсора (легализованное
+исключение из I7, ≤500). Порядок среди детей — fractional-ключ `order`
+TEXT COLLATE "C" (канон 20261016180000, ключи — `core/lib/fractional-index.ts`);
+все мутации — под advisory-локом структуры проекта (сериализация проверок
+лимитов/циклов и записи).
+
+- **Вид уровня** (`node_levels`) — ярлык узла (значок + цвет), справочник
+  «Автоматизации»; удаление = архивация (узлы архивного вида создавать
+  нельзя — 409, существующие живут); имя уникально lower(btrim) — выраженный
+  индекс в миграции, посев 6 видов (стадия, очередь, пусковой комплекс,
+  здание по генплану, раздел, этап — ТКП 45-1.02-295) фиксированными UUID.
+- **Шифр узла** (`code`) — уникален в проекте (частичный unique в миграции);
+  правка `null` очищает.
+- **Права**: чтение структуры — видимость проекта (как карточка, секретный
+  не-участнику — 404); мутации узлов — руководство проекта или
+  `project.manage` (как правка полей); архив проекта — заморозка (400).
+- **Rollups** прямых задач узла (счётчики, план/факт минут, ближайший/
+  поздний срок) — порт `TASK_PROJECT_READER.nodeRollups` (один GROUP BY у
+  владельца данных, I3); завершённость — канон `isCompletedState`;
+  суммы поддерева клиент собирает по дереву (узлов ≤500). Карточка проекта
+  несёт `structureSummary {nodeCount, hasTaskNodes}` — дефолт вкладки
+  («Структура» первична, когда есть узлы с задачами, вердикт 07.11).
+- События (outbox в той же tx, I9; gateway не маршрутизирует — реалтайма
+  структуры до пилота нет): `project.node_created / node_updated /
+node_moved / node_deleted`; мутации — аудит (`project.node_*`) и
+  `Idempotency-Key`. Негодный узел (не найден/чужой проект) — 422
+  `PROJECT_NODE_INVALID` без оракула.
+
 ## API (`/api/v1/projects`, `@RequireFeature('projects')`)
 
-| Метод и путь                                                          | Право                            | Что                                                                         |
-| --------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------- |
-| `GET /?search=&portfolioId=&status=&visibility=&role=&cursor=&limit=` | —                                | журнал: видимый срез (открытые + моё участие), keyset `(updated_at,id)`     |
-| `GET /:id`                                                            | —                                | карточка (секретный — участию/надзору, иначе 404 без оракула)               |
-| `GET /:id/history?cursor=&limit=`                                     | —                                | вкладка «История»: outbox-события агрегата, новые первыми, keyset `seq`     |
-| `POST /`                                                              | `project.create`                 | создание; дефолт видимости — настройка портала                              |
-| `PATCH /:id`                                                          | руководство или `project.manage` | правка полей; `visibility→secret` — только руководитель                     |
-| `POST /:id/status`                                                    | руководство или `project.manage` | статусы; возврат из архива — руководитель или `project.manage`              |
-| `POST /:id/transfer`                                                  | действующий руководитель         | передача руководства; прежний без иных источников — наблюдатель-создатель   |
-| `GET /:id/members?cursor=&limit=`                                     | —                                | вкладка «Участники»: строки-источники                                       |
-| `POST /:id/join` · `POST /:id/leave`                                  | —                                | вступление/выход (открытый; leave — только свой ряд вступившего)            |
-| `POST /:id/members` · `DELETE /:id/members/:userId`                   | руководство (секретный)          | ручной состав member/observer (замена второй роли того же человека)         |
-| `GET/PUT /settings/portal`                                            | PUT: `project.setup.manage`      | дефолт видимости новых проектов (окно «Настройки портала»)                  |
-| `GET/POST /types`, `PATCH /types/:id` (+archive/restore)              | `project.setup.manage`           | типы проектов: имя + `codeField` (шаблоны уровней/схемы — следующие issues) |
-| `GET/POST /groups`, `PATCH /groups/:id` (+archive/restore)            | `project.manage`                 | портфели (плоский список)                                                   |
+| Метод и путь                                                          | Право                            | Что                                                                                                     |
+| --------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `GET /?search=&portfolioId=&status=&visibility=&role=&cursor=&limit=` | —                                | журнал: видимый срез (открытые + моё участие), keyset `(updated_at,id)`                                 |
+| `GET /:id`                                                            | —                                | карточка (секретный — участию/надзору, иначе 404 без оракула)                                           |
+| `GET /:id/history?cursor=&limit=`                                     | —                                | вкладка «История»: outbox-события агрегата, новые первыми, keyset `seq`                                 |
+| `POST /`                                                              | `project.create`                 | создание; дефолт видимости — настройка портала                                                          |
+| `PATCH /:id`                                                          | руководство или `project.manage` | правка полей; `visibility→secret` — только руководитель                                                 |
+| `POST /:id/status`                                                    | руководство или `project.manage` | статусы; возврат из архива — руководитель или `project.manage`                                          |
+| `POST /:id/transfer`                                                  | действующий руководитель         | передача руководства; прежний без иных источников — наблюдатель-создатель                               |
+| `GET /:id/members?cursor=&limit=`                                     | —                                | вкладка «Участники»: строки-источники                                                                   |
+| `POST /:id/join` · `POST /:id/leave`                                  | —                                | вступление/выход (открытый; leave — только свой ряд вступившего)                                        |
+| `POST /:id/members` · `DELETE /:id/members/:userId`                   | руководство (секретный)          | ручной состав member/observer (замена второй роли того же человека)                                     |
+| `GET/PUT /settings/portal`                                            | PUT: `project.setup.manage`      | дефолт видимости новых проектов (окно «Настройки портала»)                                              |
+| `GET/POST /types`, `PATCH /types/:id` (+archive/restore)              | `project.setup.manage`           | типы проектов: имя + `codeField` + `levelKindIds` (подсказка живых видов узлов #467; негодный id — 422) |
+| `GET/POST /groups`, `PATCH /groups/:id` (+archive/restore)            | `project.manage`                 | портфели (плоский список)                                                                               |
+| `GET /projects/node-levels`; POST/PATCH/архивация/restore             | мутации: `project.setup.manage`  | виды уровней (ярлыки узлов, #467); имя уникально lower(btrim) — 409                                     |
+| `GET /:id/structure`                                                  | —                                | дерево: узлы (плоско, по order) + rollups + виды уровней (#467)                                         |
+| `POST /:id/nodes` · `POST /:id/nodes/batch` (≤50 имён)                | руководство или `project.manage` | создание узлов/пакета (лимиты на пакет целиком); архив проекта — 400                                    |
+| `PATCH /:id/nodes/:nodeId`                                            | руководство или `project.manage` | имя / шифр (null очищает) / вид-ярлык                                                                   |
+| `POST /:id/nodes/:nodeId/move`                                        | руководство или `project.manage` | перенос: parentId (null — корень) + якорь beforeId/afterId; цикл — 409                                  |
+| `DELETE /:id/nodes/:nodeId`                                           | руководство или `project.manage` | удалить ПУСТОЙ узел (задачи/дети — 409)                                                                 |
 
 Права: `project.create` — всем ролям (CROSS JOIN миграцией);
 `project.manage`/`project.setup.manage` — админ; `project.view_secret` —
@@ -94,12 +135,15 @@ previousClientId для crm-проекции, `status` при статусном
 - `PROJECT_READER` (потребители: tasks, correspondence, custom-fields):
   `refsFor` (невидимые → пропущены), `viewScopeFor` (множества Р3, кэш 5 с),
   `assertTaskProjectVisible` (422 #432), `assertMembersAllowed` (422),
-  `projectTaskRights` (supervisor). Выключенный флаг — нейтрален.
+  `projectTaskRights` (supervisor), `assertNodeAllowed(projectId, nodeId)`
+  (узел этого проекта, иначе 422 #467). Выключенный флаг — нейтрален.
 - `PROJECT_CHAT_READER` (потребитель: chat): `roster`/`canView`/`canPost`/
   `refs` — канал проекта. Выключенный флаг — `roster` → null, `canView` →
   false.
-- `TASK_PROJECT_READER` (живёт в tasks, потребитель — проекция Р2):
-  `membersOf(projectId)` (без наблюдателей задач), `projectIdOf(taskId)`.
+- `TASK_PROJECT_READER` (живёт в tasks, потребители — проекция Р2 и
+  структура #467): `membersOf(projectId)` (без наблюдателей задач),
+  `projectIdOf(taskId)`, `nodeRollups(projectId)` (агрегаты прямых задач
+  узлов), `hasNodeTasks(projectId)`.
 
 `projects-ports.module.ts` — тонкий модуль экспорта портов (без HTTP);
 `projects.module.ts` — контроллеры и сервисы. Канал проекта — модуль chat
@@ -111,19 +155,26 @@ previousClientId для crm-проекции, `status` при статусном
 projects.repository.ts          таблицы projects + portal_settings (единственная точка Prisma)
 project-participants.repository.ts  project_participants: страницы, синк руководства,
                                 идемпотентный replaceTaskSource, roster
-project-types.repository.ts     project_types (архив, не удаление)
+project-types.repository.ts     project_types (архив, не удаление; levelKindIds #467)
 project-groups.repository.ts    project_groups (портфели)
+project-node-levels.repository.ts  node_levels: виды-ярлыки узлов, lower(btrim) имени
+project-nodes.repository.ts     project_nodes: узлы дерева, advisory-лок структуры
 project-access.ts               чистые функции прав: myMembership, projectAccess (I8)
+project-structure.tree.ts       чистые расчёты дерева: дети/родители, глубина/циклы,
+                                высота поддерева, ключ порядка при переносе
 projects.service.ts             создание/правка полей, настройки портала, assertVisible
+project-structure.service.ts    дерево #467: structure/create/batch/update/move/remove
+project-structure.controller.ts маршруты структуры и узлов
 project-lifecycle.service.ts    статусы (заморозка) и передача руководства
 project-members.service.ts      двухрежимное участие: join/leave, ручной состав,
                                 проекция из задач, onVisibilityChanged
 projects-query.service.ts       журнал и карточка (гидратация ссылок)
-project-dto.mapper.ts           DTO: myMembership/access по строкам участия
+project-dto.mapper.ts           DTO: myMembership/access, structureSummary карточки
 events/                         обработчики task.* → пересчёт источника task (за флагом)
 ports/                          PROJECT_READER / PROJECT_CHAT_READER + провайдер (кэш 5 с)
 ```
 
-Лимиты: помощники ≤10, шифр ≤64, описание ≤2000 — контракт + сервис + CHECK.
-Дальнейшие ступени (#49): дерево #467, мастер создания #468, пульс #469,
-схемы типов и стартовые формы — модуль «Автоматизация».
+Лимиты: помощники ≤10, шифр ≤64, описание ≤2000 — контракт + сервис + CHECK;
+узлы — контракты NODE_LIMITS (500/10/100/50). Дальнейшие ступени (#49):
+мастер создания #468, пульс #469, схемы типов и стартовые формы — модуль
+«Автоматизация».

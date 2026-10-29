@@ -9,6 +9,7 @@ import {
 } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
+  ErrorCode,
   Permission,
   projectGroupCreateBodySchema,
   projectGroupSchema,
@@ -38,6 +39,7 @@ import { ApiErrors } from '../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
 import { TransactionRunner } from '../../core/database/transaction-runner.js';
+import { NodeLevelsRepository } from './project-node-levels.repository.js';
 import { ProjectGroupsRepository } from './project-groups.repository.js';
 import { ProjectTypesRepository } from './project-types.repository.js';
 import { ProjectsService } from './projects.service.js';
@@ -47,9 +49,12 @@ const listQuerySchema = z.object({ includeArchived: z.enum(['true', 'false']).de
 
 /**
  * Справочники модуля (#52): типы проектов (вкладка «Типы проектов»
- * «Автоматизации», право `project.setup.manage`), портфели (создание —
- * `project.create`, архивация — `project.manage`) и настройки портала
- * (дефолт видимости новых проектов — `project.setup.manage`, Р7).
+ * «Автоматизации», право `project.setup.manage`), виды уровней структуры
+ * (#467 — то же право), портфели (создание — `project.create`, архивация —
+ * `project.manage`) и настройки портала (дефолт видимости новых проектов —
+ * `project.setup.manage`, Р7). Статические маршруты (`projects/types`,
+ * `projects/node-levels`) фармуруются раньше параметрических `projects/:id`
+ * — роутер Fastify отдаёт статике приоритет.
  */
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -59,6 +64,7 @@ export class ProjectCatalogsController {
   constructor(
     private readonly types: ProjectTypesRepository,
     private readonly groups: ProjectGroupsRepository,
+    private readonly nodeLevels: NodeLevelsRepository,
     private readonly settings: ProjectsService,
     private readonly txRunner: TransactionRunner,
   ) {}
@@ -119,6 +125,16 @@ export class ProjectCatalogsController {
     return this.txRunner.run(async (tx) => {
       if (dto.name !== undefined && (await this.types.nameTaken(dto.name, id))) {
         throw DomainException.conflict('Project type name is already taken');
+      }
+      // Подсказка видов узлов (#467): id существуют и живые, иначе 422
+      // (без оракула — не раскрываем, какой именно вид исчез).
+      if (dto.levelKindIds !== undefined && dto.levelKindIds !== null) {
+        const alive = await this.nodeLevels.activeByIds(dto.levelKindIds);
+        if (alive.length !== new Set(dto.levelKindIds).size) {
+          throw new DomainException(ErrorCode.PROJECT_NODE_INVALID, 'Node level is not available', {
+            typeId: id,
+          });
+        }
       }
       const updated = await this.types.update(tx, id, dto);
       if (!updated) throw DomainException.notFound('Project type not found');

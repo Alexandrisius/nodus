@@ -16,6 +16,7 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { audienceIds, planHolderIds } from '../access/task-access.js';
 import { ParticipantsRepository } from '../participants/participants.repository.js';
 import { Placements } from '../personal/placements.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 import {
   CUSTOM_FIELD_REGISTRY,
   type CustomFieldRegistry,
@@ -38,6 +39,8 @@ export interface TaskFieldsRow {
   parentId: string | null;
   assigneeId: string;
   projectId: string | null;
+  /** Текущий узел структуры (#467) — прежнее значение в событии. */
+  nodeId: string | null;
 }
 
 /** Правка полей задачи в транзакции вызывающего. Ключи — только те, что
@@ -53,6 +56,10 @@ export interface TaskFieldsWrite {
   /** Перенос в другой проект или отвязка (#52 Р4): валидацию привязки
    *  (видимость/состав секретного/архив) делает вызывающий ДО транзакции. */
   projectId?: string | null;
+  /** Узел структуры проекта (#467): null — убрать из структуры («Без узла»);
+   *  узел обязан принадлежать проекту задачи (порт, 422). В одном патче с
+   *  projectId узел СБРАСЫВАЕТСЯ — узел старого проекта не переносится. */
+  nodeId?: string | null;
   /** Патч кастомных атрибутов (#431): `null` удаляет ключ, проверка — порт. */
   customFields?: Record<string, CustomFieldValue | null>;
 }
@@ -73,6 +80,7 @@ export class TaskFieldsWriter {
     private readonly placements: Placements,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   async apply(
@@ -102,6 +110,19 @@ export class TaskFieldsWriter {
         throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
       }
     }
+    // Узел структуры (#467): валидна привязка только к проекту задачи; в
+    // одном патче с projectId узел старого проекта сбрасывается (узел не
+    // переносится — перенос в узел отдельным действием после переноса).
+    let nodeReset = false;
+    if (patch.nodeId !== undefined && patch.nodeId !== null) {
+      if (!row.projectId) {
+        throw new DomainException(ErrorCode.PROJECT_NODE_INVALID, 'Node is not available', {
+          nodeId: patch.nodeId,
+        });
+      }
+      await this.projects.assertNodeAllowed(row.projectId, patch.nodeId);
+    }
+    if (patch.projectId !== undefined && row.nodeId !== null) nodeReset = true;
     await this.assertRequiredKept(row.typeId, patch);
     const data: TaskFieldsPatch = {};
     // Значения атрибутов читаются и пишутся под замком строки: параллельные
@@ -113,6 +134,8 @@ export class TaskFieldsWriter {
     if (patch.plannedMinutes !== undefined) data.plannedMinutes = patch.plannedMinutes;
     if (patch.parentId !== undefined) data.parentId = patch.parentId;
     if (patch.projectId !== undefined) data.projectId = patch.projectId;
+    if (patch.nodeId !== undefined) data.nodeId = patch.nodeId;
+    if (nodeReset) data.nodeId = null;
     if (patch.deadline !== undefined) {
       data.deadline = patch.deadline ? new Date(patch.deadline) : null;
       data.overdueNotifiedAt = null; // новый срок — новое однократное уведомление
@@ -181,6 +204,11 @@ export class TaskFieldsWriter {
         // концах — прежний проект теряет строку, новый получает.
         ...(patch.projectId !== undefined
           ? { projectId: after.projectId, previousProjectId: row.projectId }
+          : {}),
+        // Узел структуры (#467): перенос между узлами и сброс сменой
+        // проекта несут оба значения — клиент переставляет задачу в дереве.
+        ...(patch.nodeId !== undefined || nodeReset
+          ? { nodeId: after.nodeId, previousNodeId: row.nodeId }
           : {}),
       },
       meta,

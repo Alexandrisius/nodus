@@ -19,6 +19,11 @@ import {
   type CustomFieldRegistry,
 } from '../custom-fields/ports/custom-field-registry.port.js';
 import {
+  TASK_PROJECT_READER,
+  type TaskProjectReader,
+} from '../tasks/ports/task-project-reader.port.js';
+import { ProjectNodesRepository } from './project-nodes.repository.js';
+import {
   myMembership,
   projectAccess,
   type MembershipRow,
@@ -58,6 +63,8 @@ export class ProjectDtoMapper {
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(COUNTERPARTY_READER) private readonly counterparties: CounterpartyReader,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    private readonly nodes: ProjectNodesRepository,
+    @Inject(TASK_PROJECT_READER) private readonly taskReader: TaskProjectReader,
   ) {}
 
   async toListItems(inputs: ProjectDtoInput[]): Promise<ProjectListItem[]> {
@@ -96,6 +103,11 @@ export class ProjectDtoMapper {
       this.profiles.findRefs(observerIds),
     ]);
     const membership = myMembership(participants, viewer.id);
+    // Сводка структуры (#467): дефолт вкладки — «Структура», когда есть
+    // узлы с прямыми задачами-детьми (вердикт 07.11). Узлов нет — второй
+    // запрос не нужен.
+    const nodeCount = await this.nodes.countByProject(row.id);
+    const hasTaskNodes = nodeCount > 0 ? await this.taskReader.hasNodeTasks(row.id) : false;
     return {
       ...item!,
       description: row.description,
@@ -113,6 +125,7 @@ export class ProjectDtoMapper {
       customFields: row.customFields as Record<string, never>,
       customFieldRefs: refs,
       access: projectAccess(toFacts(row), membership, viewer.permissions),
+      structureSummary: { nodeCount, hasTaskNodes },
       createdAt: row.createdAt.toISOString(),
     };
   }
