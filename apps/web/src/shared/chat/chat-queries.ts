@@ -145,6 +145,18 @@ export function useLetterConversation(letterId: string, enabled: boolean) {
   });
 }
 
+/** Канал проекта (#52, Р8): find-or-create беседы `project_channel` на
+ *  стороне API; не участнику проекта — 404, поэтому запрос включается только
+ *  участнику (`project.myMembership`), остальным — «Присоединитесь». */
+export function useProjectConversation(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.byProject(projectId),
+    queryFn: () => api<ConversationListItem>(`/chat/conversations/by-project/${projectId}`),
+    enabled: enabled && projectId.length > 0,
+    retry: false,
+  });
+}
+
 /** Тред канала: корневое сообщение + ответы (ровно один уровень). */
 export function useThreadMessages(conversationId: string, threadRootId: string) {
   const queryClient = useQueryClient();

@@ -5,6 +5,7 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { projectsAvailable } from '../../../shared/api/projects-available.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
@@ -44,7 +45,10 @@ export function EmployeeTasksTab({
 }) {
   const openCard = useOpenCard();
   const toolbar = useListToolbar('directory.tasks', taskBuiltinPresets);
-  const defs = useTaskFilterDefs({ projectVisible: true, assigneeVisible: false });
+  const defs = useTaskFilterDefs({
+    projectVisible: projectsAvailable(),
+    assigneeVisible: false,
+  });
   const filter = useMemo<ActiveListFilter<TaskListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }),
     [defs, toolbar.filters, toolbar.query],

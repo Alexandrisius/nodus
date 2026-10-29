@@ -57,7 +57,10 @@ describe('roles-handlers (#379)', () => {
     const roles = await listRoles();
     expect(roles).toHaveLength(demoRoles.length);
     expect(roles[0]?.code).toBe('admin');
-    expect(roles[0]?.permissions).toHaveLength(Object.values(Permission).length);
+    // Админ — весь каталог минус надзор и объявления канала проекта (#52).
+    expect(roles[0]?.permissions).toHaveLength(Object.values(Permission).length - 2);
+    expect(roles[0]?.permissions).not.toContain(Permission.PROJECT_VIEW_SECRET);
+    expect(roles[0]?.permissions).not.toContain(Permission.PROJECT_CHANNEL_POST);
   });
 
   it('PUT в столбец администратора → 409 ROLE_LOCKED', async () => {

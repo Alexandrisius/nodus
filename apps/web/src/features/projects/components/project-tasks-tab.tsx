@@ -1,9 +1,11 @@
-import { List, SquareKanban } from 'lucide-react';
+import { List, Plus, SquareKanban } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { TaskListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { openTaskCreate } from '../../../shared/tasks/task-create-store.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
@@ -19,8 +21,8 @@ import { ProjectTaskList, projectTaskTableFields } from './project-task-list.js'
 type TasksView = 'list' | 'kanban';
 
 const tasksViews: { id: TasksView; label: string; icon: typeof List }[] = [
-  { id: 'list', label: ui.projects.viewList, icon: List },
-  { id: 'kanban', label: ui.projects.viewKanban, icon: SquareKanban },
+  { id: 'list', label: ui.tasks.viewList, icon: List },
+  { id: 'kanban', label: ui.tasks.viewKanban, icon: SquareKanban },
 ];
 
 /**
@@ -49,25 +51,34 @@ export function ProjectTasksTab({ projectId }: { projectId: string }) {
         defs={defs}
         builtinPresets={taskBuiltinPresets}
         left={
-          <div className="flex items-center rounded-lg border border-border p-0.5">
-            {tasksViews.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setView(v.id)}
-                aria-pressed={view === v.id}
-                title={v.label}
-                aria-label={v.label}
-                className={cn(
-                  'flex size-6 items-center justify-center rounded-md transition-colors',
-                  view === v.id
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:text-foreground/80',
-                )}
-              >
-                <v.icon className="size-3.5" strokeWidth={1.75} />
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Закон кнопки создания (вердикт 15.09.2026): первичное действие
+                вкладки-списка — первый элемент строки инструментов, проект
+                подставлен в окно создания задачи. */}
+            <Button type="button" onClick={() => openTaskCreate({ projectId })}>
+              <Plus data-icon="inline-start" />
+              {ui.common.create}
+            </Button>
+            <div className="flex items-center rounded-lg border border-border p-0.5">
+              {tasksViews.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setView(v.id)}
+                  aria-pressed={view === v.id}
+                  title={v.label}
+                  aria-label={v.label}
+                  className={cn(
+                    'flex size-6 items-center justify-center rounded-md transition-colors',
+                    view === v.id
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground hover:text-foreground/80',
+                  )}
+                >
+                  <v.icon className="size-3.5" strokeWidth={1.75} />
+                </button>
+              ))}
+            </div>
           </div>
         }
         right={

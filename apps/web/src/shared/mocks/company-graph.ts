@@ -2,7 +2,7 @@ import type { CompanyGraph, GraphNode, NodeKind } from '../lib/graph-engine.js';
 
 import { demoConversations, demoMessages } from './data/chat.js';
 import { demoLetters } from './data/letters.js';
-import { demoProjects } from './data/projects.js';
+import { demoProjects } from './data/project-views.js';
 import { demoTasks } from './data/task-items.js';
 import { demoUserListItems } from './data/users.js';
 

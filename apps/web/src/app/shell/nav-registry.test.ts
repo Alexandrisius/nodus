@@ -10,7 +10,12 @@ import { NAV_MODULES } from './nav-registry.js';
 describe('реестр навигации: вкладка «Права доступа» (#379)', () => {
   it('у «Автоматизации» вкладка access последняя', () => {
     const automation = NAV_MODULES.find((module) => module.id === 'automation')!;
-    expect(automation.tabs.map((tab) => tab.id)).toEqual(['processes', 'fields', 'access']);
+    expect(automation.tabs.map((tab) => tab.id)).toEqual([
+      'processes',
+      'fields',
+      'project-types',
+      'access',
+    ]);
     const access = automation.tabs.at(-1)!;
     expect(access.search).toEqual({ tab: 'access' });
     expect(access.isActive(new URLSearchParams('tab=access'), [])).toBe(true);

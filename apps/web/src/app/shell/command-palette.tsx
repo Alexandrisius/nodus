@@ -15,6 +15,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversations } from '../../features/chat/api/chat-api.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
+import { projectsAvailable } from '../../shared/api/projects-available.js';
 import { useProjectsList } from '../../features/projects/api/projects-api.js';
 import { useTasksSearch } from '../../features/tasks/api/tasks-api.js';
 import { letterRows, useLettersInfinite } from '../../shared/api/letters-list.js';
@@ -41,7 +42,7 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const openCard = useOpenCard();
   const { data: users } = useUsersList();
-  const { data: projects } = useProjectsList();
+  const { data: projects } = useProjectsList({ enabled: projectsAvailable() });
   const { data: chats } = useConversations();
   const [query, setQuery] = useState('');
   const { data: tasks } = useTasksSearch(query.trim());
@@ -151,10 +152,11 @@ export function CommandPalette() {
                     ))}
                   </CommandGroup>
                 )}
-                {(projects?.items ?? []).filter((p) => has(p.name) || has(p.code)).length > 0 && (
+                {(projects?.items ?? []).filter((p) => has(p.name) || has(p.code ?? '')).length >
+                  0 && (
                   <CommandGroup heading={ui.nav.projects}>
                     {(projects?.items ?? [])
-                      .filter((p) => has(p.name) || has(p.code))
+                      .filter((p) => has(p.name) || has(p.code ?? ''))
                       .map((project) => (
                         <CommandItem
                           key={project.id}

@@ -199,7 +199,14 @@ export const demoConversations: ConversationListItem[] = [
   // Черновик — состояние пользователя (контракт #91): серверный мок пуст,
   // живой черновик — в клиентском сторе, синхронизация PUT-ом с debounce.
   draft: null,
-  visibility: c.type === 'project_channel' ? 'open' : c.type === 'group' ? 'closed' : null,
+  visibility:
+    c.type === 'project_channel'
+      ? c.project
+        ? 'closed'
+        : 'open'
+      : c.type === 'group'
+        ? 'closed'
+        : null,
   description: null,
   // Всего участников, считая мок-юзера: превью его не содержит (кроме
   // «Заметок», где он и есть единственный участник).

@@ -59,13 +59,16 @@ function stageOptions(rows: readonly LetterListItem[]): FilterOption[] {
   return [...orders].sort((a, b) => a[1] - b[1]).map(([name]) => ({ value: name, label: name }));
 }
 
-/** Проекты — значение шифр (уникален, читается в чипе), подпись «шифр имя». */
+/** Проекты — значение id (шифр может отсутствовать у «темы»), подпись
+ *  «шифр имя» либо имя. */
 function projectOptions(rows: readonly LetterListItem[]): FilterOption[] {
-  const names = new Map<string, string>();
-  for (const { project } of rows) if (project) names.set(project.code, project.name);
+  const names = new Map<string, { code: string | null; name: string }>();
+  for (const { project } of rows) {
+    if (project) names.set(project.id, { code: project.code, name: project.name });
+  }
   return [...names]
-    .sort((a, b) => a[0].localeCompare(b[0], 'ru'))
-    .map(([code, name]) => ({ value: code, label: `${code} ${name}` }));
+    .sort((a, b) => (a[1].code ?? a[1].name).localeCompare(b[1].code ?? b[1].name, 'ru'))
+    .map(([id, { code, name }]) => ({ value: id, label: code ? `${code} ${name}` : name }));
 }
 
 /**
@@ -141,7 +144,7 @@ export function useLetterFilterDefs(
               label: ui.letters.fields.project,
               type: 'select',
               options: projectOptions(rows),
-              match: (letter, v) => letter.project?.code === v,
+              match: (letter, v) => letter.project?.id === v,
             } as FilterFieldDef<LetterListItem>,
           ]
         : []),

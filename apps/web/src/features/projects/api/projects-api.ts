@@ -5,30 +5,72 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import type { Paginated, ProjectListItem, TaskListItem } from '@nodus/contracts';
+import type {
+  Paginated,
+  ProjectDetail,
+  ProjectHistoryEntry,
+  ProjectListItem,
+  ProjectMember,
+  TaskListItem,
+} from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
+import { projectsKeys } from '../../../shared/api/projects-list.js';
 import { tasksKeys } from '../../../shared/api/tasks-keys.js';
+import {
+  projectJournalParams,
+  projectJournalUrl,
+  type ProjectJournalFilters,
+} from '../lib/project-journal.js';
 
-// Канонический хук справочника проектов — shared (единый ключ/кэш);
-// реэкспорт для обратной совместимости импортов фичи.
-export { useProjectsList } from '../../../shared/api/projects-list.js';
+export {
+  projectsKeys,
+  useProjectGroups,
+  useProjectTypes,
+  useProjectsList,
+  usePortalSettings,
+} from '../../../shared/api/projects-list.js';
 
-export const projectsKeys = {
-  all: ['projects'] as const,
-  list: () => [...projectsKeys.all, 'list'] as const,
-  detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
-};
+/** Журнал проектов: серверные фильтры + keyset-курсор (Р14 #52). Кэш —
+ *  InfiniteData страниц; оптимистичные мутации патчат его по префиксу
+ *  `projects/journal`. */
+export function useProjectsJournal(filters: ProjectJournalFilters) {
+  const params = projectJournalParams(filters);
+  return useInfiniteQuery({
+    queryKey: projectsKeys.journal(params),
+    queryFn: ({ pageParam }) =>
+      api<Paginated<ProjectListItem>>(projectJournalUrl(params, pageParam)),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  });
+}
 
+/** Карточка проекта (деталь: поля, атрибуты, права). */
 export function useProjectDetail(id: string) {
   return useQuery({
     queryKey: projectsKeys.detail(id),
-    queryFn: () => api<ProjectListItem>(`/projects/${id}`),
+    queryFn: () => api<ProjectDetail>(`/projects/${id}`),
     // Смена проекта в стеке слайдеров: прежний контент остаётся, пока
     // грузится новый — панель не мигает скелетоном (I4).
     placeholderData: keepPreviousData,
+    enabled: id.length > 0,
+  });
+}
+
+/** История проекта (вкладка «История»): outbox-события агрегата, новые
+ *  первыми, keyset-курсор. */
+export function useProjectHistory(id: string) {
+  return useInfiniteQuery({
+    queryKey: projectsKeys.history(id),
+    queryFn: ({ pageParam }) =>
+      api<Paginated<ProjectHistoryEntry>>(
+        `/projects/${id}/history?limit=30${pageParam ? `&cursor=${pageParam}` : ''}`,
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: id.length > 0,
   });
 }
 
@@ -64,15 +106,16 @@ export function useMoveProjectTask() {
   });
 }
 
-/** Быстрое создание задачи в колонку проектной доски (плюсик в шапке):
- *  POST /tasks c stageId (глобальная ось) + projectId. */
-export function useCreateProjectTask(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ title, stageId }: { title: string; stageId: string }) =>
-      api<TaskListItem>('/tasks', { method: 'POST', body: { title, stageId, projectId } }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-    },
+/** Вкладка «Участники»: строки-источники, курсорная пагинация. */
+export function useProjectMembers(id: string, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: projectsKeys.members(id),
+    queryFn: ({ pageParam }) =>
+      api<Paginated<ProjectMember>>(
+        `/projects/${id}/members?limit=100${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: enabled && id.length > 0,
   });
 }

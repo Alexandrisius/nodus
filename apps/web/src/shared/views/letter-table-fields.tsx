@@ -305,7 +305,9 @@ export function makeLetterTableFields({
           <>
             <ProjectIdentityIcon color={letter.project.color} className="size-5" />
             <span className="truncate text-sm">
-              <span className={cn(monoCell, 'mr-1.5')}>{letter.project.code}</span>
+              {letter.project.code ? (
+                <span className={cn(monoCell, 'mr-1.5')}>{letter.project.code}</span>
+              ) : null}
               {letter.project.name}
             </span>
           </>

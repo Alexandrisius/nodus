@@ -60,9 +60,14 @@ import { useConversationHost } from './use-conversation-host.js';
 export const ThreadFeed = memo(function ThreadFeed({
   conversationId,
   onOpenThread,
+  canPost,
 }: {
   conversationId: string;
   onOpenThread: (rootId: string) => void;
+  /** Доменный гейт публикации поверх матрицы беседы: канал проекта —
+   *  объявление, пишут только руководство и `project.channel.post` (Р8 #52);
+   *  треды при этом открыты всем участникам. */
+  canPost?: boolean;
 }) {
   const scope = `feed:${conversationId}`;
 
@@ -74,6 +79,9 @@ export const ThreadFeed = memo(function ThreadFeed({
   // матрицу сам): без post композер ленты гасится, обсуждение — в тредах.
   const { data: conversationsData } = useConversations();
   const conversation = conversationsData?.items.find((c) => c.id === conversationId) ?? null;
+  // Доменный гейт (канал проекта) действует сразу, не дожидаясь списка
+  // бесед: иначе композер «объявления» на миг доступен наблюдателю.
+  const canPostNow = canPost ?? (conversation !== null ? canPostFeed(conversation) : true);
   // Состояния трэдов текущего пользователя (раунд 3): точка «есть новые» на
   // счётчике ответов поста — только наблюдателям трэда.
   const { data: threadStates } = useThreadStates(conversationId);
@@ -279,9 +287,7 @@ export const ThreadFeed = memo(function ThreadFeed({
         attachmentsEnabled
         onEditLast={handleEditLast}
         selection={selectionComposerProps(conversationId, selection)}
-        disabledPlaceholder={
-          conversation !== null && !canPostFeed(conversation) ? ui.chat.composerNoPostRights : null
-        }
+        disabledPlaceholder={!canPostNow ? ui.chat.composerNoPostRights : null}
         onSubmit={handleSubmit}
       />
     </div>
