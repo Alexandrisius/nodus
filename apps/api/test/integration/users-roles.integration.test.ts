@@ -221,15 +221,16 @@ describe('Назначение ролей сотрудникам (#490)', () => 
 
     const response = await chat.api(manager, 'PATCH', `/directory/departments/${dep}`, {
       key: randomUUID(),
-      body: { kind: 'legal' },
+      body: { kind: 'legal', name: 'Переключаемое-legal' },
     });
 
     expect(response.status).toBe(200);
     const row = await chat.prisma.department.findUnique({
       where: { id: dep },
-      select: { kind: true },
+      select: { kind: true, name: true },
     });
     expect(row?.kind).toBe('management');
+    expect(row?.name).toBe('Переключаемое-legal');
   });
 
   it('последний администратор: roleIds без admin → 409, деактивация → 409', async () => {
