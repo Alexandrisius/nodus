@@ -280,7 +280,10 @@ export function removeDemoParticipant(
 
 export function addDemoParticipant(entry: DemoParticipantRow): void {
   const exists = demoParticipantRows.some(
-    (row) => row.projectId === entry.projectId && row.userId === entry.userId && row.source === entry.source,
+    (row) =>
+      row.projectId === entry.projectId &&
+      row.userId === entry.userId &&
+      row.source === entry.source,
   );
   if (!exists) demoParticipantRows.push(entry);
 }

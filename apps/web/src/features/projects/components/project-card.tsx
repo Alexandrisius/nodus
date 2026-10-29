@@ -143,11 +143,7 @@ export function ProjectCard({ projectId }: { projectId: string }) {
  *  (прокрутка и локальное состояние живут), `inert` убирает её из обхода. */
 function TabPanel({ active, children }: { active: boolean; children: ReactNode }) {
   return (
-    <div
-      role="tabpanel"
-      inert={!active}
-      className={cn('absolute inset-0', !active && 'invisible')}
-    >
+    <div role="tabpanel" inert={!active} className={cn('absolute inset-0', !active && 'invisible')}>
       {children}
     </div>
   );

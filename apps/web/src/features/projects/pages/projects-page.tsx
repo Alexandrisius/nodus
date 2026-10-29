@@ -24,10 +24,7 @@ import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectStatus } from '../api/project-mutations.js';
 import { useProjectsJournal } from '../api/projects-api.js';
 import { ProjectArchiveDialog } from '../components/project-archive-dialog.js';
-import type {
-  ProjectJournalFilters,
-  ProjectRoleFilter,
-} from '../lib/project-journal.js';
+import type { ProjectJournalFilters, ProjectRoleFilter } from '../lib/project-journal.js';
 
 const SCOPE_KEY = 'nodus-projects-scope-v1';
 
@@ -66,9 +63,7 @@ export function ProjectsPage() {
       search,
       role: typeof state.role === 'string' ? (state.role as ProjectRoleFilter) : undefined,
       visibility:
-        state.visibility === 'open' || state.visibility === 'secret'
-          ? state.visibility
-          : undefined,
+        state.visibility === 'open' || state.visibility === 'secret' ? state.visibility : undefined,
       status:
         state.status === 'active' || state.status === 'completed' || state.status === 'archived'
           ? state.status
