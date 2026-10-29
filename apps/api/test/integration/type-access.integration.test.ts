@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ErrorCode, type ProcessType } from '@nodus/contracts';
 
+import { waitForAudit } from './audit-test-utils.js';
 import { setupTypeFormsFixture, type TypeFormsFixture } from './type-forms-fixtures.js';
 
 /**
@@ -148,11 +149,13 @@ describe.skipIf(!process.env.DATABASE_URL)('type access and bindings (integratio
     expect(denied.status).toBe(409);
     expect(await denied.json()).toMatchObject({ code: ErrorCode.CUSTOM_FIELD_IN_USE });
 
-    const audit = await cf.fx.prisma.auditLog.findFirst({
-      where: { action: 'custom_field.bind', entityId: cf.fieldBound },
-      orderBy: { createdAt: 'desc' },
-    });
-    expect(audit?.actorId).toBe(cf.admin.id);
+    const audit = await waitForAudit(() =>
+      cf.fx.prisma.auditLog.findFirst({
+        where: { action: 'custom_field.bind', entityId: cf.fieldBound },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+    expect(audit.actorId).toBe(cf.admin.id);
 
     const events = await cf.fx.prisma.event.findMany({
       where: { aggregateType: 'field_definition', aggregateId: cf.fieldBound },

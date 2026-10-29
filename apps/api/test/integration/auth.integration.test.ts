@@ -20,6 +20,7 @@ import {
 import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/core/database/prisma.service.js';
 import { EventDispatcher } from '../../src/core/events/event-dispatcher.js';
+import { waitForAudit } from './audit-test-utils.js';
 import { ensureTestDatabase } from './test-db.js';
 
 /**
@@ -98,10 +99,12 @@ describe('auth + directory (integration)', () => {
     const body = apiErrorResponseSchema.parse(await res.json());
     expect(body.code).toBe(ErrorCode.AUTH_INVALID_CREDENTIALS);
 
-    const audit = await prisma.auditLog.findFirst({
-      where: { action: 'auth.login_failed', details: { path: ['email'], equals: ADMIN.email } },
-    });
-    expect(audit).not.toBeNull();
+    const audit = await waitForAudit(() =>
+      prisma.auditLog.findFirst({
+        where: { action: 'auth.login_failed', details: { path: ['email'], equals: ADMIN.email } },
+      }),
+    );
+    expect(audit.action).toBe('auth.login_failed');
   });
 
   it('запрос без токена → 401 UNAUTHENTICATED (default-deny)', async () => {
