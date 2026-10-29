@@ -23,6 +23,10 @@ export const ErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   /** Непредвиденное (без деталей наружу). */
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  /** Тело запроса или файл больше лимита (multipart, bodyLimit). */
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  /** Content-Type запроса маршрут не поддерживает. */
+  UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
 
   // Доменные коды модулей (маска MODULE_REASON):
   /** Неверный email или пароль (без уточнения — защита от перебора учёток). */

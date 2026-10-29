@@ -111,4 +111,53 @@ describe('DomainExceptionFilter', () => {
       traceId: 'req-1',
     });
   });
+
+  it('лимит multipart 413 (Fastify-плагин) → PAYLOAD_TOO_LARGE, а не фолбэк VALIDATION_FAILED (#535)', () => {
+    const { filter } = createFilter();
+    const { host, status, send } = createHost();
+
+    const tooLarge = Object.assign(new Error('uploaded file is too large'), { statusCode: 413 });
+    filter.catch(tooLarge, host);
+
+    expect(status).toHaveBeenCalledWith(413);
+    expect(send).toHaveBeenCalledWith({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: 'uploaded file is too large',
+      traceId: 'req-1',
+    });
+  });
+
+  it('чужой content-type 415 (парсер Fastify) → UNSUPPORTED_MEDIA_TYPE, а не фолбэк (#535)', () => {
+    const { filter } = createFilter();
+    const { host, status, send } = createHost();
+
+    const mediaType = Object.assign(new Error('Unsupported Media Type: text/plain'), {
+      statusCode: 415,
+    });
+    filter.catch(mediaType, host);
+
+    expect(status).toHaveBeenCalledWith(415);
+    expect(send).toHaveBeenCalledWith({
+      code: 'UNSUPPORTED_MEDIA_TYPE',
+      message: 'Unsupported Media Type: text/plain',
+      traceId: 'req-1',
+    });
+  });
+
+  it('фреймворк-ошибка ≥500 (Fastify-плагин) → INTERNAL_ERROR без деталей наружу (#535)', () => {
+    const { filter } = createFilter();
+    const { host, status, send } = createHost();
+
+    const upstreamDown = Object.assign(new Error('upstream connection reset'), {
+      statusCode: 502,
+    });
+    filter.catch(upstreamDown, host);
+
+    expect(status).toHaveBeenCalledWith(502);
+    expect(send).toHaveBeenCalledWith({
+      code: 'INTERNAL_ERROR',
+      message: 'upstream connection reset',
+      traceId: 'req-1',
+    });
+  });
 });
