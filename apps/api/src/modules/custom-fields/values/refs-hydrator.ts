@@ -19,6 +19,11 @@ import {
   DICTIONARY_READER,
   type DictionaryReader,
 } from '../../dictionaries/ports/dictionary-reader.port.js';
+import {
+  PROJECT_READER,
+  type ProjectActor,
+  type ProjectReader,
+} from '../../projects/ports/project-reader.port.js';
 
 /**
  * Ссылки для показа значений (#431, Р6): деталь сущности несёт
@@ -26,8 +31,8 @@ import {
  * Пачки по видам ссылок (сотрудники, подразделения, элементы справочников и
  * валюта денег, контрагенты), дедуп по `kind:id`.
  *
- * `name: null` — «Запись недоступна»: проекты до #52 (порт появится вместе с
- * модулем) и удалённые записи. Архивные читаются с пометкой `archived`.
+ * `name: null` — «Запись недоступна»: невидимые актёру проекты (#52) и
+ * удалённые записи. Архивные читаются с пометкой `archived`.
  */
 @Injectable()
 export class CustomFieldRefsHydrator {
@@ -36,15 +41,15 @@ export class CustomFieldRefsHydrator {
     @Inject(ORG_STRUCTURE_READER) private readonly org: OrgStructureReader,
     @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
     @Inject(COUNTERPARTY_READER) private readonly counterparties: CounterpartyReader,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   async hydrate(
     definitions: ReadonlyArray<Pick<CustomFieldDefinition, 'id' | 'type'>>,
     values: CustomFieldValues,
-    /** Актёр запроса (#52): ссылки-проекты фильтруются видимости актёра.
-     *  Отсутствует в служебных вызовах (редактор определений показывает
-     *  умолчания) — тогда без фильтра секретности. */
-    actorId: string | undefined,
+    /** Актёр запроса (#52): ссылки-проекты показываются только видимые
+     *  актёру; служебные вызовы (редактор определений) — без имён. */
+    actor: ProjectActor | undefined,
     tx?: TransactionClient,
   ): Promise<CustomFieldRef[]> {
     const byId = new Map(definitions.map((definition) => [definition.id, definition]));
@@ -86,15 +91,23 @@ export class CustomFieldRefsHydrator {
       }
     }
 
-    const [userRefs, activeUserIds, departments, items, counterpartyRefs, activeCounterparties] =
-      await Promise.all([
-        this.users.findRefs([...userIds], tx),
-        this.users.filterActiveUserIds([...userIds], tx),
-        this.org.departmentRefs([...departmentIds], tx),
-        this.dictionaries.itemRefs([...itemIds], tx),
-        this.counterparties.refs([...counterpartyIds]),
-        Promise.all([...counterpartyIds].map((id) => this.counterparties.activeRef(id))),
-      ]);
+    const [
+      userRefs,
+      activeUserIds,
+      departments,
+      items,
+      counterpartyRefs,
+      activeCounterparties,
+      projectRefs,
+    ] = await Promise.all([
+      this.users.findRefs([...userIds], tx),
+      this.users.filterActiveUserIds([...userIds], tx),
+      this.org.departmentRefs([...departmentIds], tx),
+      this.dictionaries.itemRefs([...itemIds], tx),
+      this.counterparties.refs([...counterpartyIds]),
+      Promise.all([...counterpartyIds].map((id) => this.counterparties.activeRef(id))),
+      actor ? this.projects.refsFor(actor, [...projectIds]) : Promise.resolve([]),
+    ]);
 
     const refs = new Map<string, CustomFieldRef>();
     const add = (ref: CustomFieldRef): void => {
@@ -141,10 +154,18 @@ export class CustomFieldRefsHydrator {
         archived: !activeCounterpartyIds.has(counterparty.id),
       });
     }
-    // Проекты до #52: значения не пишутся, но старые данные не должны
-    // превращаться в «пусто» — отдаём «Запись недоступна».
+    // Проекты (#52 Р13): имя — только видимое актёру; невидимый и без
+    // актёра — «Запись недоступна» (name null), значение не теряется.
+    const projectById = new Map(projectRefs.map((ref) => [ref.id, ref]));
     for (const id of projectIds) {
-      add({ kind: 'project', id, name: null, avatarUrl: null, archived: false });
+      const project = projectById.get(id);
+      add({
+        kind: 'project',
+        id,
+        name: project?.name ?? null,
+        avatarUrl: null,
+        archived: false,
+      });
     }
 
     return [...refs.values()];

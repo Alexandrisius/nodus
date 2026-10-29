@@ -37,6 +37,11 @@ export interface ProjectReader {
    *  архиве и виден (открытый/участие/view_secret); иначе — 422 (#432, Р5). */
   assertTaskProjectVisible(actor: ProjectActor, projectId: string): Promise<void>;
 
+  /** Проект пригоден для привязки письма: существует и не в архиве.
+   *  Видимость актёра НЕ требуется — служебное действие канцелярии;
+   *  DTO фильтрует ссылку по видимости смотрящего (Р13, #52). */
+  assertProjectAttachable(projectId: string): Promise<void>;
+
   /** Люди задачи секретного проекта: все должны состоять в проекте (любой
    *  источник), иначе 422 (вердикт 29.10). Открытый/флаг выкл — пропуск. */
   assertMembersAllowed(projectId: string, userIds: readonly string[]): Promise<void>;

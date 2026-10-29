@@ -78,6 +78,22 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
     }
   }
 
+  async assertProjectAttachable(projectId: string): Promise<void> {
+    if (!(await this.enabled())) return;
+    const project = await this.projects.findById(projectId);
+    if (!project) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is not available', {
+        projectId,
+      });
+    }
+    if (project.status === 'archived') {
+      // Архив — заморозка: новых привязок нет (Р1).
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived', {
+        projectId,
+      });
+    }
+  }
+
   async assertMembersAllowed(projectId: string, userIds: readonly string[]): Promise<void> {
     if (!(await this.enabled())) return;
     const project = await this.projects.findById(projectId);

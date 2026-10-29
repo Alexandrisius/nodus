@@ -80,7 +80,7 @@ export class TaskFormApplier {
       const customPatch = input.fields.customFields ?? {};
       if (Object.keys(customPatch).length > 0) patch.customFields = customPatch;
       if (keys.length > 0 || patch.customFields) {
-        const written = await this.writer.apply(tx, actor.id, task, patch, keys);
+        const written = await this.writer.apply(tx, actor, task, patch, keys);
         for (const change of written.customFieldChanges) {
           fields[`cf.${change.fieldId}`] = { from: change.from, to: change.to };
         }

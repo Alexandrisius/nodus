@@ -3,6 +3,7 @@ import type {
   ConversationListItem,
   ConversationPermissions,
   LetterRef,
+  ProjectRef,
   TaskRef,
   UserRef,
 } from '@nodus/contracts';
@@ -18,6 +19,10 @@ import {
   type LetterChatReader,
 } from '../../correspondence/ports/letter-chat-reader.port.js';
 import { TASK_CHAT_READER, type TaskChatReader } from '../../tasks/ports/task-chat-reader.port.js';
+import {
+  PROJECT_CHAT_READER,
+  type ProjectChatReader,
+} from '../../projects/ports/project-reader.port.js';
 import { MessageDtoMapper } from '../messages/message-dto.mapper.js';
 import type { ConversationListRow } from './conversations-list.select.js';
 import type { MemberRow } from './conversations.repository.js';
@@ -43,6 +48,7 @@ export class ConversationItemMapper {
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     @Inject(TASK_CHAT_READER) private readonly tasks: TaskChatReader,
     @Inject(LETTER_CHAT_READER) private readonly letters: LetterChatReader,
+    @Inject(PROJECT_CHAT_READER) private readonly projects: ProjectChatReader,
   ) {}
 
   async toItem(
@@ -80,6 +86,13 @@ export class ConversationItemMapper {
         (ref) => [ref.id, ref],
       ),
     );
+    // Ссылка на проект канала (#52 Р8): имя — read-порт проектов
+    // (членство в беседе уже гарантирует видимость — фильтр не нужен).
+    const projectRefs = new Map<string, ProjectRef>(
+      (
+        await this.projects.refs(rows.flatMap((row) => (row.project_id ? [row.project_id] : [])))
+      ).map((ref) => [ref.id, ref]),
+    );
     // Ссылка на письмо беседы письма (#55): номер и тема — read-порт
     // корреспонденции (у незарегистрированного номера нет, тема может пустой).
     const letterRefs = new Map<string, LetterRef>(
@@ -110,7 +123,7 @@ export class ConversationItemMapper {
             : null,
         visibility: (row.visibility as ConversationListItem['visibility']) ?? null,
         description: row.description,
-        project: null,
+        project: row.project_id ? (projectRefs.get(row.project_id) ?? null) : null,
         task: row.task_id ? (taskRefs.get(row.task_id) ?? null) : null,
         letter: row.letter_id ? (letterRefs.get(row.letter_id) ?? null) : null,
         membersPreview: preview,

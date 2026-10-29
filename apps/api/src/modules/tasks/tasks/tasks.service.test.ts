@@ -98,6 +98,11 @@ function setup() {
     mapper as never,
     profiles as never,
     messages as never,
+    { supplement: vi.fn(async (roles: Set<string>) => roles) } as never,
+    {
+      assertTaskProjectVisible: vi.fn(async () => void 0),
+      assertMembersAllowed: vi.fn(async () => void 0),
+    } as never,
     customFields as never,
     new TaskCreatePolicy(profiles as never),
   );

@@ -70,7 +70,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
     const values = await registry.prepareCreate('task', {
       input: { 'f-a': 'явное' },
       authorId: 'author-1',
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
     });
     expect(values).toEqual({ 'f-a': 'явное', 'f-b': 'второе' });
   });
@@ -86,7 +86,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
     const values = await registry.prepareCreate('task', {
       input: {},
       authorId: 'author-1',
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
     });
     expect(values).toEqual({});
   });
@@ -97,7 +97,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
       registry.prepareCreate('task', {
         input: { 'f-x': 'v' },
         authorId: 'author-1',
-        actorId: 'author-1',
+        actor: { id: 'author-1', permissions: [] },
       }),
     ).rejects.toMatchObject({
       code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
@@ -135,7 +135,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
     const values = await registry.prepareCreate('task', {
       input: {},
       authorId: 'author-1',
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
       typeId: 't-1',
     });
     expect(values).toEqual({ 'f-bound': 'своё' });
@@ -156,7 +156,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
       registry.prepareCreate('task', {
         input: { 'f-other': 'v' },
         authorId: 'author-1',
-        actorId: 'author-1',
+        actor: { id: 'author-1', permissions: [] },
         typeId: 't-1',
       }),
     ).rejects.toMatchObject({
@@ -170,7 +170,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
   it('null удаляет ключ, незаполненное не хранится', async () => {
     const { registry } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
     const { next, changes } = await registry.prepareUpdate('task', {
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
       current: { 'f-a': 'старое', 'f-b': 'остаётся' },
       patch: { 'f-a': null },
     });
@@ -181,11 +181,14 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
   it('проверяются только изменённые значения', async () => {
     const { registry, validator } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
     await registry.prepareUpdate('task', {
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
       current: { 'f-a': 'то же' },
       patch: { 'f-a': 'то же' },
     });
-    expect(validator.validate).toHaveBeenCalledWith('task', expect.anything(), {}, undefined);
+    expect(validator.validate).toHaveBeenCalledWith('task', expect.anything(), {}, undefined, {
+      id: 'author-1',
+      permissions: [],
+    });
   });
 
   it('деньги сравниваются по содержимому: порядок ключей JSONB не важен', async () => {
@@ -193,13 +196,16 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
       definition({ id: 'f-money', type: 'money', settings: { currencyId: BYN } }),
     ]);
     const { next, changes } = await registry.prepareUpdate('task', {
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
       current: { 'f-money': { amount: 5, currencyId: BYN } },
       patch: { 'f-money': { currencyId: BYN, amount: 5 } as never },
     });
     expect(next).toEqual({ 'f-money': { amount: 5, currencyId: BYN } });
     expect(changes).toEqual([]);
-    expect(validator.validate).toHaveBeenCalledWith('task', expect.anything(), {}, undefined);
+    expect(validator.validate).toHaveBeenCalledWith('task', expect.anything(), {}, undefined, {
+      id: 'author-1',
+      permissions: [],
+    });
   });
 
   it('ошибка валидатора превращается в 422 с перечнем полей', async () => {
@@ -208,14 +214,18 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
       { fieldId: 'f-a', reason: 'invalid', message: 'Value does not match field type' },
     ]);
     await expect(
-      registry.prepareUpdate('task', { actorId: 'author-1', current: {}, patch: { 'f-a': 'x' } }),
+      registry.prepareUpdate('task', {
+        actor: { id: 'author-1', permissions: [] },
+        current: {},
+        patch: { 'f-a': 'x' },
+      }),
     ).rejects.toMatchObject({ code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID });
   });
 
   it('пустой патч не трогает значения и не падает', async () => {
     const { registry } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
     const result = await registry.prepareUpdate('task', {
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
       current: { 'f-a': 'x' },
       patch: {},
     });
@@ -229,7 +239,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
     ];
     const { registry } = makeRegistry(definitions);
     const cleared = await registry.prepareUpdate('task', {
-      actorId: 'author-1',
+      actor: { id: 'author-1', permissions: [] },
       current: { 'f-other': 'старое' },
       patch: { 'f-other': null },
       typeId: 't-1',
@@ -237,7 +247,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
     expect(cleared.next).toEqual({});
     await expect(
       registry.prepareUpdate('task', {
-        actorId: 'author-1',
+        actor: { id: 'author-1', permissions: [] },
         current: {},
         patch: { 'f-other': 'новое' },
         typeId: 't-1',

@@ -11,6 +11,7 @@ import type {
   TaskListItem,
   TaskStageWithCount,
   CustomFieldValues,
+  ProjectRef,
 } from '@nodus/contracts';
 import { normalizeTypeConfig, requiredCreateKeys } from '@nodus/contracts';
 
@@ -18,6 +19,7 @@ import { DomainException } from '../../../core/errors/domain-exception.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import { actorRoles, taskAccess } from '../access/task-access.js';
 import { ViewerResolver, visibleTasksWhere, type Viewer } from '../access/task-visibility.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 import {
   PROCESS_CATALOG_READER,
   type ProcessCatalogReader,
@@ -53,10 +55,24 @@ export class TasksQueryService {
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   viewer(user: Pick<AuthUser, 'id' | 'permissions'>): Promise<Viewer> {
     return this.viewers.resolve(user);
+  }
+
+  /** Ссылки проектов задач для смотрящего: невидимые — пропущены (Т1). */
+  private async projectsRefsFor(
+    user: Pick<AuthUser, 'id' | 'permissions'>,
+    rows: readonly { projectId: string | null }[],
+  ): Promise<Map<string, ProjectRef>> {
+    const ids = [
+      ...new Set(rows.map((r) => r.projectId).filter((id): id is string => Boolean(id))),
+    ];
+    if (ids.length === 0) return new Map();
+    const refs = await this.projects.refsFor(user, ids);
+    return new Map(refs.map((ref) => [ref.id, ref]));
   }
 
   /** Задача, видимая пользователю, или 404 (чужое = «не найдено», без утечки). */
@@ -89,7 +105,7 @@ export class TasksQueryService {
           ? encodeCursor({ n: last.number })
           : encodeCursor({ o: sortKeys.get(last.id)!, id: last.id });
     }
-    return { items: await this.mapper.toListItems(page), nextCursor };
+    return { items: await this.mapper.toListItems(page, undefined, user), nextCursor };
   }
 
   private order(q: ListTasksQuery, me: string): TaskOrder {
@@ -118,12 +134,14 @@ export class TasksQueryService {
       ...(result ? [result.authorId] : []),
     ]);
     const catalog = await this.mapper.catalogOf([row, ...children]);
+    // Проект задачи — ссылка видна только участнику секретного (Т1).
+    const projectRefs = await this.projectsRefsFor(user, [row, ...children]);
     // Ссылки значений атрибутов (Р6): имена сотрудников, подразделений,
     // вариантов и контрагентов — пачками через порты, а не по строке.
     const customFieldRefs = await this.customFields.refs(
       'task',
       (row.customFields ?? {}) as CustomFieldValues,
-      user.id,
+      user,
     );
     // Состав карточки по типу (#432, Р7): сервер собирает его сам, поэтому
     // он работает и для типа, невидимого зрителю (имя типа не раскрывается).
@@ -143,14 +161,14 @@ export class TasksQueryService {
         : []),
     ];
     return {
-      ...this.mapper.toListItem(row, refs, catalog),
+      ...this.mapper.toListItem(row, refs, catalog, projectRefs),
       // Свой маршрут задачи (по нему работают кнопки): тип может быть в
       // архиве — его задачи обязаны открываться (код-ревью #378).
       workflowId: full.workflowId,
       description: full.description,
       observers: observerIds.map((uid) => this.mapper.ref(refs, uid)),
       checklist: full.checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
-      subtasks: children.map((c) => this.mapper.toListItem(c, refs, catalog)),
+      subtasks: children.map((c) => this.mapper.toListItem(c, refs, catalog, projectRefs)),
       chain: [
         ...origin,
         selfChainNode({

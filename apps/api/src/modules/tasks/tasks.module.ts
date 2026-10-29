@@ -7,6 +7,7 @@ import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
 import { ChatPortsModule } from '../chat/chat-ports.module.js';
 import { CustomFieldsPortsModule } from '../custom-fields/custom-fields-ports.module.js';
 import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
+import { TaskProjectRights } from './access/task-project-rights.js';
 import { ViewerResolver } from './access/task-visibility.js';
 import { HistoryRepository } from './activity/history.repository.js';
 import { HistoryService } from './activity/history.service.js';
@@ -38,6 +39,7 @@ import { TaskDtoMapper } from './tasks/task-dto.mapper.js';
 import { TaskFactsRepository } from './tasks/task-facts.repository.js';
 import { TaskEditService } from './tasks/task-edit.service.js';
 import { TaskFieldsWriter } from './tasks/task-fields.writer.js';
+import { ProjectsPortsModule } from '../projects/projects-ports.module.js';
 import { TasksController } from './tasks/tasks.controller.js';
 import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
 import { TasksQueryService } from './tasks/tasks-query.service.js';
@@ -69,7 +71,7 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
   // Read-порты чата (ADR-0012): доступ к сообщению для «В задачу»/результата.
   // WorkflowsPortsModule — порты «Процессов»: движок и читатель каталога.
   // Реестр атрибутов (#431): значения, умолчания и проверка — порт, не таблица.
-  imports: [ChatPortsModule, WorkflowsPortsModule, CustomFieldsPortsModule],
+  imports: [ChatPortsModule, WorkflowsPortsModule, CustomFieldsPortsModule, ProjectsPortsModule],
   controllers: [TasksController, TaskWorkflowController, TaskPartsController, TimeController],
   providers: [
     UserProfileProvider,
@@ -89,6 +91,7 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
     RelationsRepository,
     HistoryRepository,
     ViewerResolver,
+    TaskProjectRights,
     StageMover,
     // Общие писатели полей/времени/итога (#380): окно перехода и PATCH
     // правят задачу одной доменной логикой, а не копиями.

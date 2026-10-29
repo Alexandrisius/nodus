@@ -61,7 +61,7 @@ describe('TaskFormApplier — окно перехода задачи (#380)', ()
     });
     expect(writer.apply).toHaveBeenCalledWith(
       TX,
-      'bob',
+      expect.objectContaining({ id: 'bob' }),
       expect.objectContaining({ id: 't1' }),
       { description: 'Новое', assigneeId: 'dave' },
       ['description', 'assigneeId'],

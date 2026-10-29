@@ -101,6 +101,9 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /chat/conversations/:id/attachments': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/attachments/counts': CHAT_MEMBERSHIP,
   'GET /chat/conversations/by-task/:taskId': TASK_ACCESS,
+  // Канал проекта (#52, Р8): доступ проверяет сервис (участие в проекте),
+  // не RBAC-право.
+  'GET /chat/conversations/by-project/:projectId': TASK_ACCESS,
   'GET /chat/conversations/by-letter/:letterId': LETTER_CHAT,
   'GET /letters': LETTER_VISIBILITY,
   'GET /letters/resolvers': LETTER_RESOLVERS,

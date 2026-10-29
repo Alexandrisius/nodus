@@ -22,6 +22,7 @@ import { LetterBodyPdfService } from './mail/body-pdf/letter-body-pdf.service.js
 import { LetterBodyPdfWorker } from './mail/body-pdf/letter-body-pdf.worker.js';
 import { MailInboxService } from './mail/mail-inbox.service.js';
 import { MailLetterWriter } from './mail/mail-letter-writer.js';
+import { ProjectsPortsModule } from '../projects/projects-ports.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { MailPollJob } from './mail/mail-poll.job.js';
 import { SmtpOutboxTransport } from './mail/smtp-outbox.transport.js';
@@ -48,6 +49,9 @@ import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
     CustomFieldsPortsModule,
     CrmPortsModule,
     DictionariesPortsModule,
+    // Read-порт проектов (#52): привязка письма (валидатор) и ссылка
+    // project в DTO (маппер) — без прямого доступа к таблицам проектов.
+    ProjectsPortsModule,
     MailModule,
   ],
   controllers: [LettersController],

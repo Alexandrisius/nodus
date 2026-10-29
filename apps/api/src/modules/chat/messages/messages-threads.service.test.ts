@@ -12,6 +12,7 @@ import type { MessageRow } from './message-row.js';
 const TX = 'tx-handle';
 const CONV = '00000000-0000-4000-8000-0000000000c1';
 const ME = '00000000-0000-4000-8000-0000000000a1';
+const ACTOR = { id: ME, permissions: [] as string[] };
 const ROOT = '00000000-0000-4000-8000-0000000000r1';
 // Валидные UUID упомянутых (токен-парсер строг к формату, #176).
 const USER_ANNA = '00000000-0000-4000-8000-0000000000b1';
@@ -145,6 +146,7 @@ describe('MessagesService: трэды раунда 3', () => {
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
       { enqueue: vi.fn(async () => undefined) } as never,
+      { canPost: vi.fn(async () => true) } as never,
     );
   });
 
@@ -156,7 +158,7 @@ describe('MessagesService: трэды раунда 3', () => {
       ]);
       userProfiles.filterActiveUserIds.mockResolvedValue([USER_ANNA, USER_BORIS]);
       await service.send(
-        ME,
+        ACTOR,
         CONV,
         { text: `спросим @[Анна Первая](user:${USER_ANNA}) и @[Борис](user:${USER_BORIS})` },
         'key-mention',
@@ -171,7 +173,7 @@ describe('MessagesService: трэды раунда 3', () => {
       ]);
       userProfiles.filterActiveUserIds.mockResolvedValue([]);
       await service.send(
-        ME,
+        ACTOR,
         CONV,
         {
           text: `спросим @[Анна](user:${USER_ANNA}) @[я](user:${ME}) @[Директор](user:${USER_BORIS})`,
@@ -185,14 +187,14 @@ describe('MessagesService: трэды раунда 3', () => {
       repo.findByIdInConversation.mockImplementation(async (_c: string, id: string) =>
         id === ROOT ? makeMessage({ id: ROOT, seq: 2n, authorId: 'author' }) : null,
       );
-      await service.send(ME, CONV, { text: 'мой ответ', threadRootId: ROOT }, 'key-reply');
+      await service.send(ACTOR, CONV, { text: 'мой ответ', threadRootId: ROOT }, 'key-reply');
       expect(threadParticipants.upsert).toHaveBeenCalledWith(ROOT, ME, 'replier', TX);
       expect(threadParticipants.upsert).toHaveBeenCalledWith(ROOT, 'author', 'author', TX);
       expect(threadParticipants.advanceReadCursor).toHaveBeenCalledWith(ROOT, ME, 7n, TX);
     });
 
     it('текст без токенов — справочник и состав не читаются', async () => {
-      await service.send(ME, CONV, { text: 'без упоминаний, просто @Анна' }, 'key-plain');
+      await service.send(ACTOR, CONV, { text: 'без упоминаний, просто @Анна' }, 'key-plain');
       expect(userProfiles.filterActiveUserIds).not.toHaveBeenCalled();
       expect(conversations.listMembersPage).not.toHaveBeenCalled();
       expect(threadParticipants.upsert).not.toHaveBeenCalled();

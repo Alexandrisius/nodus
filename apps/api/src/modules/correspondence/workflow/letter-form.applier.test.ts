@@ -52,7 +52,7 @@ describe('регистрация требует основной докумен�
   it('файлы-кандидаты без выбора — 422 с пропуском mainDocument', async () => {
     const { applier } = applierWith([{ id: 'a1', role: 'attachment', inline: false }]);
     await expect(
-      applier.apply({} as never, row, { id: 'u' }, { registration: {} }),
+      applier.apply({} as never, row, { id: 'u', permissions: [] }, { registration: {} }),
     ).rejects.toMatchObject({
       code: ErrorCode.LETTER_REGISTRATION_INVALID,
       details: { field: 'mainDocument', reason: 'required' },
@@ -65,11 +65,16 @@ describe('регистрация требует основной докумен�
       { id: 'm1', role: 'main', inline: false },
     ]);
     await expect(
-      withMain.applier.apply({} as never, row, { id: 'u' }, { registration: {} }),
+      withMain.applier.apply({} as never, row, { id: 'u', permissions: [] }, { registration: {} }),
     ).resolves.toBeDefined();
     const withBodyPdf = applierWith([{ id: 'p1', role: 'body_pdf', inline: false }]);
     await expect(
-      withBodyPdf.applier.apply({} as never, row, { id: 'u' }, { registration: {} }),
+      withBodyPdf.applier.apply(
+        {} as never,
+        row,
+        { id: 'u', permissions: [] },
+        { registration: {} },
+      ),
     ).resolves.toBeDefined();
   });
 
@@ -79,14 +84,14 @@ describe('регистрация требует основной докумен�
       { id: 's1', role: 'source', inline: false },
       { id: 'i1', role: 'attachment', inline: true },
     ]);
-    await applier.apply({} as never, row, { id: 'u' }, { registration: {} });
+    await applier.apply({} as never, row, { id: 'u', permissions: [] }, { registration: {} });
     expect(repo.update).toHaveBeenCalled();
   });
 
   it('ошибка — DomainException (фильтр даёт 422)', async () => {
     const { applier } = applierWith([{ id: 'a1', role: 'attachment', inline: false }]);
     const error = await applier
-      .apply({} as never, row, { id: 'u' }, { registration: {} })
+      .apply({} as never, row, { id: 'u', permissions: [] }, { registration: {} })
       .catch((e) => e);
     expect(error).toBeInstanceOf(DomainException);
   });

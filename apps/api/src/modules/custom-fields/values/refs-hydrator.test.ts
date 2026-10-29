@@ -6,7 +6,7 @@ import { CustomFieldRefsHydrator } from './refs-hydrator.js';
 /**
  * Гидратор ссылок (#431, Р6): карточка получает имена сотрудников,
  * подразделений, вариантов и контрагентов одним набором пачек; архивные
- * помечаются, проекты до #52 — «Запись недоступна».
+ * помечаются; имя проекта — только видимое актёру (#52 Р13).
  */
 
 const definition = (
@@ -35,6 +35,7 @@ const ITEM = '44444444-4444-4444-8444-444444444444';
 const BYN = '55555555-5555-4555-8555-555555555555';
 const COUNTERPARTY = '66666666-6666-4666-8666-666666666666';
 const PROJECT = '77777777-7777-4777-8777-777777777777';
+const ACTOR = { id: 'u-1', permissions: [] as string[] };
 
 function makeHydrator() {
   const users = {
@@ -71,13 +72,19 @@ function makeHydrator() {
     refs: vi.fn(async (ids: string[]) => ids.map((id) => ({ id, name: 'ООО «Проба»' }))),
     activeRef: vi.fn(async (id: string) => ({ id, name: 'ООО «Проба»' })),
   };
+  const projects = {
+    refsFor: vi.fn(async (_actor: unknown, ids: string[]) =>
+      ids.map((id) => ({ id, code: '2026-1', name: 'Тендер УП', color: 'blue' })),
+    ),
+  };
   const hydrator = new CustomFieldRefsHydrator(
     users as never,
     org as never,
     dictionaries as never,
     counterparties as never,
+    projects as never,
   );
-  return { hydrator, users, counterparties };
+  return { hydrator, users, counterparties, projects };
 }
 
 describe('CustomFieldRefsHydrator (#431, Р6)', () => {
@@ -88,7 +95,7 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
       {
         'f-users': [USER, RETIRED],
       },
-      'u-1',
+      ACTOR,
     );
     expect(refs).toEqual(
       expect.arrayContaining([
@@ -104,7 +111,7 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
     const refs = await hydrator.hydrate(
       [definition({ id: 'f-money', type: 'money', settings: { currencyId: BYN } })],
       { 'f-money': { amount: 10, currencyId: BYN } },
-      'u-1',
+      ACTOR,
     );
     expect(refs).toEqual([
       expect.objectContaining({ kind: 'dictionary_item', id: BYN, archived: false }),
@@ -116,21 +123,32 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
     const refs = await hydrator.hydrate(
       [definition({ id: 'f-enum', type: 'enum', settings: { dictionaryId: 'dict-1' } })],
       { 'f-enum': ITEM },
-      'u-1',
+      ACTOR,
     );
     expect(refs[0]).toMatchObject({ kind: 'dictionary_item', archived: true });
   });
 
-  it('проект до #52 — «Запись недоступна» (name null), не потеря значения', async () => {
-    const { hydrator } = makeHydrator();
+  it('проект: имя из порта проектов; без актёра — «Запись недоступна»', async () => {
+    const { hydrator, projects } = makeHydrator();
     const refs = await hydrator.hydrate(
       [definition({ id: 'f-project', type: 'project' })],
       {
         'f-project': PROJECT,
       },
-      'u-1',
+      ACTOR,
     );
     expect(refs).toEqual([
+      { kind: 'project', id: PROJECT, name: 'Тендер УП', avatarUrl: null, archived: false },
+    ]);
+    expect(projects.refsFor).toHaveBeenCalledWith(ACTOR, [PROJECT]);
+
+    // Служебный вызов без актёра — имя скрыто, значение не теряется.
+    const withoutActor = await hydrator.hydrate(
+      [definition({ id: 'f-project', type: 'project' })],
+      { 'f-project': PROJECT },
+      undefined,
+    );
+    expect(withoutActor).toEqual([
       { kind: 'project', id: PROJECT, name: null, avatarUrl: null, archived: false },
     ]);
   });
@@ -143,7 +161,7 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
         definition({ id: 'f-text', type: 'text' }),
       ],
       { 'f-cp': COUNTERPARTY, 'f-text': '  ' },
-      'u-1',
+      ACTOR,
     );
     expect(refs).toEqual([expect.objectContaining({ kind: 'counterparty', id: COUNTERPARTY })]);
     expect(counterparties.refs).toHaveBeenCalledWith([COUNTERPARTY]);
@@ -156,7 +174,7 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
       {
         'f-dep': DEPARTMENT,
       },
-      'u-1',
+      ACTOR,
     );
     expect(refs[0]).toMatchObject({ kind: 'department', id: DEPARTMENT, archived: false });
   });

@@ -19,7 +19,9 @@ import {
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
+import { TaskProjectRights } from '../access/task-project-rights.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 import {
   PROCESS_CATALOG_READER,
   type ProcessCatalogReader,
@@ -58,6 +60,8 @@ export class TasksService {
     private readonly mapper: TaskDtoMapper,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
+    private readonly projectRights: TaskProjectRights,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
     private readonly policy: TaskCreatePolicy,
   ) {}
@@ -96,6 +100,16 @@ export class TasksService {
     const assigneeId = body.assigneeId ?? user.id;
     const participants = this.participantRows(body, user.id, assigneeId);
     await this.assertActiveUsers([assigneeId, ...participants.map((p) => p.userId)]);
+    // Привязка к проекту (#52 Р5): видимость проекту актёру, состав
+    // секретного (все люди задачи — участники) и не-архивность. Одна точка
+    // закрывает и явный ввод, и пресет формы типа (#432).
+    if (body.projectId) {
+      await this.projects.assertTaskProjectVisible(user, body.projectId);
+      await this.projects.assertMembersAllowed(body.projectId, [
+        assigneeId,
+        ...participants.map((p) => p.userId),
+      ]);
+    }
     if (body.parentId) await this.assertCanEditParent(user, body.parentId);
     const message = body.sourceMessageId
       ? await this.messages.snapshot(body.sourceMessageId, user.id)
@@ -133,7 +147,7 @@ export class TasksService {
         // С #432 — только привязанные к типу задачи (Р8).
         const customFields = await this.customFields.prepareCreate(
           'task',
-          { input: body.customFields ?? {}, authorId: user.id, actorId: user.id, typeId },
+          { input: body.customFields ?? {}, authorId: user.id, actor: user, typeId },
           tx,
         );
         // Обязательные поля — после умолчаний: если сервер заполнил значение
@@ -199,12 +213,19 @@ export class TasksService {
         if (!winner) throw error;
         return winner;
       });
-    return this.listItem(user.id, id);
+    return this.listItem(user, id);
   }
 
   async remove(user: AuthUser, id: string): Promise<void> {
     const row = await this.query.visibleRow(user, id);
-    if (!taskAccess(actorRoles(row, user.id), user.permissions).canDelete) {
+    // Руководство проекта — уровень постановщика на его задачи (Р12):
+    // «удалять ненужные» любой задачи проекта.
+    const roles = await this.projectRights.supplement(
+      actorRoles(row, user.id),
+      user.id,
+      row.projectId,
+    );
+    if (!taskAccess(roles, user.permissions).canDelete) {
       throw DomainException.forbidden('Only creator can delete task');
     }
     await this.txRunner.run(async (tx) => {
@@ -220,15 +241,21 @@ export class TasksService {
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.DELETED,
-        { taskId: id, number: row.number, audience: audienceIds(row) },
+        // projectId — пересчёт участия «из задач» (Р2): событие удаления
+        // снимает строки task-источника.
+        { taskId: id, number: row.number, audience: audienceIds(row), projectId: row.projectId },
         { actorId: user.id, aggregateType: 'task', aggregateId: id },
       );
     });
   }
 
-  async listItem(viewerId: string, id: string, tx?: TransactionClient): Promise<TaskListItem> {
-    const row = await this.repo.findListRow(id, viewerId, tx);
-    return (await this.mapper.toListItems([row], tx))[0]!;
+  async listItem(
+    actor: Pick<AuthUser, 'id' | 'permissions'>,
+    id: string,
+    tx?: TransactionClient,
+  ): Promise<TaskListItem> {
+    const row = await this.repo.findListRow(id, actor.id, tx);
+    return (await this.mapper.toListItems([row], tx, actor))[0]!;
   }
 
   /** Строки участников: ответственный и постановщик ролей не дублируют;
@@ -258,6 +285,6 @@ export class TasksService {
    *  оракула существования). Индекс — частичный unique в миграции. */
   private async findBySource(user: AuthUser, messageId: string): Promise<TaskListItem | null> {
     const found = await this.repo.findLiveIdBySource(user.id, messageId);
-    return found ? this.listItem(user.id, found) : null;
+    return found ? this.listItem(user, found) : null;
   }
 }

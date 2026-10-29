@@ -86,7 +86,7 @@ export class ProjectDtoMapper {
     const [item] = await this.toListItems([input]);
     const { row, participants, viewer } = input;
     const [refs, creatorRefs] = await Promise.all([
-      this.customFields.refs('project', row.customFields as Record<string, never>, viewer.id),
+      this.customFields.refs('project', row.customFields as Record<string, never>, viewer),
       this.profiles.findRefs([row.creatorId]),
     ]);
     const membership = myMembership(participants, viewer.id);

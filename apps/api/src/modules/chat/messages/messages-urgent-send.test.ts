@@ -11,6 +11,7 @@ import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
+const ACTOR = { id: ME, permissions: [] as string[] };
 const TX = 'tx-handle';
 const FRESH_DTO = { id: 'msg-new' } as never;
 
@@ -148,22 +149,23 @@ describe('MessagesService: send urgent (#100)', () => {
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
       { enqueue: vi.fn(async () => undefined) } as never,
+      { canPost: vi.fn(async () => true) } as never,
     );
   });
 
   it('C5: суточный лимит отправителя — четвёртая попытка отклонена, третья проходит', async () => {
     repo.countUrgentSentSince.mockResolvedValue(3);
-    await expect(service.send(ME, CONV, body(true), 'key-u4')).rejects.toMatchObject({
+    await expect(service.send(ACTOR, CONV, body(true), 'key-u4')).rejects.toMatchObject({
       code: ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED,
     });
     repo.countUrgentSentSince.mockResolvedValue(2);
-    await service.send(ME, CONV, body(true), 'key-u3');
+    await service.send(ACTOR, CONV, body(true), 'key-u3');
     expect(repo.insertMessage).toHaveBeenCalledWith(expect.objectContaining({ urgent: true }), TX);
   });
 
   it('#177: advisory-лок лимита автора берётся ДО подсчёта (анти-TOCTOU)', async () => {
     repo.countUrgentSentSince.mockResolvedValue(0);
-    await service.send(ME, CONV, body(true), 'key-lock');
+    await service.send(ACTOR, CONV, body(true), 'key-lock');
     expect(repo.lockUrgentLimit).toHaveBeenCalledWith(ME, TX);
     const lockCall = repo.lockUrgentLimit.mock.invocationCallOrder[0]!;
     const countCall = repo.countUrgentSentSince.mock.invocationCallOrder[0]!;
@@ -172,7 +174,7 @@ describe('MessagesService: send urgent (#100)', () => {
 
   it('C10: группа больше лимита участников — отклонено на бэкенде (I8)', async () => {
     conversations.countMembers.mockResolvedValue(21);
-    await expect(service.send(ME, CONV, body(true), 'key-g21')).rejects.toMatchObject({
+    await expect(service.send(ACTOR, CONV, body(true), 'key-g21')).rejects.toMatchObject({
       code: ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE,
     });
   });
@@ -184,14 +186,14 @@ describe('MessagesService: send urgent (#100)', () => {
       permissions: { ...DEFAULT_CONVERSATION_PERMISSIONS },
     });
     conversations.countMembers.mockResolvedValue(2);
-    await service.send(ME, CONV, body(true), 'key-d');
+    await service.send(ACTOR, CONV, body(true), 'key-d');
     expect(repo.insertMessage).toHaveBeenCalledWith(expect.objectContaining({ urgent: true }), TX);
     expect(conversations.countMembers).not.toHaveBeenCalled();
   });
 
   it('urgent=false — лимиты не проверяются', async () => {
     repo.countUrgentSentSince.mockResolvedValue(99);
-    await service.send(ME, CONV, body(false), 'key-n');
+    await service.send(ACTOR, CONV, body(false), 'key-n');
     expect(repo.insertMessage).toHaveBeenCalledWith(expect.objectContaining({ urgent: false }), TX);
     expect(repo.countUrgentSentSince).not.toHaveBeenCalled();
   });

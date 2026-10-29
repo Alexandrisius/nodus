@@ -27,7 +27,13 @@ function setup(removed: { fromTaskId: string; toTaskId: string } | null) {
       .mockImplementation((_u: unknown, id: string) =>
         Promise.resolve(id === 't1' ? roster('t1', 7, 'bob') : roster('t2', 8, 'carol')),
       ),
-    viewer: vi.fn().mockResolvedValue({ id: 'alice', permissions: [], subordinateIds: [] }),
+    viewer: vi.fn().mockResolvedValue({
+      id: 'alice',
+      permissions: [],
+      subordinateIds: [],
+      visibleProjectIds: [],
+      hiddenProjectIds: [],
+    }),
   };
   const eventBus = { emit: vi.fn() };
   const service = new RelationsService(

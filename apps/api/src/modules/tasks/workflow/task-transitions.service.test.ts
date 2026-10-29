@@ -51,7 +51,7 @@ describe('TaskTransitionsService — сценарии API кнопок марш�
       { override: true, reason: 'срочно' },
     );
     expect(engine.available).toHaveBeenCalledWith(TX, 't1', 'task', USER);
-    expect(taskService.listItem).toHaveBeenCalledWith('bob', 't1');
+    expect(taskService.listItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'bob' }), 't1');
   });
 
   it('listFor: чужая задача — 404 до транзакции', async () => {

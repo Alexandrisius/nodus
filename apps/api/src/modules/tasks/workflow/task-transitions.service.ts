@@ -64,6 +64,6 @@ export class TaskTransitionsService {
       await this.engine.execute(tx, taskId, 'task', user, { transitionId }, body);
       return this.engine.available(tx, taskId, 'task', user);
     });
-    return { task: await this.taskService.listItem(user.id, taskId), transitions };
+    return { task: await this.taskService.listItem(user, taskId), transitions };
   }
 }

@@ -4,6 +4,7 @@ import { ORG_STRUCTURE_READER } from '../../core/ports/org-structure.port.js';
 import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js';
 import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
+import { ProjectsPortsModule } from '../projects/projects-ports.module.js';
 import { CrmPortsModule } from '../crm/crm-ports.module.js';
 import { DictionariesPortsModule } from '../dictionaries/dictionaries-ports.module.js';
 import { CustomFieldRegistryProvider } from './ports/custom-field-registry.provider.js';
@@ -26,7 +27,7 @@ import { CustomFieldValueValidator } from './values/value-validator.js';
  * модуле-потребителе.
  */
 @Module({
-  imports: [DictionariesPortsModule, CrmPortsModule],
+  imports: [DictionariesPortsModule, CrmPortsModule, ProjectsPortsModule],
   providers: [
     UserProfileProvider,
     { provide: USER_PROFILE_READER, useClass: UserProfileProvider },

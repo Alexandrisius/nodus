@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ProjectsPortsModule } from '../projects/projects-ports.module.js';
 import { ORG_STRUCTURE_READER } from '../../core/ports/org-structure.port.js';
 import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js';
 import { ViewerResolver } from './access/task-visibility.js';
@@ -18,6 +19,7 @@ import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
  * импорта; доменные сервисы задач не экспортируются.
  */
 @Module({
+  imports: [ProjectsPortsModule],
   providers: [
     OrgStructureProvider,
     { provide: ORG_STRUCTURE_READER, useClass: OrgStructureProvider },

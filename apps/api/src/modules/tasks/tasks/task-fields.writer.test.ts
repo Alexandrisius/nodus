@@ -18,6 +18,7 @@ const ROW: TaskFieldsRow = {
   typeId: 'type-1',
   parentId: null,
   assigneeId: 'bob',
+  projectId: null,
 };
 
 const slot = (key: CreationFieldSlot['key']): CreationFieldSlot => ({
@@ -72,7 +73,7 @@ const apply = (
   writer: TaskFieldsWriter,
   patch: Parameters<TaskFieldsWriter['apply']>[3],
   fields: string[] = Object.keys(patch),
-) => writer.apply({} as never, 'alice', ROW, patch, fields);
+) => writer.apply({} as never, { id: 'alice', permissions: [] }, ROW, patch, fields);
 
 describe('TaskFieldsWriter: обязательные поля типа (#432, Р5)', () => {
   it('очистка обязательного срока — 422 reason=clear, записи нет', async () => {

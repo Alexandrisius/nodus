@@ -84,7 +84,7 @@ export class ProjectsService {
     const id = await this.txRunner.run(async (tx) => {
       const customFields = await this.customFields.prepareCreate(
         'project',
-        { input: body.customFields ?? {}, authorId: user.id, actorId: user.id },
+        { input: body.customFields ?? {}, authorId: user.id, actor: user },
         tx,
       );
       const row = await this.repo.create(
@@ -211,7 +211,7 @@ export class ProjectsService {
       const prepared = await this.customFields.prepareUpdate('project', {
         current: row.customFields as CustomFieldValues,
         patch: body.customFields,
-        actorId: user.id,
+        actor: user,
       });
       patch.customFields = prepared.next as Prisma.InputJsonValue;
       fields.push(...prepared.changes.map((change) => `cf.${change.fieldId}`));

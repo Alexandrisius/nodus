@@ -8,6 +8,7 @@ import type {
 } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import type { ProjectActor } from '../../projects/ports/project-reader.port.js';
 
 /**
  * Порт реестра кастомных атрибутов для модулей-владельцев сущностей
@@ -35,7 +36,7 @@ export interface PrepareCreateArgs {
   authorId: string;
   /** Актёр запроса (#52): значения-ссылки на проекты проверяются на
    *  видимость актёру (секретный проект нельзя поставить значением). */
-  actorId: string;
+  actor: ProjectActor;
   /** Тип создаваемой сущности (#432, Р8): умолчания — только привязанных
    *  атрибутов, значение непривязанного — 422 `not_in_type`. */
   typeId?: string;
@@ -47,7 +48,7 @@ export interface PrepareUpdateArgs {
   /** Патч: `null` удаляет ключ; непустые — проверяются. */
   patch: Record<string, CustomFieldValue | null>;
   /** Актёр запроса (#52): проверка видимости значений-ссылок на проекты. */
-  actorId: string;
+  actor: ProjectActor;
   /** Тип сущности (#432, Р8): запись непривязанного — 422 `not_in_type`,
    *  очистка (`null`) разрешена всегда. */
   typeId?: string;
@@ -83,11 +84,11 @@ export interface CustomFieldRegistry {
   ): Promise<{ next: CustomFieldValues; changes: RegistryFieldChange[] }>;
 
   /** Ссылки для показа значений детали (Р6): имена, аватары, архивность.
-   *  actorId (#52): ссылки-проекты скрываются, если проект не виден актёру. */
+   *  actor (#52): ссылки-проекты скрываются, если проект не виден актёру. */
   refs(
     scope: CustomFieldScope,
     values: CustomFieldValues,
-    actorId: string,
+    actor: ProjectActor,
     tx?: TransactionClient,
   ): Promise<CustomFieldRef[]>;
 }

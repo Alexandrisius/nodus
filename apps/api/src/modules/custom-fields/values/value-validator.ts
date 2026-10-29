@@ -21,6 +21,11 @@ import {
   type CounterpartyReader,
 } from '../../crm/ports/counterparty-reader.port.js';
 import {
+  PROJECT_READER,
+  type ProjectActor,
+  type ProjectReader,
+} from '../../projects/ports/project-reader.port.js';
+import {
   DICTIONARY_READER,
   type DictionaryReader,
 } from '../../dictionaries/ports/dictionary-reader.port.js';
@@ -58,6 +63,7 @@ export class CustomFieldValueValidator {
     @Inject(ORG_STRUCTURE_READER) private readonly org: OrgStructureReader,
     @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
     @Inject(COUNTERPARTY_READER) private readonly counterparties: CounterpartyReader,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   /**
@@ -70,6 +76,8 @@ export class CustomFieldValueValidator {
     definitions: ReadonlyArray<DefinitionFacts>,
     values: CustomFieldValues,
     tx?: TransactionClient,
+    /** Актёр (#52): значения-проекты — только видимые ему. */
+    actor?: ProjectActor,
   ): Promise<CustomFieldIssue[]> {
     const entries = Object.entries(values);
     if (entries.length === 0) return [];
@@ -94,7 +102,7 @@ export class CustomFieldValueValidator {
       accepted.push({ definition, value });
     }
 
-    issues.push(...(await this.checkReferences(accepted, tx)));
+    issues.push(...(await this.checkReferences(accepted, tx, actor)));
     return issues;
   }
 
@@ -102,14 +110,14 @@ export class CustomFieldValueValidator {
   private async checkReferences(
     accepted: ReadonlyArray<{ definition: DefinitionFacts; value: CustomFieldValue }>,
     tx?: TransactionClient,
+    actor?: ProjectActor,
   ): Promise<CustomFieldIssue[]> {
     const userIds = new Set<string>();
     const departmentIds = new Set<string>();
     const itemIds = new Set<string>();
     const currencyIds = new Set<string>();
     const counterpartyIds = new Set<string>();
-    // Проектов нет до #52: значение такого типа всегда отвергается (Р11).
-    let hasProjectValue = false;
+    const projectIds = new Set<string>();
 
     const scalarIds = (value: CustomFieldValue): string[] =>
       Array.isArray(value) ? value : [String(value)];
@@ -134,7 +142,7 @@ export class CustomFieldValueValidator {
           counterpartyIds.add(String(value));
           break;
         case 'project':
-          hasProjectValue = true;
+          projectIds.add(String(value));
           break;
         default:
           break;
@@ -147,9 +155,25 @@ export class CustomFieldValueValidator {
       itemIds.size === 0 &&
       currencyIds.size === 0 &&
       counterpartyIds.size === 0 &&
-      !hasProjectValue
+      projectIds.size === 0
     ) {
       return []; // ссылок нет — порты не нужны
+    }
+    // Видимость проектов актёру (#52 Р13): без актёра значения-проекты не
+    // принимаются (умолчания таких значений не пишут — это ручной ввод).
+    let visibleProjects = new Set<string>();
+    if (projectIds.size > 0) {
+      if (!actor) {
+        return [...accepted]
+          .filter(({ definition }) => definition.type === 'project')
+          .map(({ definition }) => ({
+            fieldId: definition.id,
+            reason: 'not_found' as const,
+            message: 'Project not found or not visible',
+          }));
+      }
+      const scope = await this.projects.viewScopeFor(actor);
+      visibleProjects = new Set(scope.visibleProjectIds);
     }
 
     const [userRefs, activeUserIds, departments, items, currencies, counterparties] =
@@ -197,6 +221,7 @@ export class CustomFieldValueValidator {
         itemById,
         currencyById,
         activeCounterparties,
+        visibleProjects,
       });
       if (issue) issues.push({ fieldId: definition.id, ...issue });
     }
@@ -218,6 +243,7 @@ interface ReferenceFacts {
     { id: string; dictionaryId: string; name: string; isActive: boolean }
   >;
   activeCounterparties: ReadonlySet<string>;
+  visibleProjects: ReadonlySet<string>;
 }
 
 /** Сверка одного значения с фактами портов. */
@@ -261,8 +287,11 @@ function checkOne(
       return currency.isActive ? null : { reason: 'inactive', message: 'Currency archived' };
     }
     case 'project':
-      // Проектов нет до #52: поле нельзя создать, значение принять некуда (Р11).
-      return { reason: 'not_found', message: 'Project not found' };
+      // Видимый актёру проект (открытый/участие/view_secret; #52 Р13) —
+      // без оракула секретности: скрытый = несуществующий.
+      return input.visibleProjects.has(String(value))
+        ? null
+        : { reason: 'not_found', message: 'Project not found or not visible' };
     case 'counterparty':
       return input.activeCounterparties.has(String(value))
         ? null
