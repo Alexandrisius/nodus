@@ -62,7 +62,7 @@ export function useTaskFilterDefs({
 }: { projectVisible?: boolean; assigneeVisible?: boolean } = {}): FilterFieldDef<TaskListItem>[] {
   const { data: stages } = useTaskStages();
   const { data: users } = useUsersList();
-  const { data: projects } = useProjectsList();
+  const { data: projects } = useProjectsList({ enabled: projectVisible });
   const meId = useAuthStore((s) => s.user?.id);
   // Кастомные поля области «Задачи» — группой «Атрибуты» в конце панели (#431, Р8).
   const customDefs = useCustomFieldFilterDefs('task', customFieldValuesOf);
@@ -158,7 +158,7 @@ export function useTaskFilterDefs({
         type: 'select',
         options: (projects?.items ?? []).map((p) => ({
           value: p.id,
-          label: `${p.code} ${p.name}`,
+          label: p.code ? `${p.code} ${p.name}` : p.name,
         })),
         match: (t, v) => t.project?.id === v,
       });

@@ -6,12 +6,16 @@ import {
   ORG_STRUCTURE_READER,
   type OrgStructureReader,
 } from '../../../core/ports/org-structure.port.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 
-/** Кто смотрит: id + права (из JWT) + подчинённые по оргструктуре. */
+/** Кто смотрит: id + права (из JWT) + подчинённые по оргструктуре +
+ *  множества проектов (Р3: видимые — задачи открытых и моих секретных). */
 export interface Viewer {
   id: string;
   permissions: readonly string[];
   subordinateIds: readonly string[];
+  visibleProjectIds: readonly string[];
+  hiddenProjectIds: readonly string[];
 }
 
 function involves(userIds: readonly string[]): Prisma.TaskWhereInput[] {
@@ -22,31 +26,68 @@ function involves(userIds: readonly string[]): Prisma.TaskWhereInput[] {
   ];
 }
 
+/** Гейт «не из скрытых секретных проектов»: null — скрытых нет, фильтр не
+ *  нужен. Ветка `IS NULL` обязательна: SQL `NULL NOT IN (...)` ложен, без
+ *  неё задачи без проекта пропадают (ловушка Р3). */
+function notHiddenProjectIds(hidden: readonly string[]): Prisma.TaskWhereInput | null {
+  if (hidden.length === 0) return null;
+  return { OR: [{ projectId: null }, { projectId: { notIn: [...hidden] } }] };
+}
+
 /**
  * Единственная функция видимости задач (мини-спека #37) — на ВСЕ чтения:
  * список, деталь, ветка, поиск, счётчики, bulk. Видят: участники (постановщик,
  * ответственный, соисполнители, наблюдатели), их руководители по оргструктуре,
- * обладатели task.view_all — все задачи. scope=mine — только
- * собственное участие. Ступень 3 добавит ветку «видимые проекты».
+ * задачи видимых проектов (открытые + секретные моего участия, #52 Р3),
+ * обладатели task.view_all — все задачи, кроме секретных проектов без своего
+ * участия (админы секретных не видят, вердикт 29.10). scope=mine — только
+ * собственное участие. Подчинённые секретные проекты не раскрывают: их
+ * ветка гейтится скрытыми проектами.
  */
 export function visibleTasksWhere(viewer: Viewer, scope: 'mine' | 'all'): Prisma.TaskWhereInput {
   const mine = involves([viewer.id]);
-  if (scope === 'mine') return { deletedAt: null, OR: mine };
-  const or: Prisma.TaskWhereInput[] = [...mine];
-  if (viewer.subordinateIds.length > 0) or.push(...involves(viewer.subordinateIds));
-  if (viewer.permissions.includes(Permission.TASK_VIEW_ALL)) return { deletedAt: null };
+  const gate = notHiddenProjectIds(viewer.hiddenProjectIds);
+  // «Моё участие» тоже гейтится скрытыми секретными: исключённый из проекта
+  // (removeManual, open→secret) не сохраняет доступ к его задачам через
+  // роль постановщика/ответственного (вердикт 29.10).
+  const mineGated: Prisma.TaskWhereInput = gate ? { AND: [{ OR: mine }, gate] } : { OR: mine };
+  if (scope === 'mine') return { deletedAt: null, ...mineGated };
+  const or: Prisma.TaskWhereInput[] = [mineGated];
+  if (viewer.subordinateIds.length > 0) {
+    const subordinateTasks: Prisma.TaskWhereInput = { OR: involves(viewer.subordinateIds) };
+    // Подчинённый — участник секретного проекта не раскрывает его задачи
+    // начальнику: ветка гейтится скрытыми проектами (Т1).
+    or.push(gate ? { AND: [subordinateTasks, gate] } : subordinateTasks);
+  }
+  if (viewer.visibleProjectIds.length > 0) {
+    or.push({ projectId: { in: [...viewer.visibleProjectIds] } });
+  }
+  if (viewer.permissions.includes(Permission.TASK_VIEW_ALL)) {
+    // Не ранний return: task.view_all не открывает чужие секретные проекты
+    // (Т1) — гейт скрытых остаётся и у админа.
+    return gate ? { deletedAt: null, AND: [gate] } : { deletedAt: null };
+  }
   return { deletedAt: null, OR: or };
 }
 
 @Injectable()
 export class ViewerResolver {
-  constructor(@Inject(ORG_STRUCTURE_READER) private readonly org: OrgStructureReader) {}
+  constructor(
+    @Inject(ORG_STRUCTURE_READER) private readonly org: OrgStructureReader,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
+  ) {}
 
   async resolve(user: { id: AuthUser['id']; permissions: readonly string[] }): Promise<Viewer> {
+    const [subordinateIds, scope] = await Promise.all([
+      this.org.subordinateIds(user.id),
+      this.projects.viewScopeFor(user),
+    ]);
     return {
       id: user.id,
       permissions: user.permissions,
-      subordinateIds: await this.org.subordinateIds(user.id),
+      subordinateIds,
+      visibleProjectIds: scope.visibleProjectIds,
+      hiddenProjectIds: scope.hiddenProjectIds,
     };
   }
 }

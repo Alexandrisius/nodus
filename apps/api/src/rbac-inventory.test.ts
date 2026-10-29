@@ -51,11 +51,36 @@ const STICKER_BY_ID =
 const DIRECT_CHAT =
   'find-or-create личной беседы с сотрудником (канон мессенджера): новая — только с действующим, существующая — и с уволенным (история), #343';
 const FILE_ACCESS = 'доступ к файлу — resolveAccess (владелец или участник беседы вложения)';
+const PROJECTS_CATALOG =
+  'общие справочники модуля проектов (типы, портфели) без персональных данных: нужны журналу, фильтрам и окну создания каждому; мутации — project.setup.manage / project.manage (#52)';
+const PROJECT_VISIBILITY =
+  'фильтр видимости проектов в сервисе (открытые всем, секретные — участию и project.view_secret), невидимый — 404 (#52)';
+const PROJECT_MANAGE =
+  'права на проект в сервисе: поля/статусы — руководство проекта (руководитель и помощники) или project.manage; состав — только секретного; передача — действующий руководитель (#52)';
+const PROJECT_MEMBERSHIP =
+  'участие в проекте в сервисе: состав виден участникам, «Присоединиться» — не-участнику открытого, ручной состав — руководству секретного (#52)';
+const PORTAL_SETTINGS =
+  'настройки портала: чтение — любому вошедшему (окну создания нужен дефолт видимости), запись — project.setup.manage (#52, Р7)';
 const HOME =
   'витрина Главной: число сотрудников и ближайшие дни рождения (день и месяц, без года — решение владельца #342) — любому вошедшему';
 
 const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   // Чтение (#334)
+  'GET /projects': PROJECT_VISIBILITY,
+  'GET /projects/:id': PROJECT_VISIBILITY,
+  'GET /projects/:id/history': PROJECT_VISIBILITY,
+  'GET /projects/types': PROJECTS_CATALOG,
+  'GET /projects/groups': PROJECTS_CATALOG,
+  'GET /settings/portal': PORTAL_SETTINGS,
+  'GET /projects/:id/members': PROJECT_MEMBERSHIP,
+  // Действия с проверкой в сервисе (#52)
+  'PATCH /projects/:id': PROJECT_MANAGE,
+  'POST /projects/:id/status': PROJECT_MANAGE,
+  'POST /projects/:id/transfer': PROJECT_MANAGE,
+  'POST /projects/:id/members': PROJECT_MEMBERSHIP,
+  'DELETE /projects/:id/members/:userId': PROJECT_MEMBERSHIP,
+  'POST /projects/:id/join': PROJECT_MEMBERSHIP,
+  'POST /projects/:id/leave': PROJECT_MEMBERSHIP,
   'GET /auth/me': SELF,
   'GET /auth/sessions': SELF,
   'GET /notifications': SELF,
@@ -77,6 +102,9 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /chat/conversations/:id/attachments': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/attachments/counts': CHAT_MEMBERSHIP,
   'GET /chat/conversations/by-task/:taskId': TASK_ACCESS,
+  // Канал проекта (#52, Р8): доступ проверяет сервис (участие в проекте),
+  // не RBAC-право.
+  'GET /chat/conversations/by-project/:projectId': TASK_ACCESS,
   'GET /chat/conversations/by-letter/:letterId': LETTER_CHAT,
   'GET /letters': LETTER_VISIBILITY,
   'GET /letters/resolvers': LETTER_RESOLVERS,

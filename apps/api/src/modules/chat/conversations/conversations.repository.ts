@@ -144,14 +144,26 @@ export class ConversationsRepository {
   async findTypeAndPermissions(
     conversationId: string,
     tx?: TransactionClient,
-  ): Promise<{ id: string; type: string; permissions: Prisma.JsonValue } | null> {
+  ): Promise<{
+    id: string;
+    type: string;
+    permissions: Prisma.JsonValue;
+    projectId: string | null;
+  } | null> {
     const client = this.client(tx);
     const rows = await client.$queryRaw<
-      { id: string; type: string; permissions: Prisma.JsonValue }[]
+      {
+        id: string;
+        type: string;
+        permissions: Prisma.JsonValue;
+        project_id: string | null;
+      }[]
     >(Prisma.sql`
-      SELECT id, type, permissions FROM conversations WHERE id = ${conversationId}::uuid LIMIT 1
+      SELECT id, type, permissions, project_id FROM conversations
+      WHERE id = ${conversationId}::uuid LIMIT 1
     `);
-    return rows[0] ?? null;
+    const row = rows[0];
+    return row ? { ...row, projectId: row.project_id } : null;
   }
 
   /** Признак беседы «Избранное» пользователя (direct с собой: user_min =

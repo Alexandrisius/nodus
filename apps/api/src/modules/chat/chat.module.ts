@@ -36,6 +36,7 @@ import { ThumbnailWorker } from './messages/thumbnail.worker.js';
 import { UrgentPolicyController } from './messages/urgent-policy.controller.js';
 import { UrgentPolicyReader } from './messages/urgent-policy.reader.js';
 import { FileVersionHandler } from './events/file-version.handler.js';
+import { ProjectsPortsModule } from '../projects/projects-ports.module.js';
 import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
 import { CorrespondencePortsModule } from '../correspondence/correspondence-ports.module.js';
 import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
@@ -51,6 +52,15 @@ import { LetterChatRepository } from './letter-chat/letter-chat.repository.js';
 import { LetterChatService } from './letter-chat/letter-chat.service.js';
 import { LetterTransitionBlockHandler } from './letter-chat/letter-transition-block.handler.js';
 import { LetterTransitionBlockService } from './letter-chat/letter-transition-block.service.js';
+import { ProjectChatController } from './project-chat/project-chat.controller.js';
+import {
+  ProjectCreatedChatHandler,
+  ProjectParticipantsChatHandler,
+  ProjectUpdatedChatHandler,
+  ProjectChatHandlerRunner,
+} from './project-chat/project-chat.handlers.js';
+import { ProjectChatRepository } from './project-chat/project-chat.repository.js';
+import { ProjectChatHandlers, ProjectChatService } from './project-chat/project-chat.service.js';
 import { TaskChatController } from './task-chat/task-chat.controller.js';
 import {
   TaskAssignedChatHandler,
@@ -99,7 +109,7 @@ import {
 @Module({
   // Read-порты владельцев (ADR-0012): состав, ссылки и видимость чата задачи
   // (#252) и письма (#55); каталог стадий — цвет чипа блока перехода письма.
-  imports: [TasksPortsModule, CorrespondencePortsModule, WorkflowsPortsModule],
+  imports: [TasksPortsModule, CorrespondencePortsModule, WorkflowsPortsModule, ProjectsPortsModule],
   // Вложения (#57): порт FILE_STORAGE — @Global FilesModule (как CryptoModule),
   // без межмодульного импорта (I3/I6); здесь chat знает только интерфейс.
   controllers: [
@@ -114,6 +124,7 @@ import {
     VaultController,
     TaskChatController,
     LetterChatController,
+    ProjectChatController,
   ],
   providers: [
     // Агрегат Conversation по ответственности (I5): чтение / запись беседы /
@@ -191,6 +202,15 @@ import {
     TaskParticipantsChatHandler,
     TaskDeletedChatHandler,
     TaskUpdatedChatHandler,
+    // Канал проекта (#52, Р8): беседа type=project_channel, состав =
+    // участники проекта, пост — руководство + project.channel.post.
+    ProjectChatRepository,
+    ProjectChatService,
+    ProjectChatHandlers,
+    ProjectChatHandlerRunner,
+    ProjectCreatedChatHandler,
+    ProjectParticipantsChatHandler,
+    ProjectUpdatedChatHandler,
     // Чат письма (#55, Р10): беседа type=letter, состав = адресат + участники.
     LetterChatRepository,
     LetterChatService,

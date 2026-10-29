@@ -4,6 +4,7 @@ import { ORG_STRUCTURE_READER } from '../../core/ports/org-structure.port.js';
 import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js';
 import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
+import { ProjectsPortsModule } from '../projects/projects-ports.module.js';
 import { CrmPortsModule } from '../crm/crm-ports.module.js';
 import { DictionariesPortsModule } from '../dictionaries/dictionaries-ports.module.js';
 import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
@@ -24,7 +25,13 @@ import { CustomFieldValueValidator } from './values/value-validator.js';
  * `tasks`. Порты для чужих модулей — `CustomFieldsPortsModule`.
  */
 @Module({
-  imports: [DictionariesPortsModule, CrmPortsModule, TasksPortsModule, WorkflowsPortsModule],
+  imports: [
+    DictionariesPortsModule,
+    CrmPortsModule,
+    TasksPortsModule,
+    WorkflowsPortsModule,
+    ProjectsPortsModule,
+  ],
   controllers: [DefinitionsController],
   providers: [
     UserProfileProvider,

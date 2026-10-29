@@ -29,6 +29,15 @@ export async function requireConversationAction(
       `Action ${action} is not supported for conversation type ${conv.type}`,
     );
   }
+  // Канал проекта: состав/роли/название ведёт СУЩНОСТЬ проекта (Р8), ручные
+  // мутации запрещены — иначе участник канала добавляет постороннего в
+  // секретный проект. Ручные каналы без projectId («Новости компании») — можно.
+  if (conv.type === 'project_channel' && conv.projectId !== null) {
+    throw new DomainException(
+      ErrorCode.VALIDATION_FAILED,
+      'Project channel is managed by the project',
+    );
+  }
   const allowed = can(
     membership.role as ConversationMemberRole,
     parsePermissions(conv.permissions),

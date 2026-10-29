@@ -245,7 +245,12 @@ export function TaskCreateWindow({
             ) : null}
           </div>
 
-          <div className="flex h-12 shrink-0 items-center gap-2 px-4">
+          {/* Кнопки окна — СПРАВА, как во всех окнах портала (вердикт
+              владельца 07.11.2026): отмена — тихая, «Создать» — primary. */}
+          <div className="flex h-12 shrink-0 items-center justify-end gap-2 px-4">
+            <Button size="sm" variant="ghost" type="button" onClick={onClose}>
+              {ui.common.cancel}
+            </Button>
             <Button
               size="sm"
               type="submit"
@@ -253,9 +258,6 @@ export function TaskCreateWindow({
               aria-describedby={missing.length > 0 ? 'task-create-missing' : undefined}
             >
               {ui.common.create}
-            </Button>
-            <Button size="sm" variant="ghost" type="button" onClick={onClose}>
-              {ui.common.cancel}
             </Button>
           </div>
           {preview ? (

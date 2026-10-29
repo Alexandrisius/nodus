@@ -80,7 +80,7 @@ export class LettersQueryService {
     const last = page[page.length - 1];
     const axis = listOrderOf(q.box);
     return {
-      items: await this.mapper.toListItems(page, counts, replyTos, viewed),
+      items: await this.mapper.toListItems(page, counts, user, replyTos, viewed),
       nextCursor:
         rows.length > q.limit && last
           ? encodeCursor({ at: last[axis]!.toISOString(), id: last.id })
@@ -111,7 +111,7 @@ export class LettersQueryService {
         ? Promise.resolve(null)
         : this.counterpartySuggestionOf(row.mailFromAddress),
     ]);
-    return this.mapper.toDetail(row, attachments, letterAccessOf(user, row, isParticipant), {
+    return this.mapper.toDetail(row, attachments, letterAccessOf(user, row, isParticipant), user, {
       replyTo,
       replySuggestion,
       counterpartySuggestion,

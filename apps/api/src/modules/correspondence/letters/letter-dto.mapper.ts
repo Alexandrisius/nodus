@@ -13,6 +13,7 @@ import {
   type LetterMailInfo,
   type LetterRef,
   type ProcessTypeRef,
+  type ProjectRef,
   type ReceiptMethodRef,
   type UserRef,
 } from '@nodus/contracts';
@@ -39,6 +40,11 @@ import {
   type CounterpartyReader,
 } from '../../crm/ports/counterparty-reader.port.js';
 import {
+  PROJECT_READER,
+  type ProjectActor,
+  type ProjectReader,
+} from '../../projects/ports/project-reader.port.js';
+import {
   PROCESS_CATALOG_READER,
   type CatalogStage,
   type ProcessCatalogReader,
@@ -53,6 +59,7 @@ export interface LetterRefs {
   contacts: Map<string, ContactRef>;
   users: Map<string, UserRef>;
   receipts: Map<string, ReceiptMethodRef>;
+  projects: Map<string, ProjectRef>;
 }
 
 const EMPTY_REFS = (): LetterRefs => ({
@@ -62,6 +69,7 @@ const EMPTY_REFS = (): LetterRefs => ({
   contacts: new Map(),
   users: new Map(),
   receipts: new Map(),
+  projects: new Map(),
 });
 
 const dateOnly = (value: Date | null): string | null =>
@@ -82,13 +90,19 @@ export class LetterDtoMapper {
     @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
     @Inject(FILE_OBJECT_READER) private readonly files: FileObjectReader,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
     private readonly signedUrls: SignedUrlService,
   ) {}
 
   /** Ссылки для страницы списка (стадии/типы/корреспонденты/сотрудники/справочник). */
   async refsOf(
     rows: readonly (LetterListRow | LetterDetailRow)[],
-    extra: { contacts?: readonly string[]; users?: readonly string[] } = {},
+    extra: {
+      contacts?: readonly string[];
+      users?: readonly string[];
+      /** Смотрящий: проект строки — только видимый ему (#52 Р13). */
+      actor?: ProjectActor;
+    } = {},
   ): Promise<LetterRefs> {
     const pick = <T>(values: (T | null)[]): string[] => [
       ...new Set(values.filter((value): value is T & string => Boolean(value))),
@@ -97,13 +111,15 @@ export class LetterDtoMapper {
     const typeIds = pick(rows.map((row) => row.typeId));
     const counterpartyIds = pick(rows.map((row) => row.counterpartyId));
     const receiptIds = pick(rows.map((row) => row.receiptMethodId));
+    const projectIds = pick(rows.map((row) => row.projectId));
     const userIds = pick([...rows.map((row) => row.addresseeId), ...(extra.users ?? [])]);
-    const [stages, types, counterparties, receipts, users] = await Promise.all([
+    const [stages, types, counterparties, receipts, users, projects] = await Promise.all([
       this.catalog.stagesByIds(stageIds),
       this.catalog.typeRefs(typeIds),
       this.counterparties.refs(counterpartyIds),
       this.dictionaries.itemRefs(receiptIds),
       this.profiles.findRefs(userIds),
+      extra.actor ? this.projects.refsFor(extra.actor, projectIds) : Promise.resolve([]),
     ]);
     const contacts = extra.contacts?.length
       ? await this.counterparties.contactRefs(extra.contacts)
@@ -115,6 +131,7 @@ export class LetterDtoMapper {
     for (const item of receipts) refs.receipts.set(item.id, { id: item.id, name: item.name });
     for (const item of users) refs.users.set(item.id, item);
     for (const item of contacts) refs.contacts.set(item.id, item);
+    for (const item of projects) refs.projects.set(item.id, item);
     return refs;
   }
 
@@ -153,8 +170,8 @@ export class LetterDtoMapper {
       theirNumber: row.theirNumber,
       theirDate: dateOnly(row.theirDate),
       receiptMethod: row.receiptMethodId ? (refs.receipts.get(row.receiptMethodId) ?? null) : null,
-      // Проекты (#52) ещё не модуль: ссылка появится вместе с портом проекта.
-      project: null,
+      // Проект письма — только видимый смотрящему; невидимый → null (#52 Р13).
+      project: row.projectId ? (refs.projects.get(row.projectId) ?? null) : null,
       addressee: row.addresseeId ? (refs.users.get(row.addresseeId) ?? null) : null,
       responseDeadline: dateOnly(row.responseDeadline),
       replyTo,
@@ -166,10 +183,11 @@ export class LetterDtoMapper {
   async toListItems(
     rows: readonly LetterListRow[],
     counts: Map<string, number>,
+    actor: ProjectActor,
     replyTos: ReadonlyMap<string, LetterRef> = new Map(),
     viewed: ReadonlySet<string> = new Set(),
   ): Promise<LetterListItem[]> {
-    const refs = await this.refsOf(rows);
+    const refs = await this.refsOf(rows, { actor });
     return rows.map((row) =>
       this.toListItem(
         row,
@@ -188,6 +206,7 @@ export class LetterDtoMapper {
     row: LetterDetailRow,
     attachments: readonly LetterAttachmentRow[],
     access: LetterAccess,
+    actor: ProjectActor,
     extra: {
       replyTo: LetterRef | null;
       replySuggestion: LetterRef | null;
@@ -197,6 +216,7 @@ export class LetterDtoMapper {
     const refs = await this.refsOf([row], {
       contacts: row.signerId ? [row.signerId] : [],
       users: row.registrarId ? [row.registrarId] : [],
+      actor,
     });
     const fileRefs = new Map(
       (await this.files.refs(attachments.map((a) => a.fileId))).map((f) => [f.id, f]),
@@ -249,7 +269,7 @@ export class LetterDtoMapper {
       attachments: files,
       body: bodyOf(files),
       customFields: values,
-      customFieldRefs: await this.customFields.refs('letter', values),
+      customFieldRefs: await this.customFields.refs('letter', values, actor),
       access,
     };
   }

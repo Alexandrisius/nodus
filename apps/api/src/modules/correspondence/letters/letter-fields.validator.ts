@@ -25,6 +25,7 @@ import {
   COUNTERPARTY_READER,
   type CounterpartyReader,
 } from '../../crm/ports/counterparty-reader.port.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 import {
   DICTIONARY_READER,
   type DictionaryReader,
@@ -80,13 +81,14 @@ export class LetterFieldsValidator {
     @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   /** Регистрация: обязательные поля окна + даты + ссылки + атрибуты. */
   async registration(
     typeId: string,
     input: unknown,
-    authorId: string,
+    actor: { id: string; permissions: readonly string[] },
     today: string,
   ): Promise<{ values: RegistrationValues; customFields: Record<string, unknown> }> {
     const parsed = letterRegistrationInputSchema.safeParse(input);
@@ -100,9 +102,14 @@ export class LetterFieldsValidator {
     }
     const value: LetterRegistrationInput = parsed.data!;
     await this.assertLinks(value, today);
+    // Проект (#52 Р5): существует и не в архиве; видимость регистратора не
+    // требуется — служебное действие канцелярии, DTO фильтрует смотрящим.
+    if (value.projectId) await this.projects.assertProjectAttachable(value.projectId);
     const customFields = await this.customFields.prepareCreate('letter', {
       input: value.customFields ?? {},
-      authorId,
+      // Автор умолчаний «подразделение автора» — сам актор регистрации.
+      authorId: actor.id,
+      actor,
       typeId,
     });
     return {
@@ -135,6 +142,7 @@ export class LetterFieldsValidator {
     body: UpdateLetterBody,
     typeId: string,
     today: string,
+    actor: { id: string; permissions: readonly string[] },
   ): Promise<{ data: Record<string, unknown>; changes: LetterFieldChange[] }> {
     const next: RegistrationValues = { ...current };
     const changes: LetterFieldChange[] = [];
@@ -162,7 +170,11 @@ export class LetterFieldsValidator {
     }
     if (body.theirNumber !== undefined) set('theirNumber', body.theirNumber);
     if (body.subject !== undefined) set('subject', body.subject);
-    if (body.projectId !== undefined) set('projectId', body.projectId);
+    if (body.projectId !== undefined) {
+      // Тот же предикат регистрации (#52 Р5): живой не-архивный проект.
+      if (body.projectId) await this.projects.assertProjectAttachable(body.projectId);
+      set('projectId', body.projectId);
+    }
     if (body.theirDate !== undefined) {
       this.assertDates({ theirDate: body.theirDate }, today);
       set('theirDate', body.theirDate);
@@ -190,6 +202,7 @@ export class LetterFieldsValidator {
       const prepared = await this.customFields.prepareUpdate('letter', {
         current: currentCustomFields as CustomFieldValues,
         patch: body.customFields,
+        actor,
         typeId,
       });
       data.customFields = prepared.next;

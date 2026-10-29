@@ -46,11 +46,14 @@ export function ChannelView({
   onCloseThread,
   header,
   threadBarClass = 'h-14',
+  canPost,
 }: {
   conversationId: string;
   threadRootId: string | null;
   onOpenThread: (rootId: string) => void;
   onCloseThread: () => void;
+  /** Доменный гейт ленты (канал проекта: объявления — только руководство). */
+  canPost?: boolean;
   /** Бар беседы — рендерится в колонке ленты (сжимается вместе с ней при
    *  открытии треда); у карточки проекта своего бара нет — не передаётся. */
   header?: ReactNode;
@@ -160,7 +163,11 @@ export function ChannelView({
           <div className="flex h-full min-w-0 flex-1 flex-col">
             {header}
             <div className="min-h-0 min-w-0 flex-1">
-              <ThreadFeed conversationId={conversationId} onOpenThread={onOpenThread} />
+              <ThreadFeed
+                conversationId={conversationId}
+                onOpenThread={onOpenThread}
+                canPost={canPost}
+              />
             </div>
           </div>
           {/* Обёртка окна и перегородка — ВСЕГДА в DOM (w-0 в покое, см.

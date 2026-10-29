@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ErrorCode, type AuthUser } from '@nodus/contracts';
+import { ErrorCode } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
@@ -42,7 +42,7 @@ export class LetterFormApplier {
   async apply(
     tx: TransactionClient,
     letter: LetterDetailRow,
-    actor: Pick<AuthUser, 'id'>,
+    actor: { id: string; permissions: readonly string[] },
     input: { registration?: unknown },
   ): Promise<WorkflowFormApplied> {
     if (!input.registration) return EMPTY;
@@ -50,7 +50,7 @@ export class LetterFormApplier {
     const { values, customFields } = await this.validator.registration(
       letter.typeId,
       input.registration,
-      actor.id,
+      actor,
       today,
     );
     // «Основной документ письма» (#56): у письма с файлами-кандидатами один

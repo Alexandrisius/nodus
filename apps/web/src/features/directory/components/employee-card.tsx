@@ -4,6 +4,7 @@ import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { projectsAvailable } from '../../../shared/api/projects-available.js';
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
 import { ApiError } from '../../../shared/api-client.js';
 import { useDirectConversation } from '../../../shared/chat/chat-queries.js';
@@ -48,7 +49,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const { data: card, isLoading } = useUserCard(userId);
   const { data: usersData } = useUsersList();
   const tasksQuery = useAssigneeTasks(userId);
-  const projectsQuery = useMemberProjects(userId);
+  const projectsQuery = useMemberProjects(userId, { enabled: projectsAvailable() });
   const directQuery = useDirectConversation(userId);
   const meId = useAuthStore((s) => s.user?.id);
   const [tab, setTab] = useState<EmployeeTab>('profile');

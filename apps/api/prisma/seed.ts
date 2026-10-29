@@ -20,7 +20,7 @@ import { randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../src/generated/prisma/client.js';
-import { ALL_PERMISSIONS } from './all-permissions.js';
+import { GRANTED_ADMIN_PERMISSIONS } from './all-permissions.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -53,18 +53,35 @@ async function main(): Promise<void> {
       name: 'Администратор',
       description: 'Полный доступ к порталу',
       isSystem: true,
-      permissions: { create: ALL_PERMISSIONS.map((permission) => ({ permission })) },
+      permissions: {
+        create: GRANTED_ADMIN_PERMISSIONS.map((permission) => ({ permission })),
+      },
     },
   });
   // Досев прав на существующей БД: upsert роли создаёт permissions только при
   // создании — новые права (sticker.manage, #143) добавляются строками PK-идемпотентно.
-  for (const permission of ALL_PERMISSIONS) {
+  // Состав — каталог минус исключения (#52: секретные проекты админ не видит).
+  for (const permission of GRANTED_ADMIN_PERMISSIONS) {
     await prisma.rolePermission.upsert({
       where: { roleId_permission: { roleId: adminRole.id, permission } },
       update: {},
       create: { roleId: adminRole.id, permission },
     });
   }
+  // Системный надзор (#52, вердикт 29.10): роль и право — миграцией
+  // 20261105000000_projects_core; сид назначает в неё учётку Системного
+  // Администратора (ниже, после создания пользователя).
+  const supervisionRole = await prisma.role.upsert({
+    where: { code: 'system-supervision' },
+    update: {},
+    create: {
+      code: 'system-supervision',
+      name: 'Системный надзор',
+      description: 'Видит секретные проекты вне участия (служебная учётка)',
+      isSystem: true,
+      permissions: { create: [{ permission: 'project.view_secret' }] },
+    },
+  });
   const headRole = await prisma.role.upsert({
     where: { code: 'head' },
     update: {},
@@ -286,6 +303,13 @@ async function main(): Promise<void> {
     firstName: 'Системный',
     roleId: adminRole.id,
   });
+  // Системный надзор (#52): учётка Системного Администратора видит секретные
+  // проекты (модель Битрикс-суперадмина; на проде — назначение матрицей).
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: admin.id, roleId: supervisionRole.id } },
+    update: {},
+    create: { userId: admin.id, roleId: supervisionRole.id },
+  });
 
   // Пилотная группа: все в Группе BIM-технологий, у группы — руководитель.
   const pilotRecords = [];
@@ -331,6 +355,13 @@ async function main(): Promise<void> {
     where: { key: 'correspondence' },
     update: {},
     create: { key: 'correspondence', enabled: true },
+  });
+  // Проекты (#52, ADR-0030): флаг и сид-типы («Договор», «Тема») на проде —
+  // миграцией 20261105000000_projects_core, здесь — свежая установка.
+  await prisma.featureFlag.upsert({
+    where: { key: 'projects' },
+    update: {},
+    create: { key: 'projects', enabled: true },
   });
 
   // Канал новостей компании (Ф4; вердикт 24.09: «Новости» — КАНАЛ, публикация

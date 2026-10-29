@@ -1,8 +1,15 @@
 /**
- * Полный набор прав системной роли «Администратор». Дублирует каталог
- * `Permission` контрактов намеренно: seed исполняется до сборки contracts
+ * Права системной роли «Администратор». Дублирует каталог `Permission`
+ * контрактов намеренно: seed исполняется до сборки contracts
  * (`prisma db seed` в свежем клоне), поэтому импорт из `@nodus/contracts`
  * здесь не годится. Рассинхрон ловит `src/rbac-permissions.test.ts`.
+ *
+ * `ADMIN_EXCLUDED_PERMISSIONS` — права каталога, которые «Администратор»
+ * НЕ получает по умолчанию (#52, вердикт 29.10): секретные проекты админы
+ * не видят — надзор идёт через отдельную роль «Системный надзор»
+ * (`project.view_secret`), а публикация в канал проекта — только руководству
+ * проекта и точечной выдаче матрицей (`project.channel.post`, Slack
+ * announcement-паттерн; миграция 20261105000000 тоже никому не выдаёт).
  */
 export const ALL_PERMISSIONS = [
   'core.admin',
@@ -27,4 +34,20 @@ export const ALL_PERMISSIONS = [
   'crm.manage',
   // #431: управление атрибутами; роли admin выдаётся миграцией 20261028120000_custom_fields.
   'custom_field.manage',
+  // #52: ядро проектов; админу — миграцией 20261105000000_projects_core
+  // (кроме view_secret — надзор отдельной ролью).
+  'project.create',
+  'project.manage',
+  'project.setup.manage',
+  'project.channel.post',
+  'project.view_secret',
 ] as const;
+
+/** Не входит в дефолт «Администратора»: системный надзор — отдельная роль,
+ *  публикация в канал проекта — руководство/точечная выдача. */
+export const ADMIN_EXCLUDED_PERMISSIONS = ['project.view_secret', 'project.channel.post'] as const;
+
+/** Что сид выдаёт роли admin: каталог минус исключения надзора. */
+export const GRANTED_ADMIN_PERMISSIONS: readonly string[] = ALL_PERMISSIONS.filter(
+  (permission) => !(ADMIN_EXCLUDED_PERMISSIONS as readonly string[]).includes(permission),
+);

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   ErrorCode,
+  Permission,
   TASK_EVENTS,
   type AuthUser,
   type TaskListItem,
@@ -18,6 +19,8 @@ import {
   type WorkflowEnginePort,
 } from '../../workflows/ports/workflow-engine.port.js';
 import { actorRoles, planHolderIds, taskAccess } from '../access/task-access.js';
+import { TaskProjectRights } from '../access/task-project-rights.js';
+import { PROJECT_READER, type ProjectReader } from '../../projects/ports/project-reader.port.js';
 import { PersonalBoardsRepository } from '../personal/personal-boards.repository.js';
 import { Placements } from '../personal/placements.js';
 import { PlacementsRepository } from '../personal/placements.repository.js';
@@ -35,6 +38,7 @@ const FIELD_KEYS = [
   'plannedMinutes',
   'assigneeId',
   'parentId',
+  'projectId',
 ] as const;
 
 /**
@@ -54,18 +58,60 @@ export class TaskEditService {
     private readonly placementsRepo: PlacementsRepository,
     private readonly boards: PersonalBoardsRepository,
     private readonly writer: TaskFieldsWriter,
+    private readonly projectRights: TaskProjectRights,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
     @Inject(WORKFLOW_ENGINE) private readonly engine: WorkflowEnginePort,
   ) {}
 
   async update(user: AuthUser, id: string, body: TaskUpdateBody): Promise<TaskListItem> {
     const row = await this.query.visibleRow(user, id);
-    const access = taskAccess(actorRoles(row, user.id), user.permissions);
+    // Руководство проекта — уровень постановщика на его задачи (Р12):
+    // «менять поля» и «закрывать забытые» любой задачи проекта.
+    const roles = await this.projectRights.supplement(
+      actorRoles(row, user.id),
+      user.id,
+      row.projectId,
+    );
+    const access = taskAccess(roles, user.permissions);
     const fields = FIELD_KEYS.filter((k) => body[k] !== undefined);
     const hasCustomFields =
       body.customFields !== undefined && Object.keys(body.customFields).length > 0;
     if ((fields.length > 0 || hasCustomFields) && !access.canEdit)
       throw DomainException.forbidden('Task edit not allowed');
-    if (body.assigneeId) await this.tasks.assertActiveUsers([body.assigneeId]);
+    if (body.assigneeId) {
+      await this.tasks.assertActiveUsers([body.assigneeId]);
+      // Секретный проект: новый ответственный обязан состоять в проекте —
+      // проверка нужна и без переноса (PATCH assigneeId, вердикт 29.10).
+      // При переносе ответственного проверит целевой проект (ниже), а не
+      // покидаемый: иначе вынос из секретного требует членства в нём.
+      if (row.projectId && (body.projectId === undefined || body.projectId === row.projectId)) {
+        await this.projects.assertMembersAllowed(row.projectId, [body.assigneeId]);
+      }
+    }
+    // Перенос между проектами (#52 Р5): видимость проекту актёру, состав
+    // секретного (все люди задачи после правки — участники), не-архивность.
+    if (body.projectId !== undefined && body.projectId !== row.projectId) {
+      // Вынос из СЕКРЕТНОГО проекта открывает содержимое всему порталу —
+      // только руководство проекта или project.manage (иначе — эксфильтрация).
+      if (row.projectId) {
+        const previous = await this.projects.visibilityOf(row.projectId);
+        if (previous === 'secret') {
+          const rights = await this.projects.projectTaskRights(user.id, row.projectId);
+          if (!rights.supervisor && !user.permissions.includes(Permission.PROJECT_MANAGE)) {
+            throw DomainException.forbidden('Only project management can move a secret task out');
+          }
+        }
+      }
+      if (body.projectId) {
+        await this.projects.assertTaskProjectVisible(user, body.projectId);
+        const assignee = body.assigneeId ?? row.assigneeId;
+        await this.projects.assertMembersAllowed(body.projectId, [
+          row.creatorId,
+          assignee,
+          ...row.participants.map((p) => p.userId),
+        ]);
+      }
+    }
     if (body.parentId === id) {
       throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Task cannot be its own parent');
     }
@@ -86,7 +132,7 @@ export class TaskEditService {
       if (body.personalStageId)
         await this.movePersonal(tx, user, row, body.personalStageId, body.index);
     });
-    return this.tasks.listItem(user.id, id);
+    return this.tasks.listItem(user, id);
   }
 
   private async applyFields(
@@ -100,7 +146,7 @@ export class TaskEditService {
     // правит поля тем же кодом (локи, перепривязка, события).
     await this.writer.apply(
       tx,
-      user.id,
+      user,
       row,
       {
         title: body.title,
@@ -108,6 +154,7 @@ export class TaskEditService {
         priority: body.priority,
         plannedMinutes: body.plannedMinutes,
         parentId: body.parentId,
+        projectId: body.projectId,
         deadline: body.deadline,
         assigneeId: body.assigneeId,
         customFields: body.customFields,

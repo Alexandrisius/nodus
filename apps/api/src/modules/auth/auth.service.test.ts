@@ -59,6 +59,7 @@ describe('AuthService', () => {
     recordFailure: vi.fn(),
     reset: vi.fn(),
   };
+  const featureFlags = { enabledModules: vi.fn().mockResolvedValue(['tasks', 'projects']) };
 
   let service: AuthService;
 
@@ -79,7 +80,22 @@ describe('AuthService', () => {
       tokenService as never,
       audit as never,
       loginThrottle as never,
+      featureFlags as never,
     );
+  });
+
+  describe('getMe', () => {
+    it('отдаёт свежие права и включённые модули (Р14 #52)', async () => {
+      identityLoader.load.mockResolvedValue(IDENTITY);
+
+      await expect(service.getMe('user-1')).resolves.toEqual({
+        id: 'user-1',
+        email: 'a@b.by',
+        displayName: 'Иванов Иван',
+        permissions: ['directory.read'],
+        modules: ['tasks', 'projects'],
+      });
+    });
   });
 
   describe('login', () => {

@@ -58,6 +58,18 @@ export const Permission = {
   /** Создание, правка и удаление атрибутов (кастомных полей, #431,
    *  ADR-0029): вкладка «Атрибуты» «Автоматизации». Читают определения все. */
   CUSTOM_FIELD_MANAGE: 'custom_field.manage',
+  /** Создание проекта — договор или «тема» (#52, ADR-0030); у всех ролей. */
+  PROJECT_CREATE: 'project.create',
+  /** Управление любым проектом: поля, статусы, состав, портфели (#52). */
+  PROJECT_MANAGE: 'project.manage',
+  /** Настройка типов проектов и дефолта видимости новых (#52, «Автоматизация»). */
+  PROJECT_SETUP_MANAGE: 'project.setup.manage',
+  /** Публикация в каналы всех проектов (#52); по умолчанию ни у кого —
+   *  пишут руководитель и помощники своего проекта (Slack announcement). */
+  PROJECT_CHANNEL_POST: 'project.channel.post',
+  /** Видеть секретные проекты вне участия (#52; роль «Системный надзор» —
+   *  учётка Системного Администратора, модель Битрикс-суперадмина). */
+  PROJECT_VIEW_SECRET: 'project.view_secret',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

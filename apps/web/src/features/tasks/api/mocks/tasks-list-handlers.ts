@@ -11,7 +11,7 @@ import {
   firstPersonalStageOfState,
   globalStageForPersonal,
 } from '../../../../shared/mocks/data/tasks.js';
-import { demoProjects } from '../../../../shared/mocks/data/projects.js';
+import { demoProjects } from '../../../../shared/mocks/data/project-views.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 import type { WorkflowDetail } from '@nodus/contracts';

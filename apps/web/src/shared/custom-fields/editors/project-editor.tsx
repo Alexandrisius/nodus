@@ -26,7 +26,7 @@ export function ProjectEditor(props: EditorProps) {
   const visible = q
     ? projects.filter(
         (project) =>
-          project.name.toLowerCase().includes(q) || project.code.toLowerCase().includes(q),
+          project.name.toLowerCase().includes(q) || (project.code ?? '').toLowerCase().includes(q),
       )
     : projects;
 
@@ -107,9 +107,11 @@ export function ProjectEditor(props: EditorProps) {
                 >
                   <ProjectIdentityIcon color={project.color} className="size-4 shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                  <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                    {project.code}
-                  </span>
+                  {project.code ? (
+                    <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+                      {project.code}
+                    </span>
+                  ) : null}
                 </button>
               );
             })

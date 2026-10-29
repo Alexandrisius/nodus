@@ -38,11 +38,12 @@ describe('access-model (#379)', () => {
     expect(isLockedRole(role({ code: 'head' }))).toBe(false);
   });
 
-  it('catalogRows("automation"): три права в порядке матрицы', () => {
+  it('catalogRows("automation"): права в порядке матрицы (включая проекты #52)', () => {
     expect(catalogRows('automation').map((row) => row.id)).toEqual([
       Permission.WORKFLOW_MANAGE,
       Permission.CUSTOM_FIELD_MANAGE,
       Permission.DICTIONARY_MANAGE,
+      Permission.PROJECT_SETUP_MANAGE,
     ]);
   });
 

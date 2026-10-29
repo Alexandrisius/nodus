@@ -73,9 +73,7 @@ const EmployeesPage = pageLoader(() =>
   })),
 );
 const AutomationPage = pageLoader(() =>
-  import('../features/automation/pages/automation-page.js').then((m) => ({
-    default: m.AutomationPage,
-  })),
+  import('./automation-route.js').then((m) => ({ default: m.AutomationRoute })),
 );
 
 /**

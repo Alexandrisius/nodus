@@ -120,7 +120,7 @@ export class MessagesController {
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()
   async send(
-    @GetUser() user: { id: string },
+    @GetUser() user: { id: string; permissions: readonly string[] },
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Body({
       schema: sendMessageBodySchema,
@@ -130,7 +130,7 @@ export class MessagesController {
     @Req() request: FastifyRequest,
   ): Promise<ChatMessage> {
     const key = readIdempotencyKey(request);
-    const result = await this.messages.send(user.id, conversationId, dto, key);
+    const result = await this.messages.send(user, conversationId, dto, key);
     return this.mapper.toDto(result.message, {
       viewerId: user.id,
       members: result.members,

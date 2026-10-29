@@ -1,55 +1,62 @@
-import type { ReactNode } from 'react';
-import type { ProjectListItem } from '@nodus/contracts';
+import type { ProjectDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyDescription, EmptyTitle } from '@nodus/ui/components/empty';
 
 import { ChannelView } from '../../../shared/chat/channel-view.js';
 
-/** Вкладка «Чат» панели проекта: канал проекта в мессенджере (создаётся
- *  автоматически, вердикт владельца 2026-09-10) — лента новостей-тредов с
- *  ПОЛНОВЫСОТНЫМ окном треда рядом (тот же shared-компонент, что в
- *  мессенджере, #42 + вердикт 15.09.2026: окно треда поднимается до верха
- *  карточки, его бар — на линии таб-бара). Бар ленты (`header`) приходит
- *  от карточки (тоггл панели беседы на правом краю ленты). Состояние
- *  открытого треда — у карточки: область панели беседы («Этот тред») живёт
- *  там же. */
+/** Участие любого источника: канал проекта открыт только составу (Р8). */
+export function isProjectParticipant(project: ProjectDetail): boolean {
+  const membership = project.myMembership;
+  return (
+    membership.manager || membership.assistant || membership.participant || membership.observer
+  );
+}
+
+/**
+ * Канал проекта — колонка справа в карточке (создаётся автоматически по
+ * событию `project.created`, Р8). Не участнику открытого проекта канал не
+ * открывается: «к каналу присоединиться нельзя — вступи в проект»
+ * (вердикт 29.10); пишут в ленту руководитель, помощники и держатели
+ * `project.channel.post`, треды — все участники. Тоггл панели «О канале» —
+ * на полосе вкладок карточки (вердикт 07.11.2026), своего бара у ленты нет.
+ */
 export function ProjectChat({
   project,
+  conversationId,
   threadId,
   onOpenThread,
   onCloseThread,
-  header,
 }: {
-  project: ProjectListItem;
+  project: ProjectDetail;
+  /** null — канал ещё не открыт/недоступен (не участник). */
+  conversationId: string | null;
   threadId: string | null;
   onOpenThread: (rootId: string) => void;
   onCloseThread: () => void;
-  /** Бар ленты канала — рендерится в колонке ленты (сжимается вместе с
-   *  ней при открытии треда). */
-  header?: ReactNode;
 }) {
-  if (!project.channelId) {
+  if (!conversationId) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full items-center justify-center p-6">
         <Empty>
-          <EmptyTitle>{ui.projects.noChannel}</EmptyTitle>
-          <EmptyDescription>{ui.chat.channelOfProject}</EmptyDescription>
+          <EmptyTitle>
+            {isProjectParticipant(project) ? ui.projects.noChannel : ui.projects.channelMembersOnly}
+          </EmptyTitle>
+          {isProjectParticipant(project) ? null : (
+            <EmptyDescription>{ui.projects.channelJoinHint}</EmptyDescription>
+          )}
         </Empty>
       </div>
     );
   }
 
   return (
-    // Бар треда — h-10 bg-card в плотность и тон баров карточки (бары на
-    // одной линии — ОДИН тон; канон `headerClass` панели беседы): линии
-    // border-b всех колонок продолжаются друг в друга.
     <ChannelView
-      conversationId={project.channelId}
+      conversationId={conversationId}
       threadRootId={threadId}
       onOpenThread={onOpenThread}
       onCloseThread={onCloseThread}
-      header={header}
       threadBarClass="h-10 bg-card"
+      canPost={project.access.canPostToChannel}
     />
   );
 }

@@ -9,6 +9,8 @@ import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/li
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
 import { TaskCreateHost } from '../../shared/tasks/task-create-host.js';
+import { ProjectCreateHost } from '../../features/projects/components/project-create-host.js';
+import { PortalSettingsHost } from '../../features/projects/components/portal-settings-host.js';
 import { AttachmentViewer } from '../../shared/files/attachment-viewer.js';
 import { NotificationToasts } from '../../features/notifications/components/notification-toasts.js';
 import { useNotificationSink } from '../../features/notifications/model/use-notification-sink.js';
@@ -164,6 +166,10 @@ export function AppShell() {
       <ChatDialogHosts />
       {/* Единое окно создания задачи (#432): один хост на все входы. */}
       <TaskCreateHost />
+      {/* Единое окно создания проекта (#52): журнал и пикер проекта. */}
+      <ProjectCreateHost />
+      {/* Окно «Настройки портала» (#52): раздел «Проекты» (дом — #276). */}
+      <PortalSettingsHost />
       <AttachmentViewer stripW={viewerStripW} />
       <Toaster richColors theme={theme} />
     </TooltipProvider>

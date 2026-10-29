@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/po
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useProjectsList } from '../api/projects-list.js';
+import { openProjectCreate } from '../projects/project-create-store.js';
 import { ProjectIdentityIcon } from './project-identity-icon.js';
 
 /**
@@ -45,7 +46,9 @@ export function ProjectPicker({
   const selected = items.find((p) => p.id === value);
   const q = query.trim().toLowerCase();
   const filtered = q
-    ? items.filter((p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+    ? items.filter(
+        (p) => p.name.toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q),
+      )
     : items;
 
   function choose(projectId: string | undefined) {
@@ -72,9 +75,19 @@ export function ProjectPicker({
                 'min-w-0 flex-1 truncate text-left',
                 !selected && 'text-muted-foreground',
               )}
-              title={selected ? `${selected.code} — ${selected.name}` : undefined}
+              title={
+                selected
+                  ? selected.code
+                    ? `${selected.code} — ${selected.name}`
+                    : selected.name
+                  : undefined
+              }
             >
-              {selected ? `${selected.code} — ${selected.name}` : ui.tasks.noProject}
+              {selected
+                ? selected.code
+                  ? `${selected.code} — ${selected.name}`
+                  : selected.name
+                : ui.tasks.noProject}
             </span>
             {selected ? (
               <span
@@ -121,11 +134,13 @@ export function ProjectPicker({
               <ProjectIdentityIcon color={project.color} className="size-5 shrink-0" />
               <span
                 className="min-w-0 flex-1 truncate text-sm"
-                title={`${project.code} — ${project.name}`}
+                title={project.code ? `${project.code} — ${project.name}` : project.name}
               >
-                <span className="font-mono text-label-sm text-muted-foreground">
-                  {project.code}
-                </span>{' '}
+                {project.code ? (
+                  <span className="font-mono text-label-sm text-muted-foreground">
+                    {project.code}
+                  </span>
+                ) : null}{' '}
                 {project.name}
               </span>
             </button>
@@ -136,11 +151,15 @@ export function ProjectPicker({
             </div>
           ) : null}
         </div>
-        {/* «Создать проект» — НА БУДУЩЕЕ (вердикт владельца 15.09.2026: кнопка
-            нужна в окне; окна создания проекта пока нет — действия нет). */}
+        {/* «Создать проект» — единое окно модуля (вердикт владельца 15.09.2026):
+            открывается из любого пикера, вторых форм нет. */}
         <div className="p-1.5">
           <button
             type="button"
+            onClick={() => {
+              setOpen(false);
+              openProjectCreate();
+            }}
             className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Plus className="size-4" strokeWidth={1.75} />

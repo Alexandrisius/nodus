@@ -252,6 +252,11 @@ export const currentAuthUser: AuthUser = {
     Permission.DICTIONARY_MANAGE,
     Permission.CRM_MANAGE,
     Permission.ROLE_MANAGE,
+    // Проекты (#52): создаёт любой, управление/настройка — админ демо;
+    // view_secret НЕ выдаётся — модель Битрикс-суперадмина видна в демо.
+    Permission.PROJECT_CREATE,
+    Permission.PROJECT_MANAGE,
+    Permission.PROJECT_SETUP_MANAGE,
   ],
 };
 

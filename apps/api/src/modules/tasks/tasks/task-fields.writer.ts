@@ -37,6 +37,7 @@ export interface TaskFieldsRow {
   typeId: string;
   parentId: string | null;
   assigneeId: string;
+  projectId: string | null;
 }
 
 /** Правка полей задачи в транзакции вызывающего. Ключи — только те, что
@@ -49,6 +50,9 @@ export interface TaskFieldsWrite {
   parentId?: string | null;
   deadline?: string | null;
   assigneeId?: string;
+  /** Перенос в другой проект или отвязка (#52 Р4): валидацию привязки
+   *  (видимость/состав секретного/архив) делает вызывающий ДО транзакции. */
+  projectId?: string | null;
   /** Патч кастомных атрибутов (#431): `null` удаляет ключ, проверка — порт. */
   customFields?: Record<string, CustomFieldValue | null>;
 }
@@ -73,7 +77,7 @@ export class TaskFieldsWriter {
 
   async apply(
     tx: TransactionClient,
-    actorId: string,
+    actor: { id: string; permissions: readonly string[] },
     row: TaskFieldsRow,
     patch: TaskFieldsWrite,
     fields: readonly string[],
@@ -108,6 +112,7 @@ export class TaskFieldsWriter {
     if (patch.priority !== undefined) data.priority = patch.priority as TaskFieldsPatch['priority'];
     if (patch.plannedMinutes !== undefined) data.plannedMinutes = patch.plannedMinutes;
     if (patch.parentId !== undefined) data.parentId = patch.parentId;
+    if (patch.projectId !== undefined) data.projectId = patch.projectId;
     if (patch.deadline !== undefined) {
       data.deadline = patch.deadline ? new Date(patch.deadline) : null;
       data.overdueNotifiedAt = null; // новый срок — новое однократное уведомление
@@ -128,7 +133,7 @@ export class TaskFieldsWriter {
       // непривязанного атрибута — 422 `not_in_type`, очистка разрешена.
       const prepared = await this.customFields.prepareUpdate(
         'task',
-        { current, patch: patch.customFields, typeId: row.typeId },
+        { current, patch: patch.customFields, actor, typeId: row.typeId },
         tx,
       );
       fieldChanges = prepared.changes;
@@ -141,15 +146,16 @@ export class TaskFieldsWriter {
       number: row.number,
       audience: audienceIds(after, [row.assigneeId]),
     };
-    const meta = { actorId, aggregateType: 'task', aggregateId: row.id };
+    const meta = { actorId: actor.id, aggregateType: 'task', aggregateId: row.id };
     if (reassigned) {
-      await this.placements.sync(tx, after, planHolderIds(after), actorId);
+      await this.placements.sync(tx, after, planHolderIds(after), actor.id);
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.ASSIGNED,
         {
           ...base,
           title: after.title,
+          projectId: after.projectId ?? null,
           assigneeId: after.assigneeId,
           previousAssigneeId: row.assigneeId,
         },
@@ -170,6 +176,11 @@ export class TaskFieldsWriter {
         ...(patch.title !== undefined ? { title: after.title } : {}),
         ...(patch.deadline !== undefined
           ? { deadline: after.deadline?.toISOString() ?? null }
+          : {}),
+        // Перенос между проектами (#52 Р4): пересчёт участия живёт на обоих
+        // концах — прежний проект теряет строку, новый получает.
+        ...(patch.projectId !== undefined
+          ? { projectId: after.projectId, previousProjectId: row.projectId }
           : {}),
       },
       meta,

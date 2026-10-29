@@ -24,9 +24,10 @@ export function useAssigneeTasks(userId: string) {
 }
 
 /** Проекты сотрудника — руководит или участник (GET /projects?memberId=). */
-export function useMemberProjects(userId: string) {
+export function useMemberProjects(userId: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: userRelationsKeys.projects(userId),
     queryFn: () => api<Paginated<ProjectListItem>>(`/projects?memberId=${userId}&limit=100`),
+    enabled: options.enabled ?? true,
   });
 }

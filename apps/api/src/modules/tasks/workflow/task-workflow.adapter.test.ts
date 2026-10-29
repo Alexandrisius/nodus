@@ -67,6 +67,7 @@ function makeAdapter() {
     forms as never,
     messages as never,
     customFields as never,
+    { supplement: vi.fn(async (roles: Set<string>) => roles) } as never,
   );
   return { adapter, mover, tasks, placements };
 }

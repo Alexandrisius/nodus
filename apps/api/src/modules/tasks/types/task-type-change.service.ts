@@ -49,7 +49,7 @@ export class TaskTypeChangeService {
     if (!nextType || nextType.archivedAt || nextType.category !== 'task') {
       throw DomainException.notFound('Process type not found');
     }
-    if (nextType.id === row.typeId) return this.taskService.listItem(user.id, taskId);
+    if (nextType.id === row.typeId) return this.taskService.listItem(user, taskId);
     // Доступ к целевому типу (#432, Р6): невидимый — 403 reason=view,
     // без права создания — 403 reason=not_creatable.
     await this.catalog.resolveType(nextType.id, {
@@ -106,6 +106,6 @@ export class TaskTypeChangeService {
         { actorId: user.id, aggregateType: 'task', aggregateId: task.id },
       );
     });
-    return this.taskService.listItem(user.id, taskId);
+    return this.taskService.listItem(user, taskId);
   }
 }

@@ -54,6 +54,7 @@ function setup(removed = 1, opts: { required?: string[]; left?: number } = {}) {
     tasksRepo as never,
     repo as never,
     catalog as never,
+    { assertMembersAllowed: vi.fn() } as never,
   );
   return { service, repo };
 }

@@ -1470,6 +1470,139 @@ model CounterpartyUsage {
   @@map("counterparty_usages")
 }
 
+// ===== Модуль projects (#52, ADR-0030) =====
+// Проект = договор («тема» — без шифра): тип, портфель, заказчик (контрагент
+// crm — plain UUID без FK, I3), руководство (руководитель + помощники) и
+// двухрежимное участие (открытый — динамика из задач, секретный — ручной
+// состав). Удаления нет — архив статусом; шифр не освобождается архивацией
+// (частичный unique — Trimble-паттерн «number previously used»).
+
+/// Тип проекта — справочник раздела «Автоматизация» (сид-миграция: «Договор»,
+/// «Тема»); шаблоны уровней дерева и схемы — следующие issues (ADR-0030).
+model ProjectType {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @unique
+  /// Политика системного поля «Шифр» в форме проекта этого типа
+  /// (hidden | optional | required, CHECK в миграции): «Договор» — шифр
+  /// обязателен, «Тема» — поля нет. Мост к формам типов «Автоматизации»
+  /// (#38/#468): полный набор полей типа придёт схемой формы.
+  codeField  String    @default("optional") @map("code_field")
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  projects Project[]
+
+  @@map("project_types")
+}
+
+/// Портфель — плоский список группировки проектов (один заказчик — один
+/// большой объект, ADR-0030 п.2); состав заказчиков выводится из проектов.
+model ProjectGroup {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  /// Создатель портфеля — plain UUID без FK (справочник directory, I3).
+  creatorId  String    @map("creator_id") @db.Uuid
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  projects Project[]
+
+  /// Реестр: keyset по (name, id).
+  @@index([name, id])
+  @@map("project_groups")
+}
+
+
+/// Проект. Руководитель/создатель/заказчик — plain UUID без FK (модули
+/// directory/crm, I3); помощники — массив UUID в JSONB (паттерн
+/// mentionedUserIds; лимит ≤10 — контракт и CHECK в миграции).
+model Project {
+  id          String    @id @default(uuid()) @db.Uuid
+  /// Шифр договора; null — «тема». Частичный unique WHERE code IS NOT NULL —
+  /// в миграции (шифр не освобождается архивацией).
+  code        String?
+  name        String
+  description String    @default("")
+  /// Тон плитки-идентичности (projectColorSchema: ключи, не hex, I15).
+  color       String    @default("blue")
+  typeId      String    @map("type_id") @db.Uuid
+  portfolioId String?   @map("portfolio_id") @db.Uuid
+  clientId    String?   @map("client_id") @db.Uuid
+  managerId   String    @map("manager_id") @db.Uuid
+  assistantIds Json     @default("[]") @map("assistant_ids")
+  /// open | secret (CHECK в миграции): секретный видят только участники
+  /// (+ project.view_secret — системный надзор).
+  visibility  String    @default("open")
+  /// active | completed | archived (CHECK в миграции): completed — метка,
+  /// archived — заморозка (создание задач в проекте — 422).
+  status      String    @default("active")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz()
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
+  startedAt   DateTime? @map("started_at") @db.Date
+  endsAt      DateTime? @map("ends_at") @db.Date
+  /// Кастомные атрибуты области `project` (ADR-0029); GIN — в миграции.
+  customFields Json     @default("{}") @map("custom_fields")
+  creatorId   String    @map("creator_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  type        ProjectType        @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  portfolio   ProjectGroup?      @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
+  participants ProjectParticipant[]
+
+  /// Журнал: keyset по (updated_at DESC, id) — активность = updatedAt.
+  @@index([status, updatedAt(sort: Desc), id])
+  /// Видимый срез для видимости задач: открытые проекты одним индексом.
+  @@index([visibility, id])
+  @@index([typeId])
+  @@index([portfolioId])
+  /// Вкладка «Проекты» карточки контрагента (#460).
+  @@index([clientId])
+  /// «Руковожу»: проекты руководителя.
+  @@index([managerId])
+  @@index([assistantIds(ops: JsonbPathOps)], type: Gin, map: "projects_assistants_gin")
+  @@index([customFields(ops: JsonbPathOps)], type: Gin, map: "projects_custom_fields_gin")
+  @@map("projects")
+}
+
+/// Проекция участия (Р2 техплана #52): строка на (проект, сотрудник,
+/// источник). manager/assistant — из полей проекта; task — динамика живых
+/// задач открытых проектов (события task.*, истина — порт
+/// TASK_PROJECT_READER; наблюдатели задач НЕ попадают — вердикт 29.10);
+/// member/observer — ручное управление составом секретного; observer
+/// (joined) — «Присоединиться» в открытом. У одного сотрудника в проекте
+/// может быть несколько источников.
+model ProjectParticipant {
+  projectId    String   @map("project_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  /// manager | assistant | task | member | observer (CHECK в миграции).
+  source       String
+  /// invited | creator | joined — только у source=observer (CHECK).
+  observerKind String?  @map("observer_kind")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// «Мои проекты» и roster канала.
+  @@id([projectId, userId, source])
+  @@index([userId])
+  @@map("project_participants")
+}
+
+/// Настройки портала (окно «Настройки портала», #52 Р7): ключ — точечная
+/// нотация (`projects.defaultVisibility`), значение — JSONB; дефолт кода —
+/// 'open' при отсутствии строки.
+model PortalSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("portal_settings")
+}
+
 // ===== Модуль custom-fields (#431, ADR-0029) =====
 // Реестр определений атрибутов: область, тип, настройки типа, умолчание,
 // видимость. Значения НЕ здесь: они живут в JSONB сущности-владельца

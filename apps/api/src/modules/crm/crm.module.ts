@@ -13,6 +13,10 @@ import {
   LetterRegisteredUsageHandler,
   LetterUpdatedUsageHandler,
 } from './events/letter-usage.handler.js';
+import {
+  ProjectCreatedUsageHandler,
+  ProjectUpdatedUsageHandler,
+} from './events/project-usage.handler.js';
 
 /**
  * Модуль crm (#460, ADR-0033): master-данные внешних организаций —
@@ -34,6 +38,8 @@ import {
     LetterRegisteredUsageHandler,
     LetterUpdatedUsageHandler,
     LetterDeletedUsageHandler,
+    ProjectCreatedUsageHandler,
+    ProjectUpdatedUsageHandler,
   ],
 })
 export class CrmModule {}

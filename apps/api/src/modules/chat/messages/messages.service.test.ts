@@ -9,6 +9,7 @@ import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
+const ACTOR = { id: ME, permissions: [] as string[] };
 const PEER = 'peer-1';
 const TX = 'tx-handle';
 
@@ -149,13 +150,14 @@ describe('MessagesService', () => {
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
       { enqueue: vi.fn(async () => undefined) } as never,
+      { canPost: vi.fn(async () => true) } as never,
     );
   });
 
   describe('send', () => {
     it('не член беседы → NOT_FOUND, до транзакции не доходит', async () => {
       conversations.findMembership.mockResolvedValue(null);
-      await expect(service.send(ME, CONV, { text: 'Привет' }, 'key-1')).rejects.toMatchObject({
+      await expect(service.send(ACTOR, CONV, { text: 'Привет' }, 'key-1')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: 'Conversation not found',
       });
@@ -166,7 +168,7 @@ describe('MessagesService', () => {
       const existing = makeMessage({ id: 'msg-old', seq: 3n });
       repo.findExisting.mockResolvedValue(existing);
 
-      const result = await service.send(ME, CONV, { text: 'Повтор' }, 'key-1');
+      const result = await service.send(ACTOR, CONV, { text: 'Повтор' }, 'key-1');
 
       expect(repo.findExisting).toHaveBeenCalledWith(ME, 'key-1', TX);
       expect(result).toMatchObject({ replayed: true, message: existing });
@@ -180,7 +182,7 @@ describe('MessagesService', () => {
 
     it('replay в ДРУГОЙ беседе → CONFLICT', async () => {
       repo.findExisting.mockResolvedValue(makeMessage({ conversationId: 'conv-other' }));
-      await expect(service.send(ME, CONV, { text: 'Повтор' }, 'key-1')).rejects.toMatchObject({
+      await expect(service.send(ACTOR, CONV, { text: 'Повтор' }, 'key-1')).rejects.toMatchObject({
         code: ErrorCode.CONFLICT,
         message: 'Idempotency-Key already used for another message',
       });
@@ -193,7 +195,7 @@ describe('MessagesService', () => {
         type: 'group',
         permissions: { ...DEFAULT_CONVERSATION_PERMISSIONS, post: 'admin' },
       });
-      await expect(service.send(ME, CONV, { text: 'Пост' }, 'key-1')).rejects.toMatchObject({
+      await expect(service.send(ACTOR, CONV, { text: 'Пост' }, 'key-1')).rejects.toMatchObject({
         code: ErrorCode.FORBIDDEN,
         message: 'Posting in this conversation requires permission',
       });
@@ -207,7 +209,12 @@ describe('MessagesService', () => {
       );
       repo.countThreadReplies.mockResolvedValue(1);
 
-      const ok = await service.send(ME, CONV, { text: 'Ответ', threadRootId: 'root-1' }, 'key-2');
+      const ok = await service.send(
+        ACTOR,
+        CONV,
+        { text: 'Ответ', threadRootId: 'root-1' },
+        'key-2',
+      );
 
       expect(ok.replayed).toBe(false);
       expect(repo.touchLastMessageAt).not.toHaveBeenCalled();
@@ -228,13 +235,13 @@ describe('MessagesService', () => {
         makeMessage({ id: 'r', threadRootId: 'root-0' }),
       );
       await expect(
-        service.send(ME, CONV, { text: 'Ответ', threadRootId: 'r' }, 'k1'),
+        service.send(ACTOR, CONV, { text: 'Ответ', threadRootId: 'r' }, 'k1'),
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: 'Thread root not found',
       });
       await expect(
-        service.send(ME, CONV, { text: 'Ответ', threadRootId: 'ghost' }, 'k2'),
+        service.send(ACTOR, CONV, { text: 'Ответ', threadRootId: 'ghost' }, 'k2'),
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: 'Thread root not found',
@@ -251,7 +258,7 @@ describe('MessagesService', () => {
       );
 
       await service.send(
-        ME,
+        ACTOR,
         CONV,
         { text: 'Ответ', replyToId: 'orig-1', quoteText: 'цитата' },
         'key-3',
@@ -294,7 +301,7 @@ describe('MessagesService', () => {
         makeMessage({ id: 'msg-r2', seq: 7n, replyToId: 'orig-2' }),
       );
 
-      await service.send(ME, CONV, { text: 'Ответ', replyToId: 'orig-2' }, 'key-4');
+      await service.send(ACTOR, CONV, { text: 'Ответ', replyToId: 'orig-2' }, 'key-4');
       // Вложения оригинала читаются ПО соединению транзакции (правило пула).
       expect(repo.attachmentsFor).toHaveBeenCalledWith(['orig-2'], TX);
 
@@ -317,7 +324,7 @@ describe('MessagesService', () => {
     it('цитата сообщения НЕ из этой беседы (#344) → 404, сообщение не создаётся', async () => {
       repo.findByIdInConversation.mockResolvedValue(null);
       await expect(
-        service.send(ME, CONV, { text: 'Ответ', replyToId: 'foreign-1' }, 'key-fr'),
+        service.send(ACTOR, CONV, { text: 'Ответ', replyToId: 'foreign-1' }, 'key-fr'),
       ).rejects.toMatchObject({ code: 'NOT_FOUND' });
       expect(repo.findByIdInConversation).toHaveBeenCalledWith(CONV, 'foreign-1', TX);
       expect(repo.insertMessage).not.toHaveBeenCalled();
@@ -351,7 +358,7 @@ describe('MessagesService', () => {
         makeMessage({ id: 'msg-rs', seq: 8n, replyToId: 'orig-st' }),
       );
 
-      await service.send(ME, CONV, { text: 'Ответ', replyToId: 'orig-st' }, 'key-st');
+      await service.send(ACTOR, CONV, { text: 'Ответ', replyToId: 'orig-st' }, 'key-st');
 
       expect(repo.insertMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -369,7 +376,7 @@ describe('MessagesService', () => {
     it('обычная отправка: seq, вложения, гашение черновика/снуза, активность, MESSAGE_SENT', async () => {
       const body: SendMessageBody = { text: 'Привет', attachmentIds: ['att-1'] };
 
-      const result = await service.send(ME, CONV, body, 'key-5');
+      const result = await service.send(ACTOR, CONV, body, 'key-5');
 
       expect(result).toMatchObject({ replayed: false, message: { id: 'msg-new' } });
       expect(repo.insertMessage).toHaveBeenCalledWith(

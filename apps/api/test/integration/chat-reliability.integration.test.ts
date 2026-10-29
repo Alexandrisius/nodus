@@ -62,7 +62,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const key = `race-dup-${fx.runId}`;
       const attempts = await Promise.allSettled(
         Array.from({ length: 10 }, () =>
-          messages.send(fx.users.alice.id, conv, { text: 'гонка дубля' }, key),
+          messages.send(
+            { id: fx.users.alice.id, permissions: [] },
+            conv,
+            { text: 'гонка дубля' },
+            key,
+          ),
         ),
       );
       expect(reasons(attempts)).toBe('');
@@ -93,7 +98,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         for (let i = 1; i <= 4; i += 1) {
           sends.push(
             messages.send(
-              fx.users[tag].id,
+              { id: fx.users[tag].id, permissions: [] },
               conv,
               { text: `${tag}-${i}` },
               `race-20-${fx.runId}-${tag}-${i}`,
@@ -172,7 +177,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(await sentCount()).toBe(0);
 
       // Успешная отправка: message_sent в той же транзакции (+1, не отложенно).
-      await messages.send(fx.users.alice.id, conv, { text: 'атомарно' }, `atomic-${fx.runId}`);
+      await messages.send(
+        { id: fx.users.alice.id, permissions: [] },
+        conv,
+        { text: 'атомарно' },
+        `atomic-${fx.runId}`,
+      );
       expect(await sentCount()).toBe(1);
       expect(await fx.prisma.message.count({ where: { conversationId: conv } })).toBe(1);
 
@@ -180,7 +190,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       // ни строки, ни события, выделенный seq возвращается (last_seq не растёт).
       const otherConv = await makeGroup();
       const foreignRoot = await messages.send(
-        fx.users.bob.id,
+        { id: fx.users.bob.id, permissions: [] },
         otherConv,
         { text: 'чужой корень' },
         `atomic-root-${fx.runId}`,
@@ -193,7 +203,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       };
       await expect(
         messages.send(
-          fx.users.alice.id,
+          { id: fx.users.alice.id, permissions: [] },
           conv,
           { text: 'сломано', threadRootId: foreignRoot.message.id },
           `atomic-fail-${fx.runId}`,
@@ -209,8 +219,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
     it('курсор прочтения монотонен: stale-квитанция не откатывает watermark', async () => {
       const { alice, bob } = fx.users;
       const conv = (await conversations.findOrCreateDirect(alice.id, bob.id)).item.id;
-      await messages.send(alice.id, conv, { text: 'первое' }, `cursor-1-${fx.runId}`);
-      await messages.send(alice.id, conv, { text: 'второе' }, `cursor-2-${fx.runId}`);
+      await messages.send(
+        { id: alice.id, permissions: [] },
+        conv,
+        { text: 'первое' },
+        `cursor-1-${fx.runId}`,
+      );
+      await messages.send(
+        { id: alice.id, permissions: [] },
+        conv,
+        { text: 'второе' },
+        `cursor-2-${fx.runId}`,
+      );
 
       const lastReadSeq = async () => {
         const rows = await fx.prisma.$queryRaw<{ last_read_seq: bigint }[]>(
@@ -236,7 +256,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const { alice, bob } = fx.users;
       const conv = (await conversations.findOrCreateDirect(alice.id, bob.id)).item.id;
       const message = await messages.send(
-        alice.id,
+        { id: alice.id, permissions: [] },
         conv,
         { text: 'черновик решения' },
         `edit-cycle-${fx.runId}`,
@@ -270,12 +290,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const src = await makeGroup();
       const dst = await makeGroup();
       const s1 = await messages.send(
-        alice.id,
+        { id: alice.id, permissions: [] },
         src,
         { text: 'файл отчёта' },
         `fwd-src-1-${fx.runId}`,
       );
-      const s2 = await messages.send(alice.id, src, { text: 'таблица' }, `fwd-src-2-${fx.runId}`);
+      const s2 = await messages.send(
+        { id: alice.id, permissions: [] },
+        src,
+        { text: 'таблица' },
+        `fwd-src-2-${fx.runId}`,
+      );
 
       const path = `/chat/conversations/${dst}/forward`;
       const body = {
@@ -312,7 +337,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
     it('уникальность (author_id, client_message_id) на уровне БД → P2002', async () => {
       const conv = await makeGroup();
       const key = `p2002-${fx.runId}`;
-      const sent = await messages.send(fx.users.alice.id, conv, { text: 'оригинал' }, key);
+      const sent = await messages.send(
+        { id: fx.users.alice.id, permissions: [] },
+        conv,
+        { text: 'оригинал' },
+        key,
+      );
 
       await expect(
         fx.prisma.message.create({

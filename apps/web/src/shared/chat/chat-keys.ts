@@ -20,6 +20,8 @@ export const chatKeys = {
   /** Беседа задачи (#252): find-or-create по задаче для карточки. */
   byTask: (taskId: string) => [...chatKeys.conversations(), 'task', taskId] as const,
   byLetter: (letterId: string) => [...chatKeys.conversations(), 'letter', letterId] as const,
+  /** Канал проекта (#52): find-or-create по проекту; не участнику — 404. */
+  byProject: (projectId: string) => [...chatKeys.conversations(), 'project', projectId] as const,
   /** Вкладка мессенджера (#252): серверный фильтр и своя пагинация; под
    *  префиксом conversations() — общие инвалидации списка её достают. */
   scoped: (scope: ConversationScope) => [...chatKeys.conversations(), 'scope', scope] as const,

@@ -66,11 +66,15 @@ export type TaskCreatedPayload = z.infer<typeof taskCreatedPayloadSchema>;
 
 /** Правка полей: список изменённых ключей (значения — дочитываются API).
  *  Кастомные поля (#431): в `fields` — ключи `cf.<id>`, реальные изменения
- *  значений — в `customFieldChanges` (long_text обрезан до 500, ≤ 50). */
+ *  значений — в `customFieldChanges` (long_text обрезан до 500, ≤ 50).
+ *  `projectId`/`previousProjectId` (#52): перенос задачи между проектами —
+ *  обе проекции участников пересчитываются (optional — старые события). */
 export const taskUpdatedPayloadSchema = taskEventBaseSchema.extend({
   fields: z.array(z.string()),
   title: z.string().optional(),
   deadline: z.iso.datetime().nullable().optional(),
+  projectId: z.uuid().nullable().optional(),
+  previousProjectId: z.uuid().nullable().optional(),
   customFieldChanges: z.array(customFieldChangeSchema).max(CUSTOM_FIELD_LIMITS.changes).optional(),
 });
 export type TaskUpdatedPayload = z.infer<typeof taskUpdatedPayloadSchema>;
@@ -121,6 +125,8 @@ export const taskAssignedPayloadSchema = taskEventBaseSchema.extend({
   title: z.string(),
   assigneeId: z.uuid(),
   previousAssigneeId: z.uuid().nullable(),
+  /** Проект задачи (#52): проекция участников проекта слушает. */
+  projectId: z.uuid().nullable(),
 });
 export type TaskAssignedPayload = z.infer<typeof taskAssignedPayloadSchema>;
 
@@ -128,8 +134,16 @@ export const taskParticipantsChangedPayloadSchema = taskEventBaseSchema.extend({
   title: z.string(),
   added: z.array(z.object({ userId: z.uuid(), role: z.enum(['coexecutor', 'observer']) })),
   removed: z.array(z.uuid()),
+  /** Проект задачи (#52): проекция участников проекта слушает. */
+  projectId: z.uuid().nullable(),
 });
 export type TaskParticipantsChangedPayload = z.infer<typeof taskParticipantsChangedPayloadSchema>;
+
+/** Удаление задачи: проекции (канал, участники проекта) распускают состав. */
+export const taskDeletedPayloadSchema = taskEventBaseSchema.extend({
+  projectId: z.uuid().nullable(),
+});
+export type TaskDeletedPayload = z.infer<typeof taskDeletedPayloadSchema>;
 
 export const taskOverduePayloadSchema = taskEventBaseSchema.extend({
   title: z.string(),

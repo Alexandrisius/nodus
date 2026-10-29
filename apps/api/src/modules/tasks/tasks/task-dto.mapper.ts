@@ -10,6 +10,7 @@ import type {
   TaskStage,
   TaskSystemState,
   UserRef,
+  ProjectRef,
 } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
@@ -22,6 +23,11 @@ import {
   type CatalogStage,
   type ProcessCatalogReader,
 } from '../../workflows/ports/process-catalog-reader.port.js';
+import {
+  PROJECT_READER,
+  type ProjectActor,
+  type ProjectReader,
+} from '../../projects/ports/project-reader.port.js';
 import type { TaskListRow } from './task-row.js';
 
 export type RefMap = Map<string, UserRef>;
@@ -89,16 +95,17 @@ export function selfChainNode(row: {
 }
 
 /**
- * Строки задач → DTO контракта (projectRef — null до бэкенда проектов,
- * ступень 3: projectId хранится, привязка отдаётся с появлением модуля).
- * Профили — одним батчем через read-порт (ADR-0012); тип и стадия — батчем
- * через read-порт «Процессов» (ADR-0024: FK между модулями нет).
+ * Строки задач → DTO контракта. Профили — одним батчем через read-порт
+ * (ADR-0012); тип и стадия — батчем через read-порт «Процессов»
+ * (ADR-0024: FK между модулями нет); проект задачи — read-порт проектов
+ * (#52 Р13): ссылка видна только тому, кому виден сам проект.
  */
 @Injectable()
 export class TaskDtoMapper {
   constructor(
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
+    @Inject(PROJECT_READER) private readonly projects: ProjectReader,
   ) {}
 
   async refs(userIds: Iterable<string>, tx?: TransactionClient): Promise<RefMap> {
@@ -126,15 +133,31 @@ export class TaskDtoMapper {
     };
   }
 
-  async toListItems(rows: TaskListRow[], tx?: TransactionClient): Promise<TaskListItem[]> {
-    const [map, catalog] = await Promise.all([
+  async toListItems(
+    rows: TaskListRow[],
+    tx?: TransactionClient,
+    actor?: ProjectActor,
+  ): Promise<TaskListItem[]> {
+    const [map, catalog, projectMap] = await Promise.all([
       this.refs(this.userIdsOf(rows), tx),
       this.catalogOf(rows),
+      actor
+        ? this.projects
+            .refsFor(actor, [
+              ...new Set(rows.map((r) => r.projectId).filter((id): id is string => Boolean(id))),
+            ])
+            .then((refs) => new Map(refs.map((ref) => [ref.id, ref])))
+        : Promise.resolve(new Map<string, ProjectRef>()),
     ]);
-    return rows.map((r) => this.toListItem(r, map, catalog));
+    return rows.map((r) => this.toListItem(r, map, catalog, projectMap));
   }
 
-  toListItem(r: TaskListRow, map: RefMap, catalog: CatalogMaps): TaskListItem {
+  toListItem(
+    r: TaskListRow,
+    map: RefMap,
+    catalog: CatalogMaps,
+    projects: ReadonlyMap<string, ProjectRef> = new Map(),
+  ): TaskListItem {
     return {
       id: r.id,
       number: r.number,
@@ -149,7 +172,8 @@ export class TaskDtoMapper {
       participants: r.participants
         .filter((p) => p.role === 'coexecutor')
         .map((p) => this.ref(map, p.userId)),
-      project: null,
+      // Секретный проект без участия смотрящего — null, без оракула (Т1).
+      project: r.projectId ? (projects.get(r.projectId) ?? null) : null,
       parentId: r.parentId,
       spentMinutes: r.spentMinutes,
       commentsCount: r.commentsCount,

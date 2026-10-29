@@ -10,6 +10,7 @@ import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
+const ACTOR = { id: ME, permissions: [] as string[] };
 const PEER = 'peer-1';
 const TX = 'tx-handle';
 
@@ -135,6 +136,7 @@ describe('MessagesService.send: стикер (#143)', () => {
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
       { enqueue: vi.fn(async () => undefined) } as never,
+      { canPost: vi.fn(async () => true) } as never,
     );
   });
 
@@ -175,7 +177,7 @@ describe('MessagesService.send: стикер (#143)', () => {
       stickerMeta: { packId: 'pack-1', packTitle: 'Мемы', packScope: 'personal', emojis: ['🔥'] },
     });
 
-    await service.send(ME, CONV, body, 'key-st');
+    await service.send(ACTOR, CONV, body, 'key-st');
 
     expect(stickersRepo.insertAttachmentForMessage).toHaveBeenCalledWith(
       'msg-new',
@@ -203,14 +205,14 @@ describe('MessagesService.send: стикер (#143)', () => {
     });
     stickersRepo.findPackAccessible.mockResolvedValue(null);
     await expect(
-      service.send(ME, CONV, { text: '', stickerId: 'st-9' }, 'key-st2'),
+      service.send(ACTOR, CONV, { text: '', stickerId: 'st-9' }, 'key-st2'),
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
     expect(repo.insertMessage).not.toHaveBeenCalled();
   });
 
   it('стикер + текст одновременно → VALIDATION_FAILED (монолитность модели Telegram)', async () => {
     await expect(
-      service.send(ME, CONV, { text: 'заодно', stickerId: 'st-1' }, 'key-st3'),
+      service.send(ACTOR, CONV, { text: 'заодно', stickerId: 'st-1' }, 'key-st3'),
     ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
     expect(stickersRepo.findSticker).not.toHaveBeenCalled();
   });
@@ -218,7 +220,7 @@ describe('MessagesService.send: стикер (#143)', () => {
   it('несуществующий стикер → NOT_FOUND до вставки сообщения', async () => {
     stickersRepo.findSticker.mockResolvedValue(null);
     await expect(
-      service.send(ME, CONV, { text: '', stickerId: 'st-404' }, 'key-st4'),
+      service.send(ACTOR, CONV, { text: '', stickerId: 'st-404' }, 'key-st4'),
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
     expect(repo.insertMessage).not.toHaveBeenCalled();
   });

@@ -130,6 +130,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
       { enqueue: vi.fn(async () => undefined) } as never,
+      { canPost: vi.fn(async () => true) } as never,
     );
   });
 

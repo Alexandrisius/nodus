@@ -24,7 +24,16 @@ const baseRoles: RoleBase[] = [
     name: 'Администратор',
     description: 'Полный доступ к порталу',
     isSystem: true,
-    permissions: sorted(...Object.values(Permission)),
+    // Секретные проекты и публикация в канал проекта — НЕ в дефолте админа
+    // (#52, ADR-0030): надзор — роль «Системный надзор», объявления —
+    // руководство проекта/точечная выдача. Зеркало `all-permissions.ts`.
+    permissions: sorted(
+      ...Object.values(Permission).filter(
+        (permission) =>
+          permission !== Permission.PROJECT_VIEW_SECRET &&
+          permission !== Permission.PROJECT_CHANNEL_POST,
+      ),
+    ),
   },
   {
     id: rid(2),
@@ -32,7 +41,12 @@ const baseRoles: RoleBase[] = [
     name: 'Руководитель',
     description: 'Руководитель подразделения: постановка и назначение задач',
     isSystem: true,
-    permissions: sorted(Permission.DIRECTORY_READ, Permission.TASK_ASSIGN, Permission.TASK_CREATE),
+    permissions: sorted(
+      Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
+      Permission.TASK_ASSIGN,
+      Permission.TASK_CREATE,
+    ),
   },
   {
     id: rid(3),
@@ -40,7 +54,11 @@ const baseRoles: RoleBase[] = [
     name: 'Сотрудник',
     description: 'Базовая роль: чтение справочника, работа с задачами',
     isSystem: true,
-    permissions: sorted(Permission.DIRECTORY_READ, Permission.TASK_CREATE),
+    permissions: sorted(
+      Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
+      Permission.TASK_CREATE,
+    ),
   },
   {
     id: rid(4),
@@ -48,7 +66,11 @@ const baseRoles: RoleBase[] = [
     name: 'Модератор портала',
     description: 'Модерация мессенджера: удаление любых сообщений в группах и каналах',
     isSystem: true,
-    permissions: sorted(Permission.CHAT_MODERATE, Permission.DIRECTORY_READ),
+    permissions: sorted(
+      Permission.CHAT_MODERATE,
+      Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
+    ),
   },
   // «Канцелярия» — системная (#55, Р13; ADR-0033 доп. п.3): регистрирует
   // письма и ведёт справочник контрагентов.
@@ -63,6 +85,7 @@ const baseRoles: RoleBase[] = [
       Permission.CRM_CREATE,
       Permission.CRM_MANAGE,
       Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
     ),
   },
   {
@@ -73,6 +96,7 @@ const baseRoles: RoleBase[] = [
     isSystem: false,
     permissions: sorted(
       Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
       Permission.TASK_ASSIGN,
       Permission.TASK_CREATE,
       Permission.TASK_VIEW_ALL,
@@ -88,6 +112,7 @@ const baseRoles: RoleBase[] = [
       Permission.CUSTOM_FIELD_MANAGE,
       Permission.DICTIONARY_MANAGE,
       Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
       Permission.TASK_CREATE,
       Permission.WORKFLOW_MANAGE,
     ),
@@ -98,7 +123,7 @@ const baseRoles: RoleBase[] = [
     name: 'Временная роль',
     description: 'Демо: роль удалил другой администратор — изменение не сохранится',
     isSystem: false,
-    permissions: sorted(Permission.DIRECTORY_READ),
+    permissions: sorted(Permission.DIRECTORY_READ, Permission.PROJECT_CREATE),
   },
   // «Руководство» (#55, Р13): держатели `correspondence.resolve` — первые в
   // списке адресатов при регистрации письма.
@@ -108,7 +133,11 @@ const baseRoles: RoleBase[] = [
     name: 'Руководство',
     description: 'Принимают решения по письмам: первые в списке адресатов',
     isSystem: false,
-    permissions: sorted(Permission.CORRESPONDENCE_RESOLVE, Permission.DIRECTORY_READ),
+    permissions: sorted(
+      Permission.CORRESPONDENCE_RESOLVE,
+      Permission.DIRECTORY_READ,
+      Permission.PROJECT_CREATE,
+    ),
   },
 ];
 

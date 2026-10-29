@@ -22,7 +22,7 @@ import {
   findLetter,
   type DemoLetter,
 } from '../../../../shared/mocks/data/letters.js';
-import { demoProjects } from '../../../../shared/mocks/data/projects.js';
+import { demoProjects } from '../../../../shared/mocks/data/project-views.js';
 import { demoUserListItems } from '../../../../shared/mocks/data/users.js';
 import { resolveCounterpartyRef } from '../../../../shared/mocks/live-counterparty.js';
 

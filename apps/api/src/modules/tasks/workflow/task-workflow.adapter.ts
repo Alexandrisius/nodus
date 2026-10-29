@@ -20,6 +20,7 @@ import {
   type CustomFieldRegistry,
 } from '../../custom-fields/ports/custom-field-registry.port.js';
 import { actorRoles, planHolderIds } from '../access/task-access.js';
+import { TaskProjectRights } from '../access/task-project-rights.js';
 import { Placements } from '../personal/placements.js';
 import { TaskFactsRepository } from '../tasks/task-facts.repository.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
@@ -51,6 +52,7 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     private readonly forms: TaskFormApplier,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    private readonly projectRights: TaskProjectRights,
   ) {}
 
   lock(tx: TransactionClient, taskId: string): Promise<void> {
@@ -63,7 +65,11 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     actor: WorkflowActor,
   ): Promise<WorkflowActorSubject> {
     const task = await this.tasks.findWithParticipants(taskId, tx);
-    const roles = actorRoles(task, actor.id);
+    const roles = await this.projectRights.supplement(
+      actorRoles(task, actor.id),
+      actor.id,
+      task.projectId,
+    );
     const facts = await this.facts.gateFacts(taskId, tx);
     const { resultMessageIds, ...gateFacts } = facts;
     // Реестр атрибутов области (#431, Р7): гейт «Заполнены поля» знает,

@@ -50,6 +50,8 @@ export interface TaskFieldsPatch {
   deadline?: Date | null;
   overdueNotifiedAt?: null;
   assigneeId?: string;
+  /** Перенос задачи между проектами (#52 Р4). */
+  projectId?: string | null;
   /** Полный набор значений кастомных атрибутов после правки (#431). */
   customFields?: CustomFieldValues;
 }

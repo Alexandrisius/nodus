@@ -75,7 +75,6 @@ export class DefinitionsService {
   }
 
   async create(dto: CreateCustomFieldBody, actorId: string): Promise<CustomFieldDefinition> {
-    if (dto.type === 'project') throw typeUnavailable('project');
     await this.assertSettingsUsable(dto.type, dto.settings?.dictionaryId, dto.settings?.currencyId);
     // Привязка (#432, Р8): только живые типы своей категории; пусто — атрибут
     // создаётся «нигде не показывается» (осознанный выбор администратора).
@@ -326,10 +325,4 @@ export class DefinitionsService {
 
 function nameTaken(name: string): DomainException {
   return new DomainException(ErrorCode.CUSTOM_FIELD_NAME_TAKEN, 'Field name is taken', { name });
-}
-
-function typeUnavailable(type: string): DomainException {
-  return new DomainException(ErrorCode.CUSTOM_FIELD_TYPE_UNAVAILABLE, 'Field type is unavailable', {
-    type,
-  });
 }

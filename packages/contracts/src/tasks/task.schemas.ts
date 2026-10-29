@@ -8,7 +8,7 @@ import {
 import { customFieldRefSchema } from '../custom-fields/custom-field-refs.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
-import { projectColorSchema } from '../projects/project.schemas.js';
+import { projectRefSchema } from '../projects/project.schemas.js';
 import { processTypeRefSchema } from '../workflows/process-type.schemas.js';
 import { taskCardLayoutSchema } from '../workflows/process-type-config.js';
 import { workflowTransitionSchema } from '../workflows/workflow.schemas.js';
@@ -64,15 +64,6 @@ export const taskStageWithCountSchema = taskStageSchema.extend({
 });
 
 export type TaskStageWithCount = z.infer<typeof taskStageWithCountSchema>;
-
-export const projectRefSchema = z.object({
-  id: z.uuid(),
-  code: z.string().min(1),
-  name: z.string().min(1),
-  color: projectColorSchema,
-});
-
-export type ProjectRef = z.infer<typeof projectRefSchema>;
 
 /** Ссылка на задачу (для связей из других модулей — чат задачи и пр.). */
 export const taskRefSchema = z.object({
@@ -280,6 +271,9 @@ export const taskUpdateBodySchema = z
     plannedMinutes: z.number().int().min(1).max(100_000).nullable().optional(),
     assigneeId: z.uuid().optional(),
     parentId: z.uuid().nullable().optional(),
+    /** Перенос задачи в другой проект (или из проекта — null; #52): сервер
+     *  проверяет видимость проекта актёру, состав секретного и архивность. */
+    projectId: z.uuid().nullable().optional(),
     /** Патч значений кастомных полей: `null` — очистить поле (#431). */
     customFields: customFieldValuesPatchSchema.optional(),
   })

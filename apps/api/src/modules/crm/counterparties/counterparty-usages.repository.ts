@@ -10,6 +10,12 @@ export interface LetterUsage {
   contactId: string | null;
 }
 
+/** Использование контрагента проектом (#52, Р13): заказчик договора. */
+export interface ProjectUsage {
+  sourceId: string;
+  counterpartyId: string;
+}
+
 /**
  * Проекция «кто ссылается на контрагента» (#55, ADR-0033 п.3): строки
  * `counterparty_usages` по письмам пишет обработчик событий корреспонденции.
@@ -60,6 +66,26 @@ export class CounterpartyUsagesRepository {
       select: { contactId: true },
     });
     return row !== null;
+  }
+
+  /** Проект создан/переписан с заказчиком: строка проекции upsert-ом. */
+  async upsertProject(usage: ProjectUsage): Promise<void> {
+    await this.prisma.counterpartyUsage.upsert({
+      where: { sourceKind_sourceId: { sourceKind: 'project', sourceId: usage.sourceId } },
+      update: { counterpartyId: usage.counterpartyId, updatedAt: new Date() },
+      create: {
+        sourceKind: 'project',
+        sourceId: usage.sourceId,
+        counterpartyId: usage.counterpartyId,
+      },
+    });
+  }
+
+  /** Проект без заказчика больше не «использует» контрагента. */
+  async deleteProject(sourceId: string): Promise<void> {
+    await this.prisma.counterpartyUsage.deleteMany({
+      where: { sourceKind: 'project', sourceId },
+    });
   }
 
   /** Для тестов и фоновой сверки: строка использования письма. */

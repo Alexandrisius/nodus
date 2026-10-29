@@ -16,6 +16,7 @@ import { DefinitionsRepository } from '../definitions/definitions.repository.js'
 import { CustomFieldDefaults } from '../values/defaults.js';
 import { CustomFieldRefsHydrator } from '../values/refs-hydrator.js';
 import { CustomFieldValueValidator, type CustomFieldIssue } from '../values/value-validator.js';
+import type { ProjectActor } from '../../projects/ports/project-reader.port.js';
 import type {
   CustomFieldRegistry,
   PrepareCreateArgs,
@@ -83,7 +84,7 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
       );
     }
 
-    const issues = await this.validator.validate(scope, definitions, args.input, tx);
+    const issues = await this.validator.validate(scope, definitions, args.input, tx, args.actor);
     if (issues.length > 0) throw invalidValues(issues);
     return { ...cleanDefaults, ...args.input };
   }
@@ -105,7 +106,7 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
     // снятие привязки не должно блокировать уборку старого значения (Р8).
     const unbound = args.typeId === undefined ? [] : unboundIssues(all, definitions, changed);
     if (unbound.length > 0) throw invalidValues(unbound);
-    const issues = await this.validator.validate(scope, definitions, changed, tx);
+    const issues = await this.validator.validate(scope, definitions, changed, tx, args.actor);
     if (issues.length > 0) throw invalidValues(issues);
 
     const next: CustomFieldValues = { ...args.current };
@@ -128,11 +129,12 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
   async refs(
     scope: CustomFieldScope,
     values: CustomFieldValues,
+    actor: ProjectActor,
     tx?: TransactionClient,
   ): Promise<CustomFieldRef[]> {
     if (Object.keys(values).length === 0) return [];
     const definitions = await this.definitions(scope, {}, tx);
-    return this.hydrator.hydrate(definitions, values, tx);
+    return this.hydrator.hydrate(definitions, values, actor, tx);
   }
 }
 

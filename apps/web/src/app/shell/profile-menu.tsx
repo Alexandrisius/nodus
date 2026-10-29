@@ -1,5 +1,5 @@
-import { LogOut } from 'lucide-react';
-import { ui } from '@nodus/contracts';
+import { LogOut, Settings } from 'lucide-react';
+import { Permission, ui } from '@nodus/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 
 import { useAuthStore } from '../../shared/auth-store.js';
+import { openPortalSettings } from '../../shared/projects/portal-settings-store.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 
 /**
@@ -24,6 +25,7 @@ import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 export function ProfileMenu() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const canManagePortal = user?.permissions.includes(Permission.PROJECT_SETUP_MANAGE) ?? false;
 
   return (
     <DropdownMenu>
@@ -43,6 +45,12 @@ export function ProfileMenu() {
         <DropdownMenuLabel>{user?.displayName}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          {canManagePortal ? (
+            <DropdownMenuItem onClick={() => openPortalSettings()}>
+              <Settings data-icon="inline-start" />
+              {ui.projects.settingsTitle}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onClick={() => void logout()}>
             <LogOut data-icon="inline-start" />
             {ui.topbar.logout}

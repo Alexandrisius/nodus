@@ -88,13 +88,22 @@ function makeValidator(opts: { activeCounterparties?: string[] } = {}) {
         : null,
     ),
   };
+  const projects = {
+    viewScopeFor: vi.fn(
+      async (): Promise<{ visibleProjectIds: string[]; hiddenProjectIds: string[] }> => ({
+        visibleProjectIds: [],
+        hiddenProjectIds: [],
+      }),
+    ),
+  };
   const validator = new CustomFieldValueValidator(
     users as never,
     org as never,
     dictionaries as never,
     counterparties as never,
+    projects as never,
   );
-  return { validator, users, org, dictionaries, counterparties };
+  return { validator, projects, users, org, dictionaries, counterparties };
 }
 
 describe('CustomFieldValueValidator (#431)', () => {
@@ -195,11 +204,42 @@ describe('CustomFieldValueValidator (#431)', () => {
     expect(issues[0]?.reason).toBe('not_found');
   });
 
-  it('проект до #52 — not_found: значение принять некуда', async () => {
-    const { validator } = makeValidator();
+  it('проект (#52 Р13): видимый актёру — принят; невидимый/без актёра — not_found', async () => {
+    const { validator, projects } = makeValidator();
+    const actor = { id: 'u-1', permissions: [] };
     const project = definition({ id: 'f-project', type: 'project' });
-    const issues = await validator.validate('task', [project], { 'f-project': COUNTERPARTY });
-    expect(issues[0]?.reason).toBe('not_found');
+    const VISIBLE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+    projects.viewScopeFor.mockResolvedValueOnce({
+      visibleProjectIds: [VISIBLE],
+      hiddenProjectIds: [],
+    });
+    const ok = await validator.validate(
+      'task',
+      [project],
+      { 'f-project': VISIBLE },
+      undefined,
+      actor,
+    );
+    expect(ok).toEqual([]);
+    expect(projects.viewScopeFor).toHaveBeenCalledWith(actor);
+
+    projects.viewScopeFor.mockResolvedValueOnce({
+      visibleProjectIds: [],
+      hiddenProjectIds: [VISIBLE],
+    });
+    const rejected = await validator.validate(
+      'task',
+      [project],
+      { 'f-project': VISIBLE },
+      undefined,
+      actor,
+    );
+    expect(rejected[0]).toMatchObject({ fieldId: 'f-project', reason: 'not_found' });
+
+    // без актёра значения-проекты не принимаются (служебные пути их не пишут)
+    const noActor = await validator.validate('task', [project], { 'f-project': VISIBLE });
+    expect(noActor[0]?.reason).toBe('not_found');
   });
 
   it('больше 50 ключей — отказ без обращения к портам', async () => {

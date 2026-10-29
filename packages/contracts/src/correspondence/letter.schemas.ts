@@ -8,7 +8,8 @@ import {
 } from '../custom-fields/custom-field-values.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
-import { projectRefSchema, taskStageSchema } from '../tasks/task.schemas.js';
+import { projectRefSchema } from '../projects/project.schemas.js';
+import { taskStageSchema } from '../tasks/task.schemas.js';
 import { letterDirectionSchema, processTypeRefSchema } from '../workflows/process-type.schemas.js';
 import { LETTER_LIMITS } from './letter-registration.schemas.js';
 

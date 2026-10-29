@@ -4,47 +4,84 @@ import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDate, formatDateTimeShort } from '../lib/format.js';
+import { primaryProjectRole } from '../lib/project-role.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { monoCell, PersonCell } from '../ui/person-cell.js';
 import { ProjectIdentityIcon } from '../ui/project-identity-icon.js';
 import type { DataTableField } from './data-table.js';
 
-/** Роль текущего пользователя — чип: руководитель — success, участник — muted. */
+/** Роль текущего пользователя — чип: руководитель — success, помощник —
+ *  info, участник/наблюдатель — muted. Не участвую — прочерк. */
 export function ProjectRoleChip({ project }: { project: ProjectListItem }) {
+  const role = primaryProjectRole(project.myMembership);
+  if (!role) return <span className={monoCell}>—</span>;
+  const tone = role === 'manager' ? 'success' : role === 'assistant' ? 'info' : 'muted';
   return (
-    <NodeChip tone={project.myRole === 'manager' ? 'success' : 'muted'} className="shrink-0">
-      {ui.projects.myRole[project.myRole]}
+    <NodeChip tone={tone} className="shrink-0">
+      {ui.projects.role[role]}
     </NodeChip>
   );
 }
 
-/** Приватность — чип: закрытый проект с замком. */
-export function ProjectPrivacyChip({ project }: { project: ProjectListItem }) {
+/** Видимость — чип: секретный с замком. */
+export function ProjectVisibilityChip({ project }: { project: ProjectListItem }) {
   return (
-    <NodeChip tone="muted" className="shrink-0">
-      {project.privacy === 'closed' ? <Lock className="size-3" /> : null}
-      {ui.projects.privacy[project.privacy]}
+    <NodeChip tone={project.visibility === 'secret' ? 'warning' : 'muted'} className="shrink-0">
+      {project.visibility === 'secret' ? <Lock className="size-3" /> : null}
+      {ui.projects.visibility[project.visibility]}
     </NodeChip>
+  );
+}
+
+/** Статус — чип: действует — success, завершён — info, архив — muted. */
+export function ProjectStatusChip({ project }: { project: ProjectListItem }) {
+  const tone =
+    project.status === 'active' ? 'success' : project.status === 'completed' ? 'info' : 'muted';
+  return (
+    <NodeChip tone={tone} className="shrink-0">
+      {ui.projects.status[project.status]}
+    </NodeChip>
+  );
+}
+
+function MemberPreview({ project }: { project: ProjectListItem }) {
+  return (
+    <>
+      <span className="flex shrink-0 -space-x-1.5">
+        {project.membersPreview.slice(0, 4).map((member) => (
+          <PersonAvatar
+            key={member.id}
+            name={member.displayName}
+            avatarUrl={member.avatarUrl}
+            className="size-6 ring-2 ring-background"
+          />
+        ))}
+      </span>
+      <span className={monoCell}>{project.membersCount}</span>
+    </>
   );
 }
 
 /**
- * ЕДИНЫЙ реестр колонок списка проектов (стандарт владельца, раунд 3):
- * журнал проектов (viewKey `projects.list`) и проекты сотрудника в его
- * карточке (свой viewKey) — реестр один, память колонок раздельная.
- * Новое поле модуля = +1 запись здесь (шестерёнка + ручка ресайза).
+ * ЕДИНЫЙ реестр колонок списка проектов (стандарт списков): журнал проектов
+ * (`projects.list`) и проекты сотрудника/контрагента в их карточках — реестр
+ * один, память колонок раздельная. Новое поле модуля = +1 запись здесь
+ * (шестерёнка + ручка ресайза).
  */
 export const projectListFields: DataTableField<ProjectListItem>[] = [
   {
     id: 'code',
     label: ui.projects.fieldCode,
     defaultVisible: true,
-    defaultWidth: 88,
+    defaultWidth: 96,
     minWidth: 64,
-    maxWidth: 140,
-    render: (project) => (
-      <span className="font-mono text-label-sm tabular-nums">{project.code}</span>
-    ),
+    maxWidth: 160,
+    render: (project) =>
+      project.code ? (
+        <span className="font-mono text-label-sm tabular-nums">{project.code}</span>
+      ) : (
+        <span className={monoCell}>—</span>
+      ),
     sortValue: (project) => project.code,
   },
   {
@@ -65,21 +102,90 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
   },
   {
     id: 'myRole',
-    label: ui.projects.myRoleLabel,
+    label: ui.projects.filterRole,
     defaultVisible: true,
-    defaultWidth: 208,
-    minWidth: 168,
+    defaultWidth: 132,
+    minWidth: 104,
     render: (project) => <ProjectRoleChip project={project} />,
-    sortValue: (project) => project.myRole,
+    sortValue: (project) => primaryProjectRole(project.myMembership),
   },
   {
     id: 'manager',
     label: ui.projects.manager,
     defaultVisible: true,
-    defaultWidth: 170,
+    defaultWidth: 180,
     minWidth: 110,
     render: (project) => <PersonCell user={project.manager} />,
     sortValue: (project) => project.manager?.displayName ?? null,
+  },
+  {
+    id: 'assistants',
+    label: ui.projects.assistants,
+    defaultVisible: false,
+    defaultWidth: 132,
+    minWidth: 96,
+    render: (project) =>
+      project.assistants.length === 0 ? (
+        <span className={monoCell}>—</span>
+      ) : (
+        <span className="flex shrink-0 -space-x-1.5">
+          {project.assistants.slice(0, 4).map((assistant) => (
+            <PersonAvatar
+              key={assistant.id}
+              name={assistant.displayName}
+              avatarUrl={assistant.avatarUrl}
+              className="size-6 ring-2 ring-background"
+            />
+          ))}
+        </span>
+      ),
+    sortValue: (project) => project.assistants.length,
+  },
+  {
+    id: 'portfolio',
+    label: ui.projects.filterPortfolio,
+    defaultVisible: true,
+    defaultWidth: 168,
+    minWidth: 120,
+    render: (project) =>
+      project.portfolio ? (
+        <span className="truncate text-sm">{project.portfolio.name}</span>
+      ) : (
+        <span className={monoCell}>—</span>
+      ),
+    sortValue: (project) => project.portfolio?.name ?? null,
+  },
+  {
+    id: 'type',
+    label: ui.projects.fieldType,
+    defaultVisible: false,
+    defaultWidth: 120,
+    minWidth: 96,
+    render: (project) =>
+      project.type ? (
+        <span className="truncate text-sm">{project.type.name}</span>
+      ) : (
+        <span className={monoCell}>—</span>
+      ),
+    sortValue: (project) => project.type?.name ?? null,
+  },
+  {
+    id: 'visibility',
+    label: ui.projects.fieldVisibility,
+    defaultVisible: true,
+    defaultWidth: 124,
+    minWidth: 104,
+    render: (project) => <ProjectVisibilityChip project={project} />,
+    sortValue: (project) => project.visibility,
+  },
+  {
+    id: 'status',
+    label: ui.projects.fieldStatus,
+    defaultVisible: true,
+    defaultWidth: 128,
+    minWidth: 104,
+    render: (project) => <ProjectStatusChip project={project} />,
+    sortValue: (project) => project.status,
   },
   {
     id: 'members',
@@ -87,30 +193,22 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     defaultVisible: true,
     defaultWidth: 168,
     minWidth: 120,
-    render: (project) => (
-      <>
-        <span className="flex shrink-0 -space-x-1.5">
-          {project.membersPreview.slice(0, 4).map((member) => (
-            <PersonAvatar
-              key={member.id}
-              name={member.displayName}
-              className="size-6 ring-2 ring-background"
-            />
-          ))}
-        </span>
-        <span className={monoCell}>{project.membersCount}</span>
-      </>
-    ),
+    render: (project) => <MemberPreview project={project} />,
     sortValue: (project) => project.membersCount,
   },
   {
-    id: 'privacy',
-    label: ui.projects.privacyLabel,
-    defaultVisible: true,
-    defaultWidth: 124,
-    minWidth: 104,
-    render: (project) => <ProjectPrivacyChip project={project} />,
-    sortValue: (project) => project.privacy,
+    id: 'client',
+    label: ui.projects.fieldClient,
+    defaultVisible: false,
+    defaultWidth: 200,
+    minWidth: 140,
+    render: (project) =>
+      project.client ? (
+        <span className="truncate text-sm">{project.client.name}</span>
+      ) : (
+        <span className={monoCell}>—</span>
+      ),
+    sortValue: (project) => project.client?.name ?? null,
   },
   {
     id: 'endDate',

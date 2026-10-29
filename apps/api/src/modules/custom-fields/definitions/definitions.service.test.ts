@@ -131,11 +131,11 @@ describe('DefinitionsService.create (#431, Р4)', () => {
     ).rejects.toMatchObject({ code: ErrorCode.CUSTOM_FIELD_LIMIT_REACHED });
   });
 
-  it('тип «Проект» недоступен до модуля проектов — 422', async () => {
+  it('тип «Проект» доступен (#52): атрибут-ссылка на проект создаётся', async () => {
     const { service } = makeService();
     await expect(
       service.create({ scope: 'task', type: 'project', name: 'Проект' } as never, 'actor-1'),
-    ).rejects.toMatchObject({ code: ErrorCode.CUSTOM_FIELD_TYPE_UNAVAILABLE });
+    ).resolves.toBeTruthy();
   });
 
   it('валюта не из системного справочника — 422 VALIDATION_FAILED', async () => {

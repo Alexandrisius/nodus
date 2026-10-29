@@ -66,6 +66,7 @@ export class DefinitionMapper {
     const defaultRefs = await this.refs.hydrate(
       rows.map((row) => this.base(row)),
       staticDefaults,
+      undefined,
       tx,
     );
     const refsByKey = new Map(defaultRefs.map((ref) => [`${ref.kind}:${ref.id}`, ref]));

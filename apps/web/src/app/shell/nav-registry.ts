@@ -144,7 +144,7 @@ export const NAV_MODULES: NavModuleDef[] = [
     to: '/projects',
     label: ui.nav.projects,
     icon: FolderOpen,
-    tabs: [{ id: 'list', label: ui.projects.viewList, search: {}, isActive: () => true }],
+    tabs: [{ id: 'list', label: ui.tasks.viewList, search: {}, isActive: () => true }],
   },
   {
     id: 'chat',
@@ -228,6 +228,13 @@ export const NAV_MODULES: NavModuleDef[] = [
         label: ui.automation.tabFields,
         search: { tab: 'fields' },
         isActive: (s) => s.get('tab') === 'fields',
+      },
+      {
+        id: 'project-types',
+        label: ui.projects.typesTitle,
+        search: { tab: 'project-types' },
+        permission: Permission.PROJECT_SETUP_MANAGE,
+        isActive: (s) => s.get('tab') === 'project-types',
       },
       ...accessTab('automation'),
     ],

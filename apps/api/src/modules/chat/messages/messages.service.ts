@@ -28,6 +28,10 @@ import { ConversationMembersRepository } from '../conversations/conversation-mem
 import { ConversationDraftsRepository } from '../conversations/conversation-drafts.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import {
+  PROJECT_CHAT_READER,
+  type ProjectChatReader,
+} from '../../projects/ports/project-reader.port.js';
+import {
   MessageDtoMapper,
   readEverMentionedUserIds,
   readMentionedUserIds,
@@ -89,6 +93,7 @@ export class MessagesService {
     private readonly stickersRepo: StickersRepository,
     private readonly vault: VaultWriteRepository,
     private readonly thumbnailQueue: ThumbnailQueue,
+    @Inject(PROJECT_CHAT_READER) private readonly projectChat: ProjectChatReader,
   ) {}
 
   // ===== Чтение =====
@@ -210,11 +215,12 @@ export class MessagesService {
    * фиксацией. client_message_id = Idempotency-Key запроса.
    */
   async send(
-    userId: string,
+    actor: { id: string; permissions: readonly string[] },
     conversationId: string,
     body: SendMessageBody,
     idempotencyKey: string | undefined,
   ): Promise<SendResult> {
+    const userId = actor.id;
     const clientMessageId = idempotencyKey ?? randomUUID();
     // @упоминания (#176): токены → активные участники беседы, ДО tx (repro
     // chat-reliability: второе соединение пула внутри tx голодает его).
@@ -258,11 +264,16 @@ export class MessagesService {
 
       // Право постить — только на корневые сообщения ленты; треды открыты
       // всем участникам (модель канала новостей: постят избранные, обсуждают все).
-      if (
-        threadRootId === null &&
-        !can(membership.role as 'owner' | 'admin' | 'member', permissions, 'post')
-      ) {
-        throw DomainException.forbidden('Posting in this conversation requires permission');
+      // Канал проекта (#52 Р8): корневые посты — руководство проекта и
+      // держатели project.channel.post (матрица беседы не знает этих ролей).
+      if (threadRootId === null) {
+        const allowed =
+          conversation.type === 'project_channel' && conversation.projectId
+            ? await this.projectChat.canPost(conversation.projectId, actor)
+            : can(membership.role as 'owner' | 'admin' | 'member', permissions, 'post');
+        if (!allowed) {
+          throw DomainException.forbidden('Posting in this conversation requires permission');
+        }
       }
 
       // Валидация треда: ровно один уровень, корень — этой беседы.
