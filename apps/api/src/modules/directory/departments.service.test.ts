@@ -43,7 +43,7 @@ describe('DepartmentsService', () => {
     findSubtreeIds: vi.fn(),
   };
   const users = { findActiveIdsByDepartmentIds: vi.fn() };
-  const roles = { permissionsByIds: vi.fn(), lockForUpdate: vi.fn() };
+  const roles = { permissionsByIds: vi.fn(), lockForUpdate: vi.fn(), lockByCodeForUpdate: vi.fn() };
   const membership = { effectiveRoleIds: vi.fn() };
   const tx = { run: vi.fn((cb: (t: string) => unknown) => cb('tx-handle')) };
   const eventBus = { emit: vi.fn() };

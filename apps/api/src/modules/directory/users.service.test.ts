@@ -164,6 +164,9 @@ describe('UsersService: создание и правка сотрудника', 
         code: ErrorCode.ROLE_PERMISSION_NOT_HELD,
         details: { permissions: [Permission.WORKFLOW_MANAGE] },
       });
+      // Якорь порядка замков bind-пути: admin первым, затем добавленная роль.
+      expect(roles.lockByCodeForUpdate).toHaveBeenCalledWith('admin', 'tx-handle');
+      expect(roles.lockForUpdate).toHaveBeenCalledWith('role-1', 'tx-handle');
       expect(eventBus.emit).not.toHaveBeenCalled();
     });
 

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ErrorCode, type AuthUser } from '@nodus/contracts';
+import { ErrorCode, SystemRole, type AuthUser } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../core/database/transaction-runner.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
@@ -80,11 +80,15 @@ export class RoleAssignmentGuard {
     tx: TransactionClient,
   ): Promise<void> {
     if (roleIds.length === 0) return;
+    // Единая первая точка замка на всех bind-путях — строка admin (#490):
+    // updateUser/deactivateUser лочат её первой, глобальный порядок замков
+    // однороден — параллельные назначения и правки состава не взаимоблокируются.
+    await this.roles.lockByCodeForUpdate(SystemRole.ADMIN, tx);
     // Замок строк добавляемых ролей (#490, TOCTOU): права читаются ПОД замком —
     // параллельное расширение роли либо коммитится до нас (и bind честно ловит
     // 403 по новым правам), либо после нас, и ответственность за него несёт
     // прошедший свой bind тот, кто расширял. Сортировка — детерминированный
-    // порядок замков: два параллельных назначения не взаимоблокируются.
+    // порядок замков: два параллельных назначения друг с другом не конфликтуют.
     for (const roleId of [...roleIds].sort()) {
       await this.roles.lockForUpdate(roleId, tx);
     }
