@@ -7,7 +7,7 @@ import { useChatSidePanel } from '../../../shared/chat/chat-side-panel.js';
 import { useSplitWidth } from '../../../shared/ui/use-split-width.js';
 import { uiPx } from '../../../shared/ui/ui-scale.js';
 import { useProjectDetail } from '../api/projects-api.js';
-import type { ProjectTabId } from '../lib/project-tabs.js';
+import { primaryTab, type ProjectTabId } from '../lib/project-tabs.js';
 import { ProjectAboutPanel } from './project-about-panel.js';
 import { ProjectActionBar } from './project-action-bar.js';
 import { ProjectCardSkeleton } from './project-card-skeleton.js';
@@ -16,6 +16,7 @@ import { ProjectHistoryTab } from './project-history-tab.js';
 import { ProjectMembersTab } from './project-members-tab.js';
 import { ProjectTabStrip } from './project-tab-strip.js';
 import { ProjectTasksTab } from './project-tasks-tab.js';
+import { StructureTab } from '../structure/components/structure-tab.js';
 import { isProjectParticipant } from './project-chat.js';
 
 /** Полы зон карточки: панель «О проекте» и рабочая зона вкладок. */
@@ -26,20 +27,30 @@ const MIN_WORK_W = uiPx(420);
  * Карточка проекта (#52, ADR-0009; раскладка — вердикт владельца 07.11.2026):
  * СЛЕВА всегда панель «О проекте» (без вкладки — главная панель проекта:
  * идентичность, описание, паспорт, атрибуты) с нижним баром действий, как в
- * задачах и письмах; СПРАВА — рабочая зона с вкладками «Задачи / Канал /
- * Участники / История» и «+» (личный набор; «Чат проекта» появится вместе с
- * пространством проекта, #456). Перегородка тянется с памятью — полоса
- * вкладок едет за границей левой панели. Вкладки монтируются при первом
- * показе и дальше живут скрытыми (`invisible` + `inert`): прокрутка, фильтры
- * и черновик чата не теряются при переключении.
+ * задачах и письмах; СПРАВА — рабочая зона с вкладками «Структура / Задачи /
+ * Канал / Участники / История» и «+» (личный набор; первичная вкладка —
+ * «Структура», когда в дереве есть узлы с задачами, #467; «Чат проекта»
+ * появится вместе с пространством проекта, #456). Перегородка тянется с
+ * памятью — полоса вкладок едет за границей левой панели. Вкладки
+ * монтируются при первом показе и дальше живут скрытыми (`invisible` +
+ * `inert`): прокрутка, фильтры и черновик чата не теряются при переключении.
  */
 export function ProjectCard({ projectId }: { projectId: string }) {
   const { data: project, isLoading } = useProjectDetail(projectId);
   const participant = project ? isProjectParticipant(project) : false;
   const { data: conversation } = useProjectConversation(projectId, participant);
   const channelPanel = useChatSidePanel();
+  // Дефолт вкладки (#467): узлы с задачами → «Структура», иначе «Задачи».
+  // Пока карточка грузится — «Задачи»; после загрузки дефолт доносится
+  // derive-during-render, если пользователь ещё не выбирал сам.
+  const primary = primaryTab(project?.structureSummary.hasTaskNodes ?? false);
   const [tab, setTab] = useState<ProjectTabId>('tasks');
+  const [picked, setPicked] = useState(false);
   const [visited, setVisited] = useState<ProjectTabId[]>(['tasks']);
+  if (!picked && project !== undefined && tab !== primary) {
+    setTab(primary);
+    setVisited([primary]);
+  }
   const aboutRef = useRef<HTMLDivElement>(null);
   const split = useSplitWidth(aboutRef, {
     storeKey: 'nodus-project-card-split-v1',
@@ -49,6 +60,7 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   });
 
   function activate(next: ProjectTabId) {
+    setPicked(true);
     setTab(next);
     setVisited((prev) => (prev.includes(next) ? prev : [...prev, next]));
   }
@@ -100,6 +112,7 @@ export function ProjectCard({ projectId }: { projectId: string }) {
           <ProjectTabStrip
             tab={tab}
             onTab={activate}
+            primary={primary}
             unread={conversation?.unreadCount}
             channelPanel={
               tab === 'channel' && conversationId
@@ -108,6 +121,11 @@ export function ProjectCard({ projectId }: { projectId: string }) {
             }
           />
           <div className="relative min-h-0 flex-1">
+            {visited.includes('structure') ? (
+              <TabPanel active={tab === 'structure'}>
+                <StructureTab projectId={project.id} />
+              </TabPanel>
+            ) : null}
             {visited.includes('tasks') ? (
               <TabPanel active={tab === 'tasks'}>
                 <ProjectTasksTab projectId={project.id} />

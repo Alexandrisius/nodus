@@ -38,15 +38,18 @@ export const projectRefs = {
 /** Личное размещение «Мой план» — из глобальной стадии (ADR-0008); явная
  *  колонка — для демонстрации вольных личных колонок того же состояния.
  *  Значения кастомных полей (#431) — необязательны: у большинства демо-задач
- *  их нет (`{}`), заполненные добавляются точечно. */
+ *  их нет (`{}`), заполненные добавляются точечно. Узел структуры (#467) —
+ *  тоже необязателен: по умолчанию задача вне структуры. */
 export function mk(
-  task: Omit<TaskListItem, 'personalStageId' | 'customFields'> & {
+  task: Omit<TaskListItem, 'personalStageId' | 'customFields' | 'nodeId'> & {
     customFields?: CustomFieldValues;
+    nodeId?: string | null;
   },
   personalStageId?: string,
 ): TaskListItem {
   return {
     ...task,
+    nodeId: task.nodeId ?? null,
     customFields: task.customFields ?? {},
     personalStageId: personalStageId ?? personalStageFor(task.stage),
   };

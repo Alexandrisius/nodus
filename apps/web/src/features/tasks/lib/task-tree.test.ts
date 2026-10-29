@@ -36,6 +36,7 @@ function task(id: string, parentId: string | null = null): TaskListItem {
     participants: [],
     project: null,
     parentId,
+    nodeId: null,
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,

@@ -63,6 +63,7 @@ export const projectCatalogHandlers = [
       id: crypto.randomUUID(),
       name: parsed.data.name,
       codeField: 'optional',
+      levelKindIds: null,
       archivedAt: null,
     };
     demoProjectTypes.push(type);
@@ -83,6 +84,7 @@ export const projectCatalogHandlers = [
     }
     if (parsed.data.name) type.name = parsed.data.name;
     if (parsed.data.codeField) type.codeField = parsed.data.codeField;
+    if (parsed.data.levelKindIds !== undefined) type.levelKindIds = parsed.data.levelKindIds;
     return HttpResponse.json(type);
   }),
 

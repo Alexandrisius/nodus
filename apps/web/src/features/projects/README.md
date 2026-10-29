@@ -37,9 +37,13 @@
   (завершить, в архив с подтверждением, вернуть в работу, передать
   руководство), рядом «Присоединиться/Покинуть» — как в задачах и письмах;
   в архиве правка и передача — только `project.manage`, сервер отклонит (I8).
-- **Полоса вкладок** (`project-tab-strip.tsx`): «Задачи / Канал / Участники /
-  История» + «+» (личный набор вкладок, память `nodus-project-tabs-v1`;
-  «Задачи» — первичная и не скрывается). Тоггл панели «О канале» — на самой
+- **Полоса вкладок** (`project-tab-strip.tsx`): «Структура / Задачи / Канал /
+  Участники / История» + «+» (личный набор вкладок, память
+  `nodus-project-tabs-v2`). Первичная вкладка ДИНАМИЧЕСКАЯ (#467,
+  `lib/project-tabs.ts` → `primaryTab`): «Структура», когда в дереве есть
+  узлы с задачами (`structureSummary.hasTaskNodes` карточки), иначе «Задачи»;
+  первичная не скрывается. Дефолт доносится после загрузки карточки, пока
+  пользователь не выбрал вкладку сам. Тоггл панели «О канале» — на самой
   полосе (второго бара под вкладками нет). «Чат проекта» появится вместе с
   пространством проекта (#456) — до него вкладки нет.
 - Вкладки монтируются при первом показе и дальше живут скрытыми
@@ -48,6 +52,19 @@
   виды «Список» (DataTable `projects.tasks`) и «Канбан» (общий движок
   `shared/ui/board`, ключ `projects.kanban`), primary-кнопка «Создать»
   (окно создания задачи с подставленным проектом), quick-add и DnD.
+- **Структура** (`structure/components/structure-tab.tsx`, #467/ADR-0030):
+  дерево узлов-папок с задачами-листьями (`GET /projects/:id/structure` —
+  узлы + виды уровней срезом целиком; задачи — существующий фид
+  `useProjectTaskPages`, `tasks.nodeId`). Сборка строк и агрегаты поддерева —
+  чистая `structure/lib/structure-tree.ts` (план/факт/ближайший/поздний/
+  прогресс из ПРЯМЫХ rollup узлов, тесты там же); секция «Без узла» внизу.
+  Механика: меню строки (шашка + ПКМ — один реестр `structure-menus.tsx`),
+  окна создания/пачки/правки/переноса, DnD `structure/lib/use-structure-dnd.ts`
+  (узлы и мультиселект задач, зоны четверти, низ раскрытого узла = первым
+  ребёнком, блок циклов, авто-раскрытие 700 мс; строки статичны — только
+  индикация). Перенос задач — bulk `set_node` (одиночного PATCH узла в
+  контракте нет). «Задача» на узле — пресет окна создания
+  (`TaskCreatePrefill.nodeId` + contextLabel, поля «Узел» в форме нет).
 - **Канал** (`project-channel-tab.tsx`, `project-chat.tsx`):
   `GET /chat/conversations/by-project/:id` (find-or-create; не участнику —
   404). Композер гасится для тех, кому нельзя публиковать
@@ -79,7 +96,11 @@
   (`app/automation-route.tsx`): типы (право `project.setup.manage`) и
   портфели (создание — `project.create`, переименование/архив —
   `project.manage`); архив — не удаление. У типа — политика системного поля
-  «Шифр» (`hidden | optional | required`), которую читают окна проекта.
+  «Шифр» (`hidden | optional | required`), которую читают окна проекта, и
+  виды-подсказки структуры `levelKindIds` (мультиселект ≤10,
+  `components/type-levels-hint.tsx`). Ниже — секция «Виды уровней»
+  (`components/node-levels-section.tsx`): ярлыки узлов (значок + цвет,
+  `structure/api/node-levels-api.ts`), архив — не удаление.
 - Окно «Настройки портала» (`portal-settings-dialog.tsx`, хост в оболочке,
   входы — меню профиля и шапка вкладки типов): раздел «Проекты» — видимость
   новых проектов по умолчанию (`GET/PUT /settings/portal`). Полный дом общих
@@ -99,6 +120,10 @@
 - Ключи — `shared/api/projects-list.ts` (`projectsKeys`): `options`
   (справочник целиком для пикеров), `types`, `groups`, `settings`, `journal`,
   `detail`, `members`, `history`. Инвалидация модуля — префиксом `projects`.
+- `structure/api/structure-api.ts` — дерево и мутации узлов (создание/пачка/
+  правка/перенос/удаление — оптимистично по `projects.structure.<id>`),
+  перенос задач `set_node`; `structure/api/node-levels-api.ts` — справочник
+  видов уровней (ключ `projects.node-levels`).
 - `shared/api/projects-available.ts` — «Проект» в задачах/письмах доступен,
   когда миры совпадают: оба на моках ИЛИ оба живые и флаг `projects` включён
   (`/auth/me.modules`).
@@ -112,16 +137,23 @@
 `projects-handlers.ts` — агрегат: справочники ПЕРЕД `/projects/:id`
 (gotcha msw-query); чтение с видимостью секретных и keyset-курсором; мутации
 с теми же отказами (409 дубль шифра, 403 права, 422 состав/видимость);
-`project-catalog-handlers.ts` — типы/портфели/настройки; канал проекта —
+`project-catalog-handlers.ts` — типы/портфели/настройки; `structure-handlers.ts`
+— дерево узлов (валидация контрактами; 409 не-пустой узел/шифр/цикл/лимиты;
+`/projects/node-levels` — ДО `/projects/:id`); канал проекта —
 `features/chat/api/mocks/project-conversation-handlers.ts`. Демо-мир:
 `shared/mocks/data/projects.ts` (данные), `project-views.ts` (DTO/видимость),
-`project-store.ts` (мутации), `project-events.ts` (журнал истории).
+`project-store.ts` (мутации), `project-events.ts` (журнал истории),
+`project-nodes.ts` (структура демо-проекта p4: Здание 1/2 с разделами
+АР/КР/ИОС, шесть видов уровней, rollup по прямым задачам; часть задач
+демо-стора несёт `nodeId` — `task-items.ts`).
 
 ## Проверки
 
 - Unit: `lib/project-journal.test.ts` (роли/фильтры/оптимистичное совпадение),
   `lib/project-members.test.ts` (группировка источников),
-  `lib/project-tabs.test.ts` (набор вкладок и память),
+  `lib/project-tabs.test.ts` (набор вкладок, первичная и память),
+  `structure/lib/structure-tree.test.ts` (сборка дерева, агрегаты поддерева,
+  «Без узла», сворачивание, перенос якорей),
   `shared/api/projects-available.test.ts` (миры/флаг).
 - Живая проверка — песочница live-stack `:4173` (навык `nodus-dev-testing`);
   визуальный вкус — владелец живым взглядом (ui-writer упразднён для этого

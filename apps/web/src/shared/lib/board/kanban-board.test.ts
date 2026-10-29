@@ -49,6 +49,7 @@ const task = (id: string, stage: TaskStage): TaskListItem =>
     participants: [],
     project: null,
     parentId: null,
+    nodeId: null,
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,

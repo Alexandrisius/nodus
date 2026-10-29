@@ -21,10 +21,13 @@ import {
   useUpdateProjectType,
 } from '../api/project-catalog-mutations.js';
 import { CatalogSection } from '../components/project-catalog-section.js';
+import { NodeLevelsSection } from '../components/node-levels-section.js';
+import { TypeLevelsHint } from '../components/type-levels-hint.js';
 
 /**
- * «Автоматизация → Типы проектов» (#52): справочники модуля — типы проектов
- * (право `project.setup.manage`) и портфели (создание — `project.create`,
+ * «Автоматизация → Типы проектов» (#52, #467): справочники модуля — типы
+ * проектов (право `project.setup.manage`) с видами-подсказками структуры,
+ * виды уровней структуры, портфели (создание — `project.create`,
  * переименование/архив — `project.manage`). Архив — не удаление: проекты
  * сохраняют ссылку. Окно «Настройки портала» — второй вход из шапки.
  */
@@ -53,6 +56,7 @@ export function ProjectTypesPage() {
       <div className="min-h-0 flex-1 overflow-y-auto p-6">
         <div className="mx-auto grid max-w-5xl grid-cols-1 items-start gap-6 @min-[56rem]:grid-cols-2">
           <TypesSection canSetup={canSetup} />
+          <NodeLevelsSection canManage={canSetup} />
           <PortfoliosSection canManage={canManage} />
         </div>
       </div>
@@ -86,27 +90,33 @@ function TypesSection({ canSetup }: { canSetup: boolean }) {
       onRestore={(id) => archive.mutate({ id, archived: false })}
       rowExtra={(row) =>
         canSetup ? (
-          <Select
-            value={row.codeField}
-            onValueChange={(value) =>
-              update.mutate({ id: row.id, codeField: value as ProjectType['codeField'] })
-            }
-          >
-            <SelectTrigger
-              className="h-7 w-40 shrink-0 text-xs"
-              aria-label={ui.projects.codeFieldLabel}
-              title={ui.projects.codeFieldLabel}
+          <div className="flex items-center gap-1.5">
+            <TypeLevelsHint
+              type={row}
+              onApply={(levelKindIds) => update.mutate({ id: row.id, levelKindIds })}
+            />
+            <Select
+              value={row.codeField}
+              onValueChange={(value) =>
+                update.mutate({ id: row.id, codeField: value as ProjectType['codeField'] })
+              }
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" className="nokey">
-              {(['hidden', 'optional', 'required'] as const).map((value) => (
-                <SelectItem key={value} value={value}>
-                  {ui.projects.codeField[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                className="h-7 w-36 shrink-0 text-xs"
+                aria-label={ui.projects.codeFieldLabel}
+                title={ui.projects.codeFieldLabel}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" className="nokey">
+                {(['hidden', 'optional', 'required'] as const).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {ui.projects.codeField[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         ) : null
       }
     />

@@ -41,6 +41,7 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     participants: [],
     project: null,
     parentId: parent.id,
+    nodeId: null,
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,

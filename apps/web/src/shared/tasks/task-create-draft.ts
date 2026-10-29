@@ -30,6 +30,9 @@ export interface TaskCreatePrefill {
   /** Плюсик доски проекта: стадия и проект. */
   stageId?: string;
   projectId?: string;
+  /** «Задача» на узле дерева структуры (#467): узел ставится ТОЛЬКО
+   *  пресетом (поля «Узел» в форме нет), контекст — contextLabel. */
+  nodeId?: string;
   /** «В задачу» из сообщения чата. */
   sourceMessageId?: string;
   /** Строка контекста окна («Подзадача к ПП-123», «Из сообщения»). */
@@ -130,6 +133,8 @@ export function buildCreateBody(
     ...(prefill.stageId ? { stageId: prefill.stageId } : {}),
     ...(prefill.parentId ? { parentId: prefill.parentId } : {}),
     ...(prefill.sourceMessageId ? { sourceMessageId: prefill.sourceMessageId } : {}),
+    // Узел структуры — только пресетом (поля в форме нет, #467).
+    ...(prefill.nodeId ? { nodeId: prefill.nodeId } : {}),
     // Проект и ответственный из входа — если форма их не показала.
     ...(!body.projectId && prefill.projectId ? { projectId: prefill.projectId } : {}),
     ...(!body.assigneeId && prefill.assigneeId ? { assigneeId: prefill.assigneeId } : {}),

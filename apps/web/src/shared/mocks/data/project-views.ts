@@ -21,6 +21,7 @@ import {
   type DemoProjectRow,
 } from './projects.js';
 import type { DemoProjectEvent } from './project-events.js';
+import { structureSummaryOf } from './project-nodes.js';
 import { currentAuthUser, userRef } from './users.js';
 
 export interface DemoActor {
@@ -138,6 +139,7 @@ export function detailOf(row: DemoProjectRow, actor: DemoActor): ProjectDetail {
     customFields: row.customFields,
     customFieldRefs: [],
     access: accessOf(row, membership, actor.permissions),
+    structureSummary: structureSummaryOf(row.id),
     createdAt: row.createdAt,
   };
 }
