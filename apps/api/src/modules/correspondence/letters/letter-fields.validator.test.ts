@@ -140,6 +140,7 @@ describe('правка регистрационных данных (#55, В3)', 
       { subject: 'Новая тема' },
       TYPE_ID,
       '2026-10-27',
+      'u-registrar',
     );
     expect(data).toEqual({ subject: 'Новая тема' });
     expect(changes).toEqual([{ field: 'subject', from: 'О согласовании', to: 'Новая тема' }]);
@@ -153,6 +154,7 @@ describe('правка регистрационных данных (#55, В3)', 
       { counterpartyId: COUNTERPARTY_ID },
       TYPE_ID,
       '2026-10-27',
+      'u-registrar',
     );
     expect(changes).toContainEqual({ field: 'signerId', from: SIGNER_ID, to: null });
     expect(counterparties.activeContact).toHaveBeenCalled();

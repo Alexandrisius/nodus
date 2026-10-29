@@ -70,6 +70,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
     const values = await registry.prepareCreate('task', {
       input: { 'f-a': 'явное' },
       authorId: 'author-1',
+      actorId: 'author-1',
     });
     expect(values).toEqual({ 'f-a': 'явное', 'f-b': 'второе' });
   });
@@ -82,14 +83,22 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
     validator.validate.mockResolvedValueOnce([
       { fieldId: 'f-a', reason: 'inactive', message: 'User is deactivated' },
     ]);
-    const values = await registry.prepareCreate('task', { input: {}, authorId: 'author-1' });
+    const values = await registry.prepareCreate('task', {
+      input: {},
+      authorId: 'author-1',
+      actorId: 'author-1',
+    });
     expect(values).toEqual({});
   });
 
   it('без определений области любой ввод — unknown (422)', async () => {
     const { registry } = makeRegistry([]);
     await expect(
-      registry.prepareCreate('task', { input: { 'f-x': 'v' }, authorId: 'author-1' }),
+      registry.prepareCreate('task', {
+        input: { 'f-x': 'v' },
+        authorId: 'author-1',
+        actorId: 'author-1',
+      }),
     ).rejects.toMatchObject({
       code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
       details: { issues: [{ fieldId: 'f-x', reason: 'unknown' }] },
@@ -126,6 +135,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
     const values = await registry.prepareCreate('task', {
       input: {},
       authorId: 'author-1',
+      actorId: 'author-1',
       typeId: 't-1',
     });
     expect(values).toEqual({ 'f-bound': 'своё' });
@@ -146,6 +156,7 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
       registry.prepareCreate('task', {
         input: { 'f-other': 'v' },
         authorId: 'author-1',
+        actorId: 'author-1',
         typeId: 't-1',
       }),
     ).rejects.toMatchObject({
@@ -159,6 +170,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
   it('null удаляет ключ, незаполненное не хранится', async () => {
     const { registry } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
     const { next, changes } = await registry.prepareUpdate('task', {
+      actorId: 'author-1',
       current: { 'f-a': 'старое', 'f-b': 'остаётся' },
       patch: { 'f-a': null },
     });
@@ -169,6 +181,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
   it('проверяются только изменённые значения', async () => {
     const { registry, validator } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
     await registry.prepareUpdate('task', {
+      actorId: 'author-1',
       current: { 'f-a': 'то же' },
       patch: { 'f-a': 'то же' },
     });
@@ -180,6 +193,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
       definition({ id: 'f-money', type: 'money', settings: { currencyId: BYN } }),
     ]);
     const { next, changes } = await registry.prepareUpdate('task', {
+      actorId: 'author-1',
       current: { 'f-money': { amount: 5, currencyId: BYN } },
       patch: { 'f-money': { currencyId: BYN, amount: 5 } as never },
     });
@@ -194,13 +208,17 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
       { fieldId: 'f-a', reason: 'invalid', message: 'Value does not match field type' },
     ]);
     await expect(
-      registry.prepareUpdate('task', { current: {}, patch: { 'f-a': 'x' } }),
+      registry.prepareUpdate('task', { actorId: 'author-1', current: {}, patch: { 'f-a': 'x' } }),
     ).rejects.toMatchObject({ code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID });
   });
 
   it('пустой патч не трогает значения и не падает', async () => {
     const { registry } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
-    const result = await registry.prepareUpdate('task', { current: { 'f-a': 'x' }, patch: {} });
+    const result = await registry.prepareUpdate('task', {
+      actorId: 'author-1',
+      current: { 'f-a': 'x' },
+      patch: {},
+    });
     expect(result).toEqual({ next: { 'f-a': 'x' }, changes: [] });
   });
 
@@ -211,6 +229,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
     ];
     const { registry } = makeRegistry(definitions);
     const cleared = await registry.prepareUpdate('task', {
+      actorId: 'author-1',
       current: { 'f-other': 'старое' },
       patch: { 'f-other': null },
       typeId: 't-1',
@@ -218,6 +237,7 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
     expect(cleared.next).toEqual({});
     await expect(
       registry.prepareUpdate('task', {
+        actorId: 'author-1',
         current: {},
         patch: { 'f-other': 'новое' },
         typeId: 't-1',

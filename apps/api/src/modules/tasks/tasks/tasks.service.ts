@@ -133,7 +133,7 @@ export class TasksService {
         // С #432 — только привязанные к типу задачи (Р8).
         const customFields = await this.customFields.prepareCreate(
           'task',
-          { input: body.customFields ?? {}, authorId: user.id, typeId },
+          { input: body.customFields ?? {}, authorId: user.id, actorId: user.id, typeId },
           tx,
         );
         // Обязательные поля — после умолчаний: если сервер заполнил значение

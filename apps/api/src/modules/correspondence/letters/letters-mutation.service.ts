@@ -183,6 +183,7 @@ export class LettersMutationService {
       body,
       row.typeId,
       companyDate(new Date()),
+      user.id,
     );
     if (changes.length === 0) return this.query.detail(user, id);
     // Эффективный подписант: смена корреспондента могла сбросить его в null

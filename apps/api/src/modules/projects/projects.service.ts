@@ -1,0 +1,297 @@
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  ErrorCode,
+  Permission,
+  PROJECT_EVENTS,
+  PROJECT_LIMITS,
+  type AuthUser,
+  type CreateProjectBody,
+  type ProjectDetail,
+  type UpdateProjectBody,
+} from '@nodus/contracts';
+
+import type { CustomFieldValues } from '@nodus/contracts';
+import type { Prisma } from '../../generated/prisma/client.js';
+import { TransactionRunner } from '../../core/database/transaction-runner.js';
+import { DomainException } from '../../core/errors/domain-exception.js';
+import { EventBus } from '../../core/events/event-bus.js';
+import { USER_PROFILE_READER, type UserProfileReader } from '../../core/ports/user-profile.port.js';
+import {
+  COUNTERPARTY_READER,
+  type CounterpartyReader,
+} from '../crm/ports/counterparty-reader.port.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+} from '../custom-fields/ports/custom-field-registry.port.js';
+import type { ProjectFacts } from './project-access.js';
+import { ProjectsQueryService } from './projects-query.service.js';
+import { ProjectGroupsRepository } from './project-groups.repository.js';
+import { ProjectMembersService } from './project-members.service.js';
+import { ProjectParticipantsRepository } from './project-participants.repository.js';
+import { ProjectTypesRepository } from './project-types.repository.js';
+import {
+  ProjectsRepository,
+  type ProjectFieldsPatch,
+  type ProjectRow,
+} from './projects.repository.js';
+
+const DEFAULT_VISIBILITY = 'open' as const;
+const SETTING_VISIBILITY = 'projects.defaultVisibility';
+
+/**
+ * Ядро модуля (#52): журнал, карточка, создание, правка полей, статусы и
+ * передача руководства. Участие — ProjectMembersService; события — outbox
+ * в той же транзакции (I9). Права на мутации полей — руководство проекта
+ * (руководитель + помощники) или project.manage (вердикт 29.10).
+ */
+@Injectable()
+export class ProjectsService {
+  constructor(
+    private readonly txRunner: TransactionRunner,
+    private readonly eventBus: EventBus,
+    private readonly repo: ProjectsRepository,
+    private readonly types: ProjectTypesRepository,
+    private readonly groups: ProjectGroupsRepository,
+    private readonly participantsRepo: ProjectParticipantsRepository,
+    private readonly members: ProjectMembersService,
+    private readonly queries: ProjectsQueryService,
+    @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
+    @Inject(COUNTERPARTY_READER) private readonly counterparties: CounterpartyReader,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+  ) {}
+
+  async create(user: AuthUser, body: CreateProjectBody): Promise<ProjectDetail> {
+    const managerId = body.managerId ?? user.id;
+    const assistantIds = [...new Set(body.assistantIds ?? [])].filter((id) => id !== managerId);
+    if (assistantIds.length > PROJECT_LIMITS.assistants) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Too many assistants');
+    }
+    const people = [...new Set([managerId, ...assistantIds])];
+    if ((await this.profiles.filterActiveUserIds(people)).length !== people.length) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown or inactive user');
+    }
+    const type = await this.types.findActive(body.typeId);
+    if (!type) throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown project type');
+    if (body.portfolioId && !(await this.groups.findActive(body.portfolioId))) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown portfolio');
+    }
+    await this.assertClientSettable(body.clientId ?? null);
+    if (body.code && (await this.repo.codeTaken(body.code, null))) {
+      throw DomainException.conflict('Project code is already taken');
+    }
+    const visibility = body.visibility ?? (await this.defaultVisibility());
+    const id = await this.txRunner.run(async (tx) => {
+      const customFields = await this.customFields.prepareCreate(
+        'project',
+        { input: body.customFields ?? {}, authorId: user.id, actorId: user.id },
+        tx,
+      );
+      const row = await this.repo.create(
+        {
+          code: body.code ?? null,
+          name: body.name,
+          description: body.description ?? '',
+          color: body.color ?? 'blue',
+          typeId: body.typeId,
+          portfolioId: body.portfolioId ?? null,
+          clientId: body.clientId ?? null,
+          managerId,
+          assistantIds: assistantIds as Prisma.InputJsonValue,
+          visibility,
+          creatorId: user.id,
+          startedAt: body.startDate ? new Date(body.startDate) : null,
+          endsAt: body.endDate ? new Date(body.endDate) : null,
+          customFields: customFields as Prisma.InputJsonValue,
+        },
+        tx,
+      );
+      await this.members.syncManagement(tx, row.id, { managerId, assistantIds });
+      // Создатель, назначивший руководство другим, — наблюдатель-создатель
+      // (Т5); создатель-руководитель уже в составе источником manager.
+      if (managerId !== user.id) {
+        await this.participantsRepo.add(tx, [
+          { projectId: row.id, userId: user.id, source: 'observer', observerKind: 'creator' },
+        ]);
+      }
+      await this.eventBus.emit(
+        tx,
+        PROJECT_EVENTS.CREATED,
+        {
+          projectId: row.id,
+          name: row.name,
+          code: row.code,
+          managerId,
+          assistantIds,
+          clientId: row.clientId,
+          visibility,
+          typeId: row.typeId,
+        },
+        { actorId: user.id, aggregateType: 'project', aggregateId: row.id },
+      );
+      return row.id;
+    });
+    return this.queries.detail(user, id);
+  }
+
+  async update(user: AuthUser, id: string, body: UpdateProjectBody): Promise<ProjectDetail> {
+    const { row } = await this.loadForManage(user, id);
+    const facts = this.factsOf(row);
+    const patch: ProjectFieldsPatch = {};
+    const fields: string[] = [];
+    if (body.code !== undefined) {
+      const next = body.code ?? null;
+      if (next && (await this.repo.codeTaken(next, id))) {
+        throw DomainException.conflict('Project code is already taken');
+      }
+      patch.code = next;
+      fields.push('code');
+    }
+    if (body.name !== undefined) {
+      patch.name = body.name;
+      fields.push('name');
+    }
+    if (body.description !== undefined) {
+      patch.description = body.description ?? '';
+      fields.push('description');
+    }
+    if (body.color !== undefined) {
+      patch.color = body.color;
+      fields.push('color');
+    }
+    if (body.portfolioId !== undefined) {
+      if (body.portfolioId && !(await this.groups.findActive(body.portfolioId))) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown portfolio');
+      }
+      patch.portfolioId = body.portfolioId ?? null;
+      fields.push('portfolioId');
+    }
+    if (body.clientId !== undefined) {
+      await this.assertClientSettable(body.clientId ?? null);
+      patch.clientId = body.clientId ?? null;
+      fields.push('clientId');
+    }
+    if (body.visibility !== undefined && body.visibility !== row.visibility) {
+      // Смена видимости на секретный — только действующий руководитель
+      // (допущение #52); раскрыть проект может и помощник.
+      if (
+        body.visibility === 'secret' &&
+        facts.managerId !== user.id &&
+        !user.permissions.includes(Permission.PROJECT_MANAGE)
+      ) {
+        throw DomainException.forbidden('Only the manager can make the project secret');
+      }
+      patch.visibility = body.visibility;
+      fields.push('visibility');
+    }
+    if (body.startDate !== undefined) {
+      patch.startedAt = body.startDate ? new Date(body.startDate) : null;
+      fields.push('startDate');
+    }
+    if (body.endDate !== undefined) {
+      patch.endsAt = body.endDate ? new Date(body.endDate) : null;
+      fields.push('endDate');
+    }
+    let assistantIds: string[] | null = null;
+    if (body.assistantIds !== undefined) {
+      assistantIds = [...new Set(body.assistantIds)].filter((aid) => aid !== facts.managerId);
+      if (assistantIds.length > PROJECT_LIMITS.assistants) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Too many assistants');
+      }
+      if (
+        (await this.profiles.filterActiveUserIds(assistantIds)).length !==
+        new Set(assistantIds).size
+      ) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown or inactive user');
+      }
+      patch.assistantIds = assistantIds as Prisma.InputJsonValue;
+      fields.push('assistantIds');
+    }
+    if (body.customFields && Object.keys(body.customFields).length > 0) {
+      const prepared = await this.customFields.prepareUpdate('project', {
+        current: row.customFields as CustomFieldValues,
+        patch: body.customFields,
+        actorId: user.id,
+      });
+      patch.customFields = prepared.next as Prisma.InputJsonValue;
+      fields.push(...prepared.changes.map((change) => `cf.${change.fieldId}`));
+    }
+    await this.txRunner.run(async (tx) => {
+      const next = await this.repo.update(tx, id, patch);
+      if (assistantIds !== null) {
+        await this.members.syncManagement(tx, id, { managerId: next.managerId, assistantIds });
+      }
+      await this.eventBus.emit(
+        tx,
+        PROJECT_EVENTS.UPDATED,
+        {
+          projectId: id,
+          fields,
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.clientId !== undefined
+            ? { clientId: patch.clientId ?? null, previousClientId: row.clientId ?? null }
+            : {}),
+        },
+        { actorId: user.id, aggregateType: 'project', aggregateId: id },
+      );
+    });
+    if (patch.visibility !== undefined) {
+      await this.members.onVisibilityChanged(id, patch.visibility as 'open' | 'secret');
+    }
+    return this.queries.detail(user, id);
+  }
+
+  // ===== Настройки портала (Р7) =====
+
+  /** Дефолт видимости новых проектов: настройка портала, дефолт кода 'open'. */
+  async defaultVisibility(): Promise<'open' | 'secret'> {
+    const value = await this.repo.settingValue(SETTING_VISIBILITY);
+    return value === 'secret' ? 'secret' : DEFAULT_VISIBILITY;
+  }
+
+  async putDefaultVisibility(value: 'open' | 'secret'): Promise<void> {
+    await this.repo.putSetting(SETTING_VISIBILITY, value as Prisma.InputJsonValue);
+  }
+
+  factsOf(row: ProjectRow): ProjectFacts {
+    return {
+      managerId: row.managerId,
+      assistantIds: Array.isArray(row.assistantIds) ? (row.assistantIds as string[]) : [],
+      visibility: row.visibility as ProjectFacts['visibility'],
+      status: row.status as ProjectFacts['status'],
+    };
+  }
+
+  /** Видимость карточки: секретный — участие или view_secret; открытый —
+   *  всем. 404 без оракула (Т1). */
+  async assertVisible(user: AuthUser, id: string): Promise<ProjectRow> {
+    const row = await this.repo.findById(id);
+    if (!row) throw DomainException.notFound('Project not found');
+    if (row.visibility === 'secret') {
+      const mine = await this.participantsRepo.hasRow(id, user.id);
+      if (!mine && !user.permissions.includes(Permission.PROJECT_VIEW_SECRET)) {
+        throw DomainException.notFound('Project not found');
+      }
+    }
+    return row;
+  }
+
+  /** Проект + проверка прав управления (поля/статусы): используют и lifecycle-действия. */
+  async loadForManage(user: AuthUser, id: string) {
+    const row = await this.assertVisible(user, id);
+    const rows = await this.participantsRepo.rowsOfProject(id);
+    const isManagement = rows.some(
+      (p) => p.userId === user.id && (p.source === 'manager' || p.source === 'assistant'),
+    );
+    if (!isManagement && !user.permissions.includes(Permission.PROJECT_MANAGE)) {
+      throw DomainException.forbidden('Only project management can edit the project');
+    }
+    return { row };
+  }
+
+  private async assertClientSettable(clientId: string | null): Promise<void> {
+    if (!clientId) return;
+    const client = await this.counterparties.activeRef(clientId);
+    if (!client) throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown counterparty');
+  }
+}

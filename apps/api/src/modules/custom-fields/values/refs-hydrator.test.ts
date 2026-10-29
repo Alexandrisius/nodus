@@ -83,9 +83,13 @@ function makeHydrator() {
 describe('CustomFieldRefsHydrator (#431, Р6)', () => {
   it('сотрудники: имя и аватар, деактивированный — archived', async () => {
     const { hydrator } = makeHydrator();
-    const refs = await hydrator.hydrate([definition({ id: 'f-users', type: 'users' })], {
-      'f-users': [USER, RETIRED],
-    });
+    const refs = await hydrator.hydrate(
+      [definition({ id: 'f-users', type: 'users' })],
+      {
+        'f-users': [USER, RETIRED],
+      },
+      'u-1',
+    );
     expect(refs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'user', id: USER, archived: false }),
@@ -100,6 +104,7 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
     const refs = await hydrator.hydrate(
       [definition({ id: 'f-money', type: 'money', settings: { currencyId: BYN } })],
       { 'f-money': { amount: 10, currencyId: BYN } },
+      'u-1',
     );
     expect(refs).toEqual([
       expect.objectContaining({ kind: 'dictionary_item', id: BYN, archived: false }),
@@ -111,15 +116,20 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
     const refs = await hydrator.hydrate(
       [definition({ id: 'f-enum', type: 'enum', settings: { dictionaryId: 'dict-1' } })],
       { 'f-enum': ITEM },
+      'u-1',
     );
     expect(refs[0]).toMatchObject({ kind: 'dictionary_item', archived: true });
   });
 
   it('проект до #52 — «Запись недоступна» (name null), не потеря значения', async () => {
     const { hydrator } = makeHydrator();
-    const refs = await hydrator.hydrate([definition({ id: 'f-project', type: 'project' })], {
-      'f-project': PROJECT,
-    });
+    const refs = await hydrator.hydrate(
+      [definition({ id: 'f-project', type: 'project' })],
+      {
+        'f-project': PROJECT,
+      },
+      'u-1',
+    );
     expect(refs).toEqual([
       { kind: 'project', id: PROJECT, name: null, avatarUrl: null, archived: false },
     ]);
@@ -133,6 +143,7 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
         definition({ id: 'f-text', type: 'text' }),
       ],
       { 'f-cp': COUNTERPARTY, 'f-text': '  ' },
+      'u-1',
     );
     expect(refs).toEqual([expect.objectContaining({ kind: 'counterparty', id: COUNTERPARTY })]);
     expect(counterparties.refs).toHaveBeenCalledWith([COUNTERPARTY]);
@@ -140,9 +151,13 @@ describe('CustomFieldRefsHydrator (#431, Р6)', () => {
 
   it('подразделение: имя из порта оргструктуры', async () => {
     const { hydrator } = makeHydrator();
-    const refs = await hydrator.hydrate([definition({ id: 'f-dep', type: 'department' })], {
-      'f-dep': DEPARTMENT,
-    });
+    const refs = await hydrator.hydrate(
+      [definition({ id: 'f-dep', type: 'department' })],
+      {
+        'f-dep': DEPARTMENT,
+      },
+      'u-1',
+    );
     expect(refs[0]).toMatchObject({ kind: 'department', id: DEPARTMENT, archived: false });
   });
 });

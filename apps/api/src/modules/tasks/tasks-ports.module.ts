@@ -7,6 +7,8 @@ import { CUSTOM_FIELD_VALUES_READER } from './ports/custom-field-values.port.js'
 import { TaskCustomFieldValuesProvider } from './ports/custom-field-values.provider.js';
 import { TASK_CHAT_READER } from './ports/task-chat-reader.port.js';
 import { TaskChatReaderProvider } from './ports/task-chat-reader.provider.js';
+import { TASK_PROJECT_READER } from './ports/task-project-reader.port.js';
+import { TaskProjectReaderProvider } from './ports/task-project-reader.provider.js';
 import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
 
 /**
@@ -25,7 +27,9 @@ import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
     { provide: TASK_CHAT_READER, useClass: TaskChatReaderProvider },
     TaskCustomFieldValuesProvider,
     { provide: CUSTOM_FIELD_VALUES_READER, useClass: TaskCustomFieldValuesProvider },
+    TaskProjectReaderProvider,
+    { provide: TASK_PROJECT_READER, useClass: TaskProjectReaderProvider },
   ],
-  exports: [TASK_CHAT_READER, CUSTOM_FIELD_VALUES_READER],
+  exports: [TASK_CHAT_READER, CUSTOM_FIELD_VALUES_READER, TASK_PROJECT_READER],
 })
 export class TasksPortsModule {}

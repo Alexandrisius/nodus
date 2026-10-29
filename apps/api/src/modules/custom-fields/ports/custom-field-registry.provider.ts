@@ -128,11 +128,12 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
   async refs(
     scope: CustomFieldScope,
     values: CustomFieldValues,
+    actorId: string,
     tx?: TransactionClient,
   ): Promise<CustomFieldRef[]> {
     if (Object.keys(values).length === 0) return [];
     const definitions = await this.definitions(scope, {}, tx);
-    return this.hydrator.hydrate(definitions, values, tx);
+    return this.hydrator.hydrate(definitions, values, actorId, tx);
   }
 }
 

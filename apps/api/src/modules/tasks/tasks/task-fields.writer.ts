@@ -128,7 +128,7 @@ export class TaskFieldsWriter {
       // непривязанного атрибута — 422 `not_in_type`, очистка разрешена.
       const prepared = await this.customFields.prepareUpdate(
         'task',
-        { current, patch: patch.customFields, typeId: row.typeId },
+        { current, patch: patch.customFields, actorId, typeId: row.typeId },
         tx,
       );
       fieldChanges = prepared.changes;

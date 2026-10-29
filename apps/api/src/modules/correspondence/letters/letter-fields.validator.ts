@@ -103,6 +103,7 @@ export class LetterFieldsValidator {
     const customFields = await this.customFields.prepareCreate('letter', {
       input: value.customFields ?? {},
       authorId,
+      actorId: authorId,
       typeId,
     });
     return {
@@ -135,6 +136,7 @@ export class LetterFieldsValidator {
     body: UpdateLetterBody,
     typeId: string,
     today: string,
+    actorId: string,
   ): Promise<{ data: Record<string, unknown>; changes: LetterFieldChange[] }> {
     const next: RegistrationValues = { ...current };
     const changes: LetterFieldChange[] = [];
@@ -190,6 +192,7 @@ export class LetterFieldsValidator {
       const prepared = await this.customFields.prepareUpdate('letter', {
         current: currentCustomFields as CustomFieldValues,
         patch: body.customFields,
+        actorId,
         typeId,
       });
       data.customFields = prepared.next;

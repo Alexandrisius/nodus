@@ -111,11 +111,17 @@ export class LettersQueryService {
         ? Promise.resolve(null)
         : this.counterpartySuggestionOf(row.mailFromAddress),
     ]);
-    return this.mapper.toDetail(row, attachments, letterAccessOf(user, row, isParticipant), {
-      replyTo,
-      replySuggestion,
-      counterpartySuggestion,
-    });
+    return this.mapper.toDetail(
+      row,
+      attachments,
+      letterAccessOf(user, row, isParticipant),
+      user.id,
+      {
+        replyTo,
+        replySuggestion,
+        counterpartySuggestion,
+      },
+    );
   }
 
   /** Письмо, видимое сотруднику, или 404 (невидимое = «не найдено», Р7). */

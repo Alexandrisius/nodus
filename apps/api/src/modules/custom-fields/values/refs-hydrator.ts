@@ -41,6 +41,10 @@ export class CustomFieldRefsHydrator {
   async hydrate(
     definitions: ReadonlyArray<Pick<CustomFieldDefinition, 'id' | 'type'>>,
     values: CustomFieldValues,
+    /** Актёр запроса (#52): ссылки-проекты фильтруются видимости актёра.
+     *  Отсутствует в служебных вызовах (редактор определений показывает
+     *  умолчания) — тогда без фильтра секретности. */
+    actorId: string | undefined,
     tx?: TransactionClient,
   ): Promise<CustomFieldRef[]> {
     const byId = new Map(definitions.map((definition) => [definition.id, definition]));

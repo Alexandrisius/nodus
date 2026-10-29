@@ -24,6 +24,7 @@ import { DictionariesModule } from './modules/dictionaries/dictionaries.module.j
 import { DirectoryModule } from './modules/directory/directory.module.js';
 import { FilesModule } from './modules/files/files.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { ProjectsModule } from './modules/projects/projects.module.js';
 import { DesktopModule } from './modules/desktop/desktop.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
@@ -60,6 +61,9 @@ import { WorkflowsModule } from './modules/workflows/workflows.module.js';
     // чата (ChatPortsModule внутри), подписан на события chat.*.
     NotificationsModule,
     HomeModule,
+    // Проекты (#52, ADR-0030): проект-договор и «темы», двухрежимное
+    // участие, типы, портфели, настройки портала; за флагом `projects`.
+    ProjectsModule,
     // «Процессы» (#428, ADR-0024): типы процессов, маршруты, редактор,
     // публикация, общий движок; ядро — фичефлага нет (I10).
     WorkflowsModule,

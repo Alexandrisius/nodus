@@ -123,6 +123,7 @@ export class TasksQueryService {
     const customFieldRefs = await this.customFields.refs(
       'task',
       (row.customFields ?? {}) as CustomFieldValues,
+      user.id,
     );
     // Состав карточки по типу (#432, Р7): сервер собирает его сам, поэтому
     // он работает и для типа, невидимого зрителю (имя типа не раскрывается).

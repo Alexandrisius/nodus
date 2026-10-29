@@ -109,8 +109,6 @@ export const projectListItemSchema = z.object({
   endDate: z.iso.date().nullable(),
   /** Последняя активность (для сортировки журнала). */
   activityAt: z.iso.datetime(),
-  /** Канал проекта в мессенджере, если создан. */
-  channelId: z.uuid().nullable(),
 });
 
 export type ProjectListItem = z.infer<typeof projectListItemSchema>;

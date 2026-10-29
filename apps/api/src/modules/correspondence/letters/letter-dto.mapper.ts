@@ -188,6 +188,7 @@ export class LetterDtoMapper {
     row: LetterDetailRow,
     attachments: readonly LetterAttachmentRow[],
     access: LetterAccess,
+    viewerId: string,
     extra: {
       replyTo: LetterRef | null;
       replySuggestion: LetterRef | null;
@@ -249,7 +250,7 @@ export class LetterDtoMapper {
       attachments: files,
       body: bodyOf(files),
       customFields: values,
-      customFieldRefs: await this.customFields.refs('letter', values),
+      customFieldRefs: await this.customFields.refs('letter', values, viewerId),
       access,
     };
   }

@@ -1,0 +1,148 @@
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
+import { z } from 'zod';
+import {
+  cursorQuerySchema,
+  paginatedSchema,
+  projectMemberAddBodySchema,
+  projectMemberSchema,
+  type AuthUser,
+  type CursorQuery,
+  type Paginated,
+  type ProjectMember,
+  type ProjectMemberAddBody,
+} from '@nodus/contracts';
+
+import { Audit } from '../../core/decorators/audit.decorator.js';
+import { GetUser } from '../../core/decorators/get-user.decorator.js';
+import { RequireFeature } from '../../core/decorators/require-feature.decorator.js';
+import { ApiErrors } from '../../core/openapi/api-errors.decorator.js';
+import { ApiIdempotencyKey } from '../../core/openapi/api-idempotency.decorator.js';
+import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
+import { DomainException } from '../../core/errors/domain-exception.js';
+import { ErrorCode } from '@nodus/contracts';
+import { ProjectMembersService } from './project-members.service.js';
+
+const idParamSchema = z.uuid();
+const membersQuerySchema = cursorQuerySchema;
+
+/**
+ * Вкладка «Участники» карточки проекта (#52, Р2): открытый проект — просмотр
+ * живого состава (права в сервисе), вступление своей кнопкой; секретный —
+ * ручное управление руководством. Видимость состава — фильтр сервиса.
+ */
+@ApiTags('projects')
+@ApiBearerAuth()
+@RequireFeature('projects')
+@Controller('projects')
+export class ProjectMembersController {
+  constructor(private readonly members: ProjectMembersService) {}
+
+  @Get(':id/members')
+  @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
+  @ApiOperation({ summary: 'Состав проекта с источниками участия (курсорная пагинация)' })
+  @ApiOkResponse({ standardSchema: paginatedSchema(projectMemberSchema) })
+  @ApiErrors(400, 401, 404)
+  list(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @Query({
+      schema: membersQuerySchema,
+      pipes: [new ZodValidationPipe(membersQuerySchema)],
+    })
+    query: CursorQuery,
+    @GetUser() user: AuthUser,
+  ): Promise<Paginated<ProjectMember>> {
+    return this.members.members(
+      user,
+      id,
+      query.cursor ? parseCursor(query.cursor) : null,
+      query.limit,
+    );
+  }
+
+  @Post(':id/join')
+  @Audit({ action: 'project.join', entity: 'project' })
+  @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
+  @ApiOperation({
+    summary: '«Присоединиться» (открытый проект, не-участник) — наблюдатель-вступивший',
+  })
+  @ApiNoContentResponse()
+  @ApiErrors(400, 401, 404)
+  @ApiIdempotencyKey()
+  join(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @GetUser() user: AuthUser,
+  ): Promise<void> {
+    return this.members.join(user, id);
+  }
+
+  @Post(':id/leave')
+  @Audit({ action: 'project.leave', entity: 'project' })
+  @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
+  @ApiOperation({ summary: '«Покинуть» (свой ряд вступившего наблюдателя)' })
+  @ApiNoContentResponse()
+  @ApiErrors(400, 401, 404)
+  @ApiIdempotencyKey()
+  leave(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @GetUser() user: AuthUser,
+  ): Promise<void> {
+    return this.members.leave(user, id);
+  }
+
+  @Post(':id/members')
+  @Audit({ action: 'project.member_add', entity: 'project' })
+  @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
+  @ApiOperation({
+    summary: 'Добавить в состав секретного проекта (руководство): участник или наблюдатель',
+  })
+  @ApiCreatedResponse()
+  @ApiErrors(400, 401, 403, 404, 422)
+  @ApiIdempotencyKey()
+  add(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @Body({
+      schema: projectMemberAddBodySchema,
+      pipes: [new ZodValidationPipe(projectMemberAddBodySchema)],
+    })
+    dto: ProjectMemberAddBody,
+    @GetUser() user: AuthUser,
+  ): Promise<void> {
+    return this.members.addManual(user, id, dto.userId, dto.kind);
+  }
+
+  @Delete(':id/members/:userId')
+  @Audit({ action: 'project.member_remove', entity: 'project' })
+  @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
+  @ApiParam({
+    name: 'userId',
+    description: 'UUID сотрудника',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiOperation({ summary: 'Убрать из состава секретного проекта (руководство)' })
+  @ApiNoContentResponse()
+  @ApiErrors(400, 401, 403, 404)
+  remove(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @Param('userId', new ZodValidationPipe(idParamSchema)) userId: string,
+    @GetUser() user: AuthUser,
+  ): Promise<void> {
+    return this.members.removeManual(user, id, userId);
+  }
+}
+
+function parseCursor(cursor: string): { userId: string; source: string } {
+  const parsed = JSON.parse(cursor) as { userId?: string; source?: string };
+  if (!parsed.userId || !parsed.source) {
+    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Invalid cursor');
+  }
+  return { userId: parsed.userId, source: parsed.source };
+}
