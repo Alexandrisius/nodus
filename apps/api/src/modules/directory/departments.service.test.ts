@@ -111,7 +111,7 @@ describe('DepartmentsService', () => {
         }),
       );
 
-      const node = await service.update('dep', { name: 'Новое имя' }, 'admin-1');
+      const node = await service.update('dep', { name: 'Новое имя' }, actor());
 
       // В репозиторий уходит ровно присланное — без подставленных дефолтов.
       expect(departments.update).toHaveBeenCalledWith('dep', { name: 'Новое имя' }, 'tx-handle');
