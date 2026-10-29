@@ -69,6 +69,16 @@ export class RolesRepository {
     return rows.length === 1;
   }
 
+  /** Идентификатор роли по коду под `FOR UPDATE` (#490): замок «последнего
+   *  администратора» берётся по коду внутри транзакции, до чтения состава.
+   *  null — роли с таким кодом нет. */
+  async lockByCodeForUpdate(code: string, tx: TransactionClient): Promise<string | null> {
+    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM roles WHERE code = ${code} FOR UPDATE
+    `);
+    return rows[0]?.id ?? null;
+  }
+
   async countByIds(ids: string[], tx?: TransactionClient): Promise<number> {
     return this.db(tx).role.count({ where: { id: { in: ids } } });
   }

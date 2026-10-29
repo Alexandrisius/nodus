@@ -72,6 +72,7 @@ describe('UsersService: создание и правка сотрудника', 
     countByIds: vi.fn(),
     permissionsByIds: vi.fn(),
     lockForUpdate: vi.fn(),
+    lockByCodeForUpdate: vi.fn(),
     countActiveDirectMembers: vi.fn(),
   };
   /** Эффективные роли (порт): по умолчанию — без добавившихся. */
@@ -85,6 +86,7 @@ describe('UsersService: создание и правка сотрудника', 
   beforeEach(() => {
     vi.clearAllMocks();
     membership.effectiveRoleIds.mockResolvedValue([]);
+    roles.lockByCodeForUpdate.mockResolvedValue(null);
     const guard = new RoleAssignmentGuard(roles as never, membership as never);
     service = new UsersService(
       users as never,
@@ -262,13 +264,13 @@ describe('UsersService: создание и правка сотрудника', 
         withRoles([{ id: 'role-admin', code: 'admin', name: 'Администратор' }]),
       );
       roles.countByIds.mockResolvedValue(0);
-      roles.lockForUpdate.mockResolvedValue(true);
+      roles.lockByCodeForUpdate.mockResolvedValue('role-admin');
       roles.countActiveDirectMembers.mockResolvedValue(0);
 
       await expect(
         service.updateUser('user-1', { roleIds: [] }, actor([Permission.CORE_ADMIN])),
       ).rejects.toMatchObject({ code: ErrorCode.ROLE_LAST_ADMIN });
-      expect(roles.lockForUpdate).toHaveBeenCalledWith('role-admin', 'tx-handle');
+      expect(roles.lockByCodeForUpdate).toHaveBeenCalledWith('admin', 'tx-handle');
       expect(eventBus.emit).not.toHaveBeenCalled();
     });
 
@@ -277,7 +279,7 @@ describe('UsersService: создание и правка сотрудника', 
         withRoles([{ id: 'role-admin', code: 'admin', name: 'Администратор' }]),
       );
       roles.countByIds.mockResolvedValue(0);
-      roles.lockForUpdate.mockResolvedValue(true);
+      roles.lockByCodeForUpdate.mockResolvedValue('role-admin');
       roles.countActiveDirectMembers.mockResolvedValue(2);
 
       await service.updateUser('user-1', { roleIds: [] }, actor([Permission.CORE_ADMIN]));

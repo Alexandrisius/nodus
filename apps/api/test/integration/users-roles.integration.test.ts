@@ -216,6 +216,22 @@ describe('Назначение ролей сотрудникам (#490)', () => 
     expect(row?.parentId).toBeNull();
   });
 
+  it('PATCH /directory/departments/:id: kind не меняется — обход bind через «сон» привязки закрыт', async () => {
+    const dep = await department('Переключаемое', undefined);
+
+    const response = await chat.api(manager, 'PATCH', `/directory/departments/${dep}`, {
+      key: randomUUID(),
+      body: { kind: 'legal' },
+    });
+
+    expect(response.status).toBe(200);
+    const row = await chat.prisma.department.findUnique({
+      where: { id: dep },
+      select: { kind: true },
+    });
+    expect(row?.kind).toBe('management');
+  });
+
   it('последний администратор: roleIds без admin → 409, деактивация → 409', async () => {
     const saved = await chat.prisma.userRole.findMany({
       where: { roleId: adminRoleId },

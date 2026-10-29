@@ -53,6 +53,7 @@ describe('UsersService: деактивация сотрудника', () => {
   };
   const roles = {
     lockForUpdate: vi.fn(),
+    lockByCodeForUpdate: vi.fn(),
     countActiveDirectMembers: vi.fn(),
   };
   const membership = { effectiveRoleIds: vi.fn() };
@@ -64,6 +65,7 @@ describe('UsersService: деактивация сотрудника', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     membership.effectiveRoleIds.mockResolvedValue([]);
+    roles.lockByCodeForUpdate.mockResolvedValue(null);
     const guard = new RoleAssignmentGuard(roles as never, membership as never);
     service = new UsersService(
       users as never,
@@ -112,13 +114,13 @@ describe('UsersService: деактивация сотрудника', () => {
     users.findCardById.mockResolvedValue(
       withRoles([{ id: 'role-admin', code: 'admin', name: 'Администратор' }]),
     );
-    roles.lockForUpdate.mockResolvedValue(true);
+    roles.lockByCodeForUpdate.mockResolvedValue('role-admin');
     roles.countActiveDirectMembers.mockResolvedValue(0);
 
     await expect(service.deactivateUser('user-1', actor())).rejects.toMatchObject({
       code: ErrorCode.ROLE_LAST_ADMIN,
     });
-    expect(roles.lockForUpdate).toHaveBeenCalledWith('role-admin', 'tx-handle');
+    expect(roles.lockByCodeForUpdate).toHaveBeenCalledWith('admin', 'tx-handle');
     expect(eventBus.emit).not.toHaveBeenCalled();
   });
 
@@ -126,7 +128,7 @@ describe('UsersService: деактивация сотрудника', () => {
     users.findCardById.mockResolvedValue(
       withRoles([{ id: 'role-admin', code: 'admin', name: 'Администратор' }]),
     );
-    roles.lockForUpdate.mockResolvedValue(true);
+    roles.lockByCodeForUpdate.mockResolvedValue('role-admin');
     roles.countActiveDirectMembers.mockResolvedValue(3);
 
     await service.deactivateUser('user-1', actor());
@@ -134,12 +136,12 @@ describe('UsersService: деактивация сотрудника', () => {
     expect(eventBus.emit).toHaveBeenCalled();
   });
 
-  it('не администратор — без замка и проверки', async () => {
+  it('не администратор — состав роли admin перечитан под замком, проверки счётчика нет', async () => {
     users.findCardById.mockResolvedValue(cardRow());
 
     await service.deactivateUser('user-1', actor());
 
-    expect(roles.lockForUpdate).not.toHaveBeenCalled();
+    expect(roles.lockByCodeForUpdate).toHaveBeenCalledWith('admin', 'tx-handle');
     expect(roles.countActiveDirectMembers).not.toHaveBeenCalled();
   });
 });

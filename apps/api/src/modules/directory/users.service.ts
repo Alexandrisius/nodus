@@ -132,16 +132,22 @@ export class UsersService {
       middleName: dto.middleName === undefined ? before.middleName : dto.middleName,
     };
     const { roleIds, ...fields } = dto;
-    const adminRole = adminRoleOf(before);
-    const adminRemoved =
-      adminRole !== null && roleIds !== undefined && !roleIds.includes(adminRole.id);
     const membershipChanges = roleIds !== undefined || dto.departmentId !== undefined;
 
     return this.tx.run(async (tx) => {
-      // Замок строки admin (#490): правки состава сериализуются, отказ
-      // пост-проверки откатывает транзакцию целиком.
-      if (adminRemoved) {
-        await this.roles.lockForUpdate(adminRole.id, tx);
+      // Замок строки admin (#490): решение о «последнем администраторе» —
+      // по составу, прочитанному ПОД замком, не по снимку вне транзакции
+      // (иначе параллельная выдача роли проходит мимо защиты).
+      let adminRoleId: string | null = null;
+      if (roleIds !== undefined) {
+        const lockedId = await this.roles.lockByCodeForUpdate(SystemRole.ADMIN, tx);
+        if (lockedId !== null) {
+          const current = (await this.users.findCardById(id, tx))!;
+          const adminRole = adminRoleOf(current);
+          if (adminRole !== null && !roleIds.includes(adminRole.id)) {
+            adminRoleId = adminRole.id;
+          }
+        }
       }
       const beforeRoleIds = membershipChanges ? await this.guard.effectiveRoleIds(id, tx) : null;
       await this.users.update(
@@ -158,9 +164,12 @@ export class UsersService {
       if (beforeRoleIds !== null) {
         await this.guard.assertEffectiveRolesHeld(actor, id, beforeRoleIds, tx);
       }
-      if (adminRemoved && (await this.roles.countActiveDirectMembers(adminRole.id, tx)) === 0) {
+      if (
+        adminRoleId !== null &&
+        (await this.roles.countActiveDirectMembers(adminRoleId, tx)) === 0
+      ) {
         throw new DomainException(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', {
-          roleId: adminRole.id,
+          roleId: adminRoleId,
         });
       }
       await this.eventBus.emit(
@@ -182,18 +191,25 @@ export class UsersService {
     if (before.status === 'deactivated') {
       return toUserCard(before, this.avatarUrlOf); // идемпотентно
     }
-    const adminRole = adminRoleOf(before);
 
     return this.tx.run(async (tx) => {
       // Замок строки admin (#490): деактивация последнего администратора
-      // сериализуется с правками состава роли.
-      if (adminRole) {
-        await this.roles.lockForUpdate(adminRole.id, tx);
+      // сериализуется с правками состава роли; состав читается под замком.
+      let adminRoleId: string | null = null;
+      const lockedId = await this.roles.lockByCodeForUpdate(SystemRole.ADMIN, tx);
+      if (lockedId !== null) {
+        const current = (await this.users.findCardById(id, tx))!;
+        if (adminRoleOf(current) !== null) {
+          adminRoleId = lockedId;
+        }
       }
       await this.users.update(id, { status: 'deactivated' }, tx);
-      if (adminRole && (await this.roles.countActiveDirectMembers(adminRole.id, tx)) === 0) {
+      if (
+        adminRoleId !== null &&
+        (await this.roles.countActiveDirectMembers(adminRoleId, tx)) === 0
+      ) {
         throw new DomainException(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', {
-          roleId: adminRole.id,
+          roleId: adminRoleId,
         });
       }
       await this.eventBus.emit(

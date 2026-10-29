@@ -80,6 +80,14 @@ export class RoleAssignmentGuard {
     tx: TransactionClient,
   ): Promise<void> {
     if (roleIds.length === 0) return;
+    // Замок строк добавляемых ролей (#490, TOCTOU): права читаются ПОД замком —
+    // параллельное расширение роли либо коммитится до нас (и bind честно ловит
+    // 403 по новым правам), либо после нас, и ответственность за него несёт
+    // прошедший свой bind тот, кто расширял. Сортировка — детерминированный
+    // порядок замков: два параллельных назначения не взаимоблокируются.
+    for (const roleId of [...roleIds].sort()) {
+      await this.roles.lockForUpdate(roleId, tx);
+    }
     const permissionsByRole = await this.roles.permissionsByIds([...roleIds], tx);
     const missing = rolesNotHeld(
       actor.permissions,
