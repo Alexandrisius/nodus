@@ -253,7 +253,7 @@ describe('ProjectsService (#52)', () => {
         ID,
         expect.objectContaining({ visibility: 'open' }),
       );
-      expect(members.onVisibilityChanged).toHaveBeenCalledWith(ID, 'open');
+      expect(members.recomputeTaskSource).toHaveBeenCalledWith(ID);
     });
 
     it('не-руководство без project.manage → 403; шифр занят → 409', async () => {

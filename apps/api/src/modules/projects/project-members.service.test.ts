@@ -26,7 +26,7 @@ function projectRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ProjectMembersService (#52, Р2 — двухрежимное участие)', () => {
-  const projects = { findById: vi.fn(), touch: vi.fn() };
+  const projects = { findById: vi.fn(), touch: vi.fn(), lockForUpdate: vi.fn() };
   const participants = {
     rowsOfProject: vi.fn(),
     membersPage: vi.fn(),
@@ -45,6 +45,11 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
   beforeEach(() => {
     vi.clearAllMocks();
     projects.findById.mockResolvedValue(projectRow());
+    // Блокировка строки в писателях состава отражает текущую видимость проекта.
+    projects.lockForUpdate.mockImplementation(async () => {
+      const row = await projects.findById();
+      return row ? { id: row.id, visibility: row.visibility, status: row.status } : null;
+    });
     // Руководитель — участник: assertVisible секретного проекта проходит.
     participants.hasRow.mockResolvedValue(true);
     tasks.membersOf.mockResolvedValue([]);
@@ -131,10 +136,47 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
       ]);
 
       await service.addManual(user(HELPER), ID, WORKER, 'observer');
-      expect(participants.remove).toHaveBeenLastCalledWith({}, ID, [WORKER], 'member');
+      // Роль заменяется: снимается member-ряд, прежний вид наблюдателя
+      // сбрасывается (joined → invited), затем пишется invited.
+      expect(participants.remove).toHaveBeenCalledWith({}, ID, [WORKER], 'member');
+      expect(participants.remove).toHaveBeenLastCalledWith({}, ID, [WORKER], 'observer');
       expect(participants.add).toHaveBeenLastCalledWith({}, [
         { projectId: ID, userId: WORKER, source: 'observer', observerKind: 'invited' },
       ]);
+    });
+
+    it('понижение участника до наблюдателя при ролях в задачах — 422 (задачи держат уведомления)', async () => {
+      projects.findById.mockResolvedValue(projectRow({ visibility: 'secret' }));
+      participants.rowsOfProject.mockResolvedValue([
+        ...managementRows(),
+        {
+          projectId: ID,
+          userId: WORKER,
+          source: 'member',
+          observerKind: null,
+          createdAt: new Date(),
+        },
+      ]);
+      tasks.roleHolderIds.mockResolvedValueOnce([WORKER]);
+      await expect(service.addManual(user(MANAGER), ID, WORKER, 'observer')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_FAILED,
+      });
+      expect(participants.add).not.toHaveBeenCalled();
+    });
+
+    it('лимит наблюдателей (100) — 422 на ручном добавлении', async () => {
+      projects.findById.mockResolvedValue(projectRow({ visibility: 'open' }));
+      const observers = Array.from({ length: 100 }, (_, index) => ({
+        projectId: ID,
+        userId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+        source: 'observer',
+        observerKind: 'invited',
+        createdAt: new Date(),
+      }));
+      participants.rowsOfProject.mockResolvedValue([...managementRows(), ...observers]);
+      await expect(service.addManual(user(MANAGER), ID, WORKER, 'observer')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_FAILED,
+      });
     });
 
     it('открытый проект: участников руками не добавляют (они из задач), наблюдателей — можно', async () => {
@@ -195,8 +237,8 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
     });
   });
 
-  describe('onVisibilityChanged', () => {
-    it('open→secret: динамика задач снимается (состав секретного полностью ручной)', async () => {
+  describe('dropOpenRoster (open→secret)', () => {
+    it('снимает динамику задач и самовступивших; приглашённый и создатель остаются', async () => {
       participants.rowsOfProject.mockResolvedValueOnce([
         {
           projectId: ID,
@@ -212,23 +254,37 @@ describe('ProjectMembersService (#52, Р2 — двухрежимное учас�
           observerKind: 'joined',
           createdAt: new Date(),
         },
+        {
+          projectId: ID,
+          userId: HELPER,
+          source: 'observer',
+          observerKind: 'invited',
+          createdAt: new Date(),
+        },
+        {
+          projectId: ID,
+          userId: MANAGER,
+          source: 'observer',
+          observerKind: 'creator',
+          createdAt: new Date(),
+        },
       ]);
-      await service.onVisibilityChanged(ID, 'secret');
+      await service.dropOpenRoster({} as never, ID);
       expect(participants.remove).toHaveBeenCalledWith({}, ID, [WORKER], 'task');
-      // наблюдатель-вступивший остаётся
+      // самовступивший в секретный проект не переносится — состав ручной
+      expect(participants.remove).toHaveBeenCalledWith({}, ID, [OUTSIDER], 'observer');
       expect(participants.remove).not.toHaveBeenCalledWith(
         expect.anything(),
         ID,
-        [OUTSIDER],
+        [HELPER],
         'observer',
       );
-    });
-
-    it('secret→open: немедленный пересчёт из живых задач', async () => {
-      tasks.membersOf.mockResolvedValueOnce([]);
-      participants.replaceTaskSource.mockResolvedValueOnce({ added: [], removed: [] });
-      await service.onVisibilityChanged(ID, 'open');
-      expect(tasks.membersOf).toHaveBeenCalledWith(ID);
+      expect(participants.remove).not.toHaveBeenCalledWith(
+        expect.anything(),
+        ID,
+        [MANAGER],
+        'observer',
+      );
     });
   });
 });

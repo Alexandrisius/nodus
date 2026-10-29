@@ -77,6 +77,13 @@ describe('ProjectLifecycleService (#52: статусы и передача, Т5/
       );
     });
 
+    it('повтор того же статуса — без события (лента «История» не шумит)', async () => {
+      projects.loadForManage.mockResolvedValue({ row: row({ status: 'active' }) });
+      await service.setStatus(user(MANAGER), ID, 'active');
+      expect(repo.update).not.toHaveBeenCalled();
+      expect(eventBus.emit).not.toHaveBeenCalled();
+    });
+
     it('возврат из архива — только руководитель или project.manage (помощник → 403)', async () => {
       projects.loadForManage.mockResolvedValue({ row: row({ status: 'archived' }) });
       await expect(service.setStatus(user(HELPER), ID, 'active')).rejects.toMatchObject({

@@ -248,6 +248,12 @@ export class ProjectsService {
       if (assistantIds !== null) {
         await this.members.syncManagement(tx, id, { managerId: next.managerId, assistantIds });
       }
+      // Уход в секретность: состав становится полностью ручным В ТОЙ ЖЕ
+      // транзакции — без окна, где проект уже скрыт, а бывшие участники
+      // задач/самовступившие наблюдатели ещё держат доступ.
+      if (patch.visibility === 'secret') {
+        await this.members.dropOpenRoster(tx, id);
+      }
       await this.eventBus.emit(
         tx,
         PROJECT_EVENTS.UPDATED,
@@ -262,8 +268,8 @@ export class ProjectsService {
         { actorId: user.id, aggregateType: 'project', aggregateId: id },
       );
     });
-    if (patch.visibility !== undefined) {
-      await this.members.onVisibilityChanged(id, patch.visibility as 'open' | 'secret');
+    if (patch.visibility === 'open') {
+      await this.members.recomputeTaskSource(id);
     }
     return this.queries.detail(user, id);
   }

@@ -117,7 +117,7 @@ export class ProjectCatalogsController {
     dto: ProjectTypeUpdateBody,
   ): Promise<ProjectType> {
     return this.txRunner.run(async (tx) => {
-      if (dto.name !== undefined && (await this.types.nameTaken(dto.name))) {
+      if (dto.name !== undefined && (await this.types.nameTaken(dto.name, id))) {
         throw DomainException.conflict('Project type name is already taken');
       }
       const updated = await this.types.update(tx, id, dto);

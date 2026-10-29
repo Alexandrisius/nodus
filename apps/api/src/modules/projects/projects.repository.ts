@@ -164,6 +164,20 @@ export class ProjectsRepository {
     return tx.project.findUnique({ select: projectSelect, where: { id } });
   }
 
+  /** Блокировка строки проекта в транзакции писателя состава
+   *  (`SELECT … FOR UPDATE`): писатель ждёт коммита смены видимости и видит
+   *  актуальное значение — гонка join/recompute/addManual с `open→secret`
+   *  закрывается (иначе ряд `joined`/`task` успевает лечь после очистки). */
+  async lockForUpdate(
+    tx: TransactionClient,
+    id: string,
+  ): Promise<{ id: string; visibility: string; status: string } | null> {
+    const rows = await tx.$queryRaw<{ id: string; visibility: string; status: string }[]>(
+      Prisma.sql`SELECT id, visibility, status FROM projects WHERE id = ${id}::uuid FOR UPDATE`,
+    );
+    return rows[0] ?? null;
+  }
+
   /** Шифр занят другим проектом (частичный unique включает архивные). */
   async codeTaken(code: string, excludeId: string | null): Promise<boolean> {
     const row = await this.prisma.project.findFirst({
@@ -226,44 +240,6 @@ export class ProjectsRepository {
       where: { id: { in: [...ids] } },
     });
     return rows.map((row) => ({ ...row, color: row.color as ProjectRef['color'] }));
-  }
-
-  /** Счётчики состава страницы журнала: уникальные сотрудники на проект. */
-  async membersCounts(projectIds: readonly string[]): Promise<Map<string, number>> {
-    if (projectIds.length === 0) return new Map();
-    const rows = await this.prisma.$queryRaw<{ project_id: string; count: number }[]>(
-      Prisma.sql`SELECT project_id, COUNT(DISTINCT user_id)::int AS count
-                 FROM project_participants
-                 WHERE project_id IN (${Prisma.join(projectIds)}::uuid[])
-                 GROUP BY project_id`,
-    );
-    return new Map(rows.map((row) => [row.project_id, Number(row.count)]));
-  }
-
-  /** Превью состава (≤5 сотрудников на проект) для строк журнала. */
-  async membersPreview(
-    projectIds: readonly string[],
-    perProject: number,
-  ): Promise<Map<string, string[]>> {
-    const result = new Map<string, string[]>();
-    if (projectIds.length === 0) return result;
-    const rows = await this.prisma.$queryRaw<{ project_id: string; user_id: string }[]>(
-      Prisma.sql`SELECT p.id AS project_id, u.user_id
-                 FROM projects p
-                 CROSS JOIN LATERAL (
-                   SELECT DISTINCT pp.user_id FROM project_participants pp
-                   WHERE pp.project_id = p.id
-                   ORDER BY pp.user_id
-                   LIMIT ${perProject}
-                 ) u
-                 WHERE p.id IN (${Prisma.join(projectIds)}::uuid[])`,
-    );
-    for (const row of rows) {
-      const list = result.get(row.project_id) ?? [];
-      list.push(row.user_id);
-      result.set(row.project_id, list);
-    }
-    return result;
   }
 
   // ===== Настройки портала (Р7) =====

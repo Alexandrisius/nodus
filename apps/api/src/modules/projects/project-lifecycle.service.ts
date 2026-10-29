@@ -42,6 +42,9 @@ export class ProjectLifecycleService {
    *  возврат в работу — руководитель или project.manage (Т6). */
   async setStatus(user: AuthUser, id: string, status: ProjectStatus): Promise<ProjectDetail> {
     const { row } = await this.projects.loadForManage(user, id);
+    // Повтор того же статуса — не событие: иначе лента «История» шумит
+    // «status_changed → тот же статус» (замечание ревью).
+    if (row.status === status) return this.queries.detail(user, id);
     if (
       row.status === 'archived' &&
       row.managerId !== user.id &&

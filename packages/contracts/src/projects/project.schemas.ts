@@ -256,8 +256,8 @@ export const projectMemberSchema = z.object({
 
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
 
-/** Ручное добавление в секретный проект (руководство): участник или
- *  наблюдатель. */
+/** Ручное добавление руководством: в секретный — участник или наблюдатель,
+ *  в открытый — только наблюдатель (участники открытого живут из задач). */
 export const projectMemberAddBodySchema = z.object({
   userId: z.uuid(),
   kind: projectMembershipKindSchema,

@@ -3,6 +3,7 @@ import {
   ErrorCode,
   Permission,
   PROJECT_EVENTS,
+  PROJECT_LIMITS,
   type AuthUser,
   type ProjectMember,
 } from '@nodus/contracts';
@@ -23,6 +24,7 @@ import type { MembershipRow } from './project-access.js';
 import {
   ProjectParticipantsRepository,
   type MembersCursor,
+  type ParticipantRow,
 } from './project-participants.repository.js';
 import { ProjectsRepository } from './projects.repository.js';
 
@@ -71,20 +73,23 @@ export class ProjectMembersService {
     return { items, nextCursor };
   }
 
-  /** «Присоединиться» (открытый, не-участник) — наблюдатель-вступивший. */
+  /** «Присоединиться» (открытый, не-участник) — наблюдатель-вступивший.
+   *  Проверки и запись — под блокировкой строки проекта: флип в секретный,
+   *  случившийся параллельно, дождётся нашего коммита или мы увидим secret
+   *  и откажем (иначе ряд `joined` проскочил бы в секретный проект). */
   async join(user: AuthUser, projectId: string): Promise<void> {
-    const project = await this.projects.findById(projectId);
-    if (!project || project.visibility !== 'open') {
-      throw DomainException.notFound('Project not found');
-    }
-    if (project.status === 'archived') {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
-    }
-    const mine = await this.participants.rowsOfProject(projectId);
-    if (mine.some((row) => row.userId === user.id)) {
-      return; // идемпотентно: уже участвует
-    }
     await this.txRunner.run(async (tx) => {
+      const project = await this.projects.lockForUpdate(tx, projectId);
+      if (!project || project.visibility !== 'open') {
+        throw DomainException.notFound('Project not found');
+      }
+      if (project.status === 'archived') {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
+      }
+      const mine = await this.participants.rowsOfProject(projectId);
+      if (mine.some((row) => row.userId === user.id)) {
+        return; // идемпотентно: уже участвует
+      }
       await this.participants.add(tx, [
         { projectId, userId: user.id, source: 'observer', observerKind: 'joined' },
       ]);
@@ -92,9 +97,11 @@ export class ProjectMembersService {
     });
   }
 
-  /** «Покинуть» — только свой ряд вступившего наблюдателя. */
+  /** «Покинуть» — только свой ряд вступившего наблюдателя. Лок проекта
+   *  первым шагом — единый порядок блокировок со сменой видимости. */
   async leave(user: AuthUser, projectId: string): Promise<void> {
     await this.txRunner.run(async (tx) => {
+      await this.projects.lockForUpdate(tx, projectId);
       await this.participants.remove(tx, projectId, [user.id], 'observer');
       await this.emitChanged(tx, projectId, [user.id]);
     });
@@ -111,25 +118,66 @@ export class ProjectMembersService {
     targetId: string,
     kind: 'member' | 'observer',
   ): Promise<void> {
-    const project = await this.assertManageMembers(user, projectId);
-    if (project.visibility !== 'secret' && kind === 'member') {
-      throw new DomainException(
-        ErrorCode.VALIDATION_FAILED,
-        'Open project membership lives from its tasks',
-      );
-    }
-    if (project.status === 'archived') {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
-    }
+    await this.assertManageMembers(user, projectId);
     const active = await this.profiles.filterActiveUserIds([targetId]);
     if (active.length === 0) throw DomainException.notFound('User not found');
+    // Проверки состава — ПОД блокировкой проекта и в одной транзакции с
+    // записью: флип видимости и параллельные добавления не проскочат.
     await this.txRunner.run(async (tx) => {
+      const locked = await this.projects.lockForUpdate(tx, projectId);
+      if (!locked) throw DomainException.notFound('Project not found');
+      if (locked.status === 'archived') {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
+      }
+      const rows = await this.participants.rowsOfProject(projectId);
+      // Права актёра перепроверяются ПОД локом: пока ждали, руководство могло
+      // смениться (передача/правка помощников) — бывший управляющий не должен
+      // писать состав.
+      if (!isManagement(rows, user)) {
+        throw DomainException.forbidden('Only project management can manage members');
+      }
+      // Участники открытого проекта приходят из задач (вердикт 29.10 В2);
+      // видимость читаем под локом, а не снапшотом до транзакции.
+      if (locked.visibility !== 'secret' && kind === 'member') {
+        throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          'Open project membership lives from its tasks',
+        );
+      }
+      if (
+        kind === 'observer' &&
+        rows.filter((row) => row.source === 'observer' && row.userId !== targetId).length >=
+          PROJECT_LIMITS.observers
+      ) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Too many observers');
+      }
+      // Понижение участника до наблюдателя оставило бы ему роли в задачах
+      // секретного проекта (canEdit и уведомления с заголовками) — та же
+      // граница, что у полного снятия: сначала снимите с задач.
+      if (
+        locked.visibility === 'secret' &&
+        kind === 'observer' &&
+        rows.some((row) => row.userId === targetId && row.source === 'member') &&
+        (await this.tasks.roleHolderIds(projectId)).includes(targetId)
+      ) {
+        throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          'Remove the employee from the project tasks first',
+          { userId: targetId },
+        );
+      }
       await this.participants.remove(
         tx,
         projectId,
         [targetId],
         kind === 'member' ? 'observer' : 'member',
       );
+      // Явное приглашение перекрывает прежний вид наблюдателя (`joined` →
+      // `invited`), иначе при уходе в секретный такой человек снимался бы
+      // вместе с самовступившими.
+      if (kind === 'observer') {
+        await this.participants.remove(tx, projectId, [targetId], 'observer');
+      }
       await this.participants.add(tx, [
         kind === 'member'
           ? { projectId, userId: targetId, source: 'member' }
@@ -140,31 +188,36 @@ export class ProjectMembersService {
   }
 
   /** Снятие ручного состава: секретный — участник и наблюдатель; открытый —
-   *  только наблюдатель (состав из задач не трогаем). */
+   *  только наблюдатель (состав из задач не трогаем). Всё под локом проекта:
+   *  единый порядок блокировок и перепроверка прав актёра. */
   async removeManual(user: AuthUser, projectId: string, targetId: string): Promise<void> {
-    const project = await this.assertManageMembers(user, projectId);
-    if (project.status === 'archived') {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
-    }
-    if (project.visibility !== 'secret') {
-      await this.txRunner.run(async (tx) => {
-        await this.participants.remove(tx, projectId, [targetId], 'observer');
-        await this.emitChanged(tx, projectId, [targetId]);
-      });
-      return;
-    }
-    // Сотрудник с ролями в задачах проекта остаётся адресатом уведомлений и
-    // push даже после снятия участия — сначала снимите его с задач (иначе
-    // заголовки секретных задач продолжают утекать).
-    if ((await this.tasks.roleHolderIds(projectId)).includes(targetId)) {
-      throw new DomainException(
-        ErrorCode.VALIDATION_FAILED,
-        'Remove the employee from the project tasks first',
-        { userId: targetId },
-      );
-    }
+    await this.assertManageMembers(user, projectId);
     await this.txRunner.run(async (tx) => {
-      await this.participants.remove(tx, projectId, [targetId], 'member');
+      const locked = await this.projects.lockForUpdate(tx, projectId);
+      if (!locked) throw DomainException.notFound('Project not found');
+      if (locked.status === 'archived') {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived');
+      }
+      const rows = await this.participants.rowsOfProject(projectId);
+      if (!isManagement(rows, user)) {
+        throw DomainException.forbidden('Only project management can manage members');
+      }
+      // Сотрудник с ролями в задачах секретного проекта остаётся адресатом
+      // уведомлений и push даже после снятия участия — сначала снимите его с
+      // задач (иначе заголовки секретных задач продолжают утекать).
+      if (
+        locked.visibility === 'secret' &&
+        (await this.tasks.roleHolderIds(projectId)).includes(targetId)
+      ) {
+        throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          'Remove the employee from the project tasks first',
+          { userId: targetId },
+        );
+      }
+      if (locked.visibility === 'secret') {
+        await this.participants.remove(tx, projectId, [targetId], 'member');
+      }
       await this.participants.remove(tx, projectId, [targetId], 'observer');
       await this.emitChanged(tx, projectId, [targetId]);
     });
@@ -177,6 +230,10 @@ export class ProjectMembersService {
     if (!project || project.visibility !== 'open') return;
     const members = await this.tasks.membersOf(projectId);
     await this.txRunner.run(async (tx) => {
+      // Под блокировкой: если проект успел уйти в секретный — состав из
+      // задач не возвращаем (иначе re-flip вернул бы всех держателей ролей).
+      const locked = await this.projects.lockForUpdate(tx, projectId);
+      if (!locked || locked.visibility !== 'open') return;
       const { added, removed } = await this.participants.replaceTaskSource(tx, projectId, members);
       if (added.length > 0 || removed.length > 0) {
         await this.emitChanged(tx, projectId, [...new Set([...added, ...removed])]);
@@ -196,21 +253,24 @@ export class ProjectMembersService {
     if (changed.length > 0) await this.emitChanged(tx, projectId, changed);
   }
 
-  /** Сбор строк руководства после смены видимости: open→secret — динамика
-   *  задач снимается (состав секретного полностью ручной); secret→open —
-   *  пересчитывается из живых задач. */
-  async onVisibilityChanged(projectId: string, visibility: 'open' | 'secret'): Promise<void> {
-    if (visibility === 'secret') {
-      await this.txRunner.run(async (tx) => {
-        const rows = await this.participants.rowsOfProject(projectId);
-        const taskUsers = rows.filter((row) => row.source === 'task').map((row) => row.userId);
-        if (taskUsers.length === 0) return;
-        await this.participants.remove(tx, projectId, taskUsers, 'task');
-        await this.emitChanged(tx, projectId, taskUsers);
-      });
-      return;
+  /** open→secret: состав секретного полностью ручной. В ТОЙ ЖЕ транзакции,
+   *  что и смена видимости (иначе окно, где проект уже секретный, а бывшие
+   *  участники задач ещё видят карточку/задачи/канал), снимаем динамику
+   *  задач и САМОВСТУПИВШИХ наблюдателей (`joined`); приглашённые (`invited`)
+   *  и создатель (`creator`) остаются — они назначены/производные. */
+  async dropOpenRoster(tx: TransactionClient, projectId: string): Promise<void> {
+    const rows = await this.participants.rowsOfProject(projectId);
+    const taskUsers = rows.filter((row) => row.source === 'task').map((row) => row.userId);
+    const joinedUsers = rows
+      .filter((row) => row.source === 'observer' && row.observerKind === 'joined')
+      .map((row) => row.userId);
+    if (taskUsers.length > 0) await this.participants.remove(tx, projectId, taskUsers, 'task');
+    if (joinedUsers.length > 0) {
+      await this.participants.remove(tx, projectId, joinedUsers, 'observer');
     }
-    await this.recomputeTaskSource(projectId);
+    if (taskUsers.length > 0 || joinedUsers.length > 0) {
+      await this.emitChanged(tx, projectId, [...new Set([...taskUsers, ...joinedUsers])]);
+    }
   }
 
   /** Событие изменения состава + подъём активности проекта (Т2). */
@@ -257,4 +317,13 @@ export class ProjectMembersService {
     }
     return project;
   }
+}
+
+/** Актёр — руководство проекта (руководитель/помощник) или держатель
+ *  `project.manage`: перепроверяется под локом проекта. */
+function isManagement(rows: readonly ParticipantRow[], user: AuthUser): boolean {
+  const mine = rows.some(
+    (row) => row.userId === user.id && (row.source === 'manager' || row.source === 'assistant'),
+  );
+  return mine || user.permissions.includes(Permission.PROJECT_MANAGE);
 }

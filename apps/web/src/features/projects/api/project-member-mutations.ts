@@ -20,10 +20,14 @@ export function useJoinProject(id: string) {
       const me = useAuthStore.getState().user;
       if (previous && me) {
         const actor: UserRef = { id: me.id, displayName: me.displayName, avatarUrl: null };
+        // Вступление — ряд НАБЛЮДАТЕЛЯ: «Участники» (membersCount) не меняются,
+        // наблюдатель добавляется в отдельное поле карточки (вердикт 07.11.2026).
         queryClient.setQueryData<ProjectDetail>(projectsKeys.detail(id), {
           ...previous,
           myMembership: { ...previous.myMembership, observer: true },
-          membersCount: previous.membersCount + 1,
+          observers: previous.observers.some((entry) => entry.id === me.id)
+            ? previous.observers
+            : [...previous.observers, actor],
           access: { ...previous.access, canJoin: false, canLeave: true },
         });
         patchMemberPages(queryClient, id, (items) => [
@@ -63,7 +67,7 @@ export function useLeaveProject(id: string) {
         queryClient.setQueryData<ProjectDetail>(projectsKeys.detail(id), {
           ...previous,
           myMembership: { ...previous.myMembership, observer: false },
-          membersCount: Math.max(previous.membersCount - 1, 0),
+          observers: previous.observers.filter((entry) => entry.id !== me.id),
           access: { ...previous.access, canJoin: true, canLeave: false },
         });
         patchMemberPages(queryClient, id, (items) =>

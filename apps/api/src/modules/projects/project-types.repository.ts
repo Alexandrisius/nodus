@@ -45,8 +45,11 @@ export class ProjectTypesRepository {
     return row ? this.toDto(row) : null;
   }
 
-  async nameTaken(name: string): Promise<boolean> {
-    const row = await this.prisma.projectType.findFirst({ select: { id: true }, where: { name } });
+  async nameTaken(name: string, excludeId?: string): Promise<boolean> {
+    const row = await this.prisma.projectType.findFirst({
+      select: { id: true },
+      where: { name, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    });
     return row !== null;
   }
 
