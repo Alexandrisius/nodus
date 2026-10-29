@@ -1,37 +1,113 @@
 import { z } from 'zod';
 
 import { counterpartyRefSchema } from '../counterparties/counterparty.schemas.js';
+import { customFieldRefSchema } from '../custom-fields/custom-field-refs.js';
+import {
+  customFieldValuesInputSchema,
+  customFieldValuesPatchSchema,
+  customFieldValuesSchema,
+} from '../custom-fields/custom-field-values.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
-/** Контракты модуля проектов (projects.Project). */
+/**
+ * Контракты модуля проектов (#52, ADR-0030): проект = договор (шифр) или
+ * «тема» (без шифра); участие двухрежимное (открытый — динамика из задач,
+ * секретный — ручной состав), руководство — системные поля
+ * Руководитель + Помощники (вердикты владельца 29.10).
+ */
 
-export const projectPrivacySchema = z.enum(['open', 'closed']);
-export type ProjectPrivacy = z.infer<typeof projectPrivacySchema>;
+/** Видимость: открытый виден всем, секретный — только участию (+ view_secret). */
+export const projectVisibilitySchema = z.enum(['open', 'secret']);
+export type ProjectVisibility = z.infer<typeof projectVisibilitySchema>;
 
-export const projectRoleSchema = z.enum(['manager', 'member']);
-export type ProjectRole = z.infer<typeof projectRoleSchema>;
+/** Действует / завершён (метка) / в архиве (заморозка: создание задач — 422). */
+export const projectStatusSchema = z.enum(['active', 'completed', 'archived']);
+export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 
 /** Цвет-идентичность проекта (маркер-плитка в журналах и ссылках). Ключи,
  *  не hex (I15): тон разрешается в categorical-токены --chart-* своей темы. */
 export const projectColorSchema = z.enum(['blue', 'green', 'amber', 'pink', 'sky', 'terra']);
 export type ProjectColor = z.infer<typeof projectColorSchema>;
 
-export const projectListItemSchema = z.object({
+/** Источник участия (Р2 техплана #52): руководство, динамика задач,
+ *  ручное добавление (секретный), вступление/приглашение наблюдателем. */
+export const projectParticipantSourceSchema = z.enum([
+  'manager',
+  'assistant',
+  'task',
+  'member',
+  'observer',
+]);
+export type ProjectParticipantSource = z.infer<typeof projectParticipantSourceSchema>;
+
+/** Ручное участие в секретном проекте: участник (может получать задачи) /
+ *  наблюдатель (только просмотр). */
+export const projectMembershipKindSchema = z.enum(['member', 'observer']);
+export type ProjectMembershipKind = z.infer<typeof projectMembershipKindSchema>;
+
+/** Откуда наблюдатель: приглашён руководством / создатель-не-руководитель /
+ *  вступил сам («Присоединиться», открытый проект). */
+export const projectObserverKindSchema = z.enum(['invited', 'creator', 'joined']);
+export type ProjectObserverKind = z.infer<typeof projectObserverKindSchema>;
+
+/** Ссылка на проект (задачи, письма, канал). Код nullable — «темы» без шифра. */
+export const projectRefSchema = z.object({
   id: z.uuid(),
-  code: z.string().min(1),
+  code: z.string().min(1).nullable(),
   name: z.string().min(1),
   color: projectColorSchema,
+});
+
+export type ProjectRef = z.infer<typeof projectRefSchema>;
+
+/** Тип проекта — справочник «Автоматизации» (сид: «Договор», «Тема»). */
+export const projectTypeRefSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+});
+export type ProjectTypeRef = z.infer<typeof projectTypeRefSchema>;
+
+/** Портфель — плоский список группировки проектов (один заказчик — один
+ *  большой объект; состав заказчиков выводится из проектов). */
+export const projectGroupRefSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+});
+export type ProjectGroupRef = z.infer<typeof projectGroupRefSchema>;
+
+/** Моё участие в проекте: перечисление источников (false везде — не участвую;
+ *  «участник» = динамика задач или ручной member). */
+export const projectMyMembershipSchema = z.object({
+  manager: z.boolean(),
+  assistant: z.boolean(),
+  participant: z.boolean(),
+  observer: z.boolean(),
+});
+export type ProjectMyMembership = z.infer<typeof projectMyMembershipSchema>;
+
+export const projectListItemSchema = z.object({
+  id: z.uuid(),
+  /** Шифр договора; null — «тема» без шифра. */
+  code: z.string().min(1).nullable(),
+  name: z.string().min(1),
+  color: projectColorSchema,
+  /** Руководитель проекта (дефолт — создатель). */
   manager: userRefSchema.nullable(),
-  myRole: projectRoleSchema,
-  privacy: projectPrivacySchema,
+  /** Помощники руководителя (несколько, ≤ 10). */
+  assistants: z.array(userRefSchema),
+  myMembership: projectMyMembershipSchema,
+  visibility: projectVisibilitySchema,
+  status: projectStatusSchema,
+  type: projectTypeRefSchema.nullable(),
+  portfolio: projectGroupRefSchema.nullable(),
+  /** Заказчик — контрагент справочника (#460, ADR-0033). */
+  client: counterpartyRefSchema.nullable(),
+  /** Живой состав (все источники, уникальные сотрудники). */
   membersCount: z.number().int().min(0),
   membersPreview: z.array(userRefSchema),
   endDate: z.iso.date().nullable(),
-  /** Заказчик проекта — контрагент из справочника (модель v2 корреспонденции,
-   *  вердикт владельца 22.09.2026). */
-  client: counterpartyRefSchema.nullable(),
-  /** Последняя активность (для сортировки списка). */
+  /** Последняя активность (для сортировки журнала). */
   activityAt: z.iso.datetime(),
   /** Канал проекта в мессенджере, если создан. */
   channelId: z.uuid().nullable(),
@@ -39,14 +115,203 @@ export const projectListItemSchema = z.object({
 
 export type ProjectListItem = z.infer<typeof projectListItemSchema>;
 
+/** Что текущий сотрудник может с проектом (сервер — истина, I8). */
+export const projectAccessSchema = z.object({
+  /** Правка полей, статусы, состав (руководитель, помощники, project.manage). */
+  canManage: z.boolean(),
+  /** Управление составом (секретный: добавить/снять участника и наблюдателя). */
+  canManageMembers: z.boolean(),
+  /** «Присоединиться» (открытый, не-участник). */
+  canJoin: z.boolean(),
+  /** «Покинуть» (вступивший наблюдатель). */
+  canLeave: z.boolean(),
+  /** Публикация в канал проекта. */
+  canPostToChannel: z.boolean(),
+  /** Передача руководства (только действующий руководитель). */
+  canTransfer: z.boolean(),
+});
+export type ProjectAccess = z.infer<typeof projectAccessSchema>;
+
+export const projectDetailSchema = projectListItemSchema.extend({
+  description: z.string(),
+  creator: userRefSchema,
+  startDate: z.iso.date().nullable(),
+  completedAt: z.iso.datetime().nullable(),
+  archivedAt: z.iso.datetime().nullable(),
+  /** Значения кастомных атрибутов области `project` по id определения. */
+  customFields: customFieldValuesSchema,
+  customFieldRefs: z.array(customFieldRefSchema),
+  access: projectAccessSchema,
+  createdAt: z.iso.datetime(),
+});
+
+export type ProjectDetail = z.infer<typeof projectDetailSchema>;
+
+/** Лимиты проекта (допущения техплана #52). */
+export const PROJECT_LIMITS = {
+  assistants: 10,
+  nameLength: 200,
+  codeLength: 64,
+  descriptionLength: 2000,
+} as const;
+
 export const listProjectsQuerySchema = cursorQuerySchema.extend({
   scope: z.enum(['mine', 'all']).default('mine'),
   search: z.string().trim().min(1).max(128).optional(),
-  /** Проекты сотрудника (вкладка «Проекты» карточки сотрудника): руководит
-   *  или участник. */
+  /** «Моя роль»: руководитель / помощник / участник / наблюдатель. */
+  role: z.enum(['manager', 'assistant', 'participant', 'observer']).optional(),
+  visibility: projectVisibilitySchema.optional(),
+  status: projectStatusSchema.optional(),
+  portfolioId: z.uuid().optional(),
+  /** Проекты сотрудника (вкладка «Проекты» карточки сотрудника). */
   memberId: z.uuid().optional(),
   /** Проекты заказчика (вкладка «Проекты» карточки контрагента, #460). */
   clientId: z.uuid().optional(),
 });
 
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;
+
+/** Создание проекта: простое окно (мастер — #468). Видимость по умолчанию —
+ *  настройка портала (Р7); руководитель по умолчанию — создатель. */
+export const createProjectBodySchema = z.object({
+  name: z.string().trim().min(1).max(PROJECT_LIMITS.nameLength),
+  code: z.string().trim().min(1).max(PROJECT_LIMITS.codeLength).optional(),
+  description: z.string().trim().max(PROJECT_LIMITS.descriptionLength).optional(),
+  color: projectColorSchema.optional(),
+  /** Тип обязателен (допущение: сид «Договор» + «Тема»). */
+  typeId: z.uuid(),
+  portfolioId: z.uuid().nullable().optional(),
+  clientId: z.uuid().nullable().optional(),
+  managerId: z.uuid().optional(),
+  assistantIds: z.array(z.uuid()).max(PROJECT_LIMITS.assistants).optional(),
+  visibility: projectVisibilitySchema.optional(),
+  startDate: z.iso.date().nullable().optional(),
+  endDate: z.iso.date().nullable().optional(),
+  customFields: customFieldValuesInputSchema.optional(),
+});
+
+export type CreateProjectBody = z.infer<typeof createProjectBodySchema>;
+
+/** Правка полей (руководитель, помощники, project.manage): null очищает.
+ *  Передача руководства, смена видимости на секретный и статусы — отдельные
+ *  действия (допущения #52); перенос между портфелями — здесь. */
+export const updateProjectBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(PROJECT_LIMITS.nameLength).optional(),
+    code: z.string().trim().min(1).max(PROJECT_LIMITS.codeLength).nullable().optional(),
+    description: z.string().trim().max(PROJECT_LIMITS.descriptionLength).nullable().optional(),
+    color: projectColorSchema.optional(),
+    portfolioId: z.uuid().nullable().optional(),
+    clientId: z.uuid().nullable().optional(),
+    assistantIds: z.array(z.uuid()).max(PROJECT_LIMITS.assistants).optional(),
+    visibility: projectVisibilitySchema.optional(),
+    startDate: z.iso.date().nullable().optional(),
+    endDate: z.iso.date().nullable().optional(),
+    customFields: customFieldValuesPatchSchema.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+
+export type UpdateProjectBody = z.infer<typeof updateProjectBodySchema>;
+
+/** Статусные действия: завершение — метка; архив — заморозка (создание задач
+ *  в проекте — 422); возврат в работу — руководитель или project.manage. */
+export const projectStatusBodySchema = z.object({
+  status: projectStatusSchema,
+});
+
+export type ProjectStatusBody = z.infer<typeof projectStatusBodySchema>;
+
+/** Передача руководства: прежний руководитель без иных источников участия
+ *  становится наблюдателем-создателем (Т5). */
+export const projectTransferBodySchema = z.object({
+  managerId: z.uuid(),
+});
+
+export type ProjectTransferBody = z.infer<typeof projectTransferBodySchema>;
+
+/** Строка вкладки «Участники»: сотрудник + источник участия. */
+export const projectMemberSchema = z.object({
+  user: userRefSchema,
+  source: projectParticipantSourceSchema,
+  observerKind: projectObserverKindSchema.nullable(),
+  joinedAt: z.iso.datetime(),
+});
+
+export type ProjectMember = z.infer<typeof projectMemberSchema>;
+
+/** Ручное добавление в секретный проект (руководство): участник или
+ *  наблюдатель. */
+export const projectMemberAddBodySchema = z.object({
+  userId: z.uuid(),
+  kind: projectMembershipKindSchema,
+});
+
+export type ProjectMemberAddBody = z.infer<typeof projectMemberAddBodySchema>;
+
+// ===== Типы проектов («Автоматизация», право project.setup.manage) =====
+
+export const projectTypeSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  archivedAt: z.iso.datetime().nullable(),
+});
+
+export type ProjectType = z.infer<typeof projectTypeSchema>;
+
+export const projectTypeCreateBodySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+});
+
+export type ProjectTypeCreateBody = z.infer<typeof projectTypeCreateBodySchema>;
+
+export const projectTypeUpdateBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+
+export type ProjectTypeUpdateBody = z.infer<typeof projectTypeUpdateBodySchema>;
+
+// ===== Портфели (плоский список) =====
+
+export const projectGroupSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  archivedAt: z.iso.datetime().nullable(),
+});
+
+export type ProjectGroup = z.infer<typeof projectGroupSchema>;
+
+export const projectGroupCreateBodySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+});
+
+export type ProjectGroupCreateBody = z.infer<typeof projectGroupCreateBodySchema>;
+
+export const projectGroupUpdateBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+
+export type ProjectGroupUpdateBody = z.infer<typeof projectGroupUpdateBodySchema>;
+
+// ===== Настройки портала (Р7: окно «Настройки портала») =====
+
+/** Живые настройки портала; ключи добавляются с новыми жильцами окна. */
+export const portalSettingsSchema = z.object({
+  projects: z.object({
+    /** Видимость новых проектов по умолчанию (дефолт кода — 'open'). */
+    defaultVisibility: projectVisibilitySchema,
+  }),
+});
+
+export type PortalSettings = z.infer<typeof portalSettingsSchema>;
+
+export const portalSettingsUpdateBodySchema = z.object({
+  projects: z.object({
+    defaultVisibility: projectVisibilitySchema,
+  }),
+});
+
+export type PortalSettingsUpdateBody = z.infer<typeof portalSettingsUpdateBodySchema>;

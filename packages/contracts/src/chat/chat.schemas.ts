@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import { letterRefSchema } from '../correspondence/letter.schemas.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
-import { projectRefSchema, taskRefSchema } from '../tasks/task.schemas.js';
+import { projectRefSchema } from '../projects/project.schemas.js';
+import { taskRefSchema } from '../tasks/task.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { stickerMetaSchema } from './sticker.schemas.js';
 import { chatMessageBlockSchema, chatMessageKindSchema } from './chat-block.schemas.js';

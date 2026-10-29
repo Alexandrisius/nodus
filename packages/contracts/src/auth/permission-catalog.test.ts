@@ -41,11 +41,21 @@ describe('каталог прав (#379)', () => {
     }
   });
 
-  it('«Автоматизация» — ровно три строки в порядке матрицы', () => {
+  it('«Автоматизация» — процессы, атрибуты, справочники, типы проектов', () => {
     expect(permissionsOfModule('automation').map((entry) => entry.permission)).toEqual([
       Permission.WORKFLOW_MANAGE,
       Permission.CUSTOM_FIELD_MANAGE,
       Permission.DICTIONARY_MANAGE,
+      Permission.PROJECT_SETUP_MANAGE,
+    ]);
+  });
+
+  it('«Проекты» — создание, управление, канал, системный надзор (#52)', () => {
+    expect(permissionsOfModule('projects').map((entry) => entry.permission)).toEqual([
+      Permission.PROJECT_CREATE,
+      Permission.PROJECT_MANAGE,
+      Permission.PROJECT_CHANNEL_POST,
+      Permission.PROJECT_VIEW_SECRET,
     ]);
   });
 

@@ -14,6 +14,9 @@ export const authUserSchema = z.object({
   displayName: z.string().min(1),
   /** Развёрнутый набор прав (роль → permissions на бэке). */
   permissions: z.array(z.string().min(1)),
+  /** Включённые модули портала (#52: `projects` и др.) — только в ответе
+   *  `/auth/me` (живой FeatureFlagService, НЕ в JWT). */
+  modules: z.array(z.string().min(1)).optional(),
 });
 
 export type AuthUser = z.infer<typeof authUserSchema>;

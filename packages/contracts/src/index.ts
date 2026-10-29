@@ -41,6 +41,7 @@ export * from './tasks/task-time.schemas.js';
 export * from './tasks/task-bulk.schemas.js';
 export * from './tasks/task-history.schemas.js';
 export * from './events/task-events.js';
+export * from './events/projects-events.js';
 export * from './events/workflow-events.js';
 export * from './events/custom-field-events.js';
 export * from './events/dictionary-events.js';
