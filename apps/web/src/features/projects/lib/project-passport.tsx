@@ -3,6 +3,10 @@ import {
   Building2,
   CalendarClock,
   CalendarPlus,
+  FolderOpen,
+  Hash,
+  Lock,
+  Tag,
   User,
   UserCog,
   UserPen,
@@ -15,6 +19,10 @@ import type { CardRef } from '../../../app/shell/card-stack.js';
 import { formatDate, formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import type { EntityFieldDef } from '../../../shared/ui/entity-fields.js';
+import {
+  ProjectStatusChip,
+  ProjectVisibilityChip,
+} from '../../../shared/views/project-table-fields.js';
 
 const monoValue = 'font-mono text-label-sm tabular-nums';
 
@@ -39,17 +47,48 @@ function personLink(
 }
 
 /**
- * Паспорт проекта — поля-реестром (не Badge-простыня): руководство,
- * заказчик, сроки, состав, создатель, активность. Идентичность (название,
- * шифр, тип, портфель, статус, видимость) живёт в шапке левой панели
- * «О проекте» и здесь не дублируется (вердикт владельца 07.11.2026).
- * Ссылки на сотрудников/контрагента открываются карточками стека (ADR-0009).
+ * Паспорт проекта — ВСЯ информация полями-реестром (вердикт владельца
+ * 07.11.2026: шапки-витрины в панели «О проекте» нет, название живёт в хроме
+ * карточки и правится кликом). Поля: статус, видимость, шифр, тип, портфель,
+ * руководство, заказчик, крайний срок, состав, создатель, активность.
+ * «Начала» проекта нет — есть крайний срок (тот же вердикт). Ссылки на
+ * сотрудников/контрагента открываются карточками стека (ADR-0009).
  */
 export function projectPassportDefs(
   project: ProjectDetail,
   openCard: (ref: CardRef) => void,
 ): EntityFieldDef[] {
   return [
+    {
+      key: 'status',
+      icon: <Activity className="size-3.5" />,
+      label: ui.projects.fieldStatus,
+      render: () => <ProjectStatusChip project={project} />,
+    },
+    {
+      key: 'visibility',
+      icon: <Lock className="size-3.5" />,
+      label: ui.projects.fieldVisibility,
+      render: () => <ProjectVisibilityChip project={project} />,
+    },
+    {
+      key: 'code',
+      icon: <Hash className="size-3.5" />,
+      label: ui.projects.fieldCode,
+      render: () => <span className={monoValue}>{project.code ?? ui.projects.noCode}</span>,
+    },
+    {
+      key: 'type',
+      icon: <Tag className="size-3.5" />,
+      label: ui.projects.fieldType,
+      render: () => <span className="truncate">{project.type?.name ?? ui.common.notSet}</span>,
+    },
+    {
+      key: 'portfolio',
+      icon: <FolderOpen className="size-3.5" />,
+      label: ui.projects.filterPortfolio,
+      render: () => <span className="truncate">{project.portfolio?.name ?? ui.common.notSet}</span>,
+    },
     {
       key: 'manager',
       icon: <User className="size-3.5" />,
@@ -89,17 +128,14 @@ export function projectPassportDefs(
         ),
     },
     {
-      key: 'dates',
+      key: 'endDate',
       icon: <CalendarClock className="size-3.5" />,
-      label: `${ui.projects.startDate} — ${ui.projects.endDate}`,
+      label: ui.projects.deadline,
       render: () =>
-        !project.startDate && !project.endDate ? (
-          ui.common.notSet
+        project.endDate ? (
+          <span className={monoValue}>{formatDate(project.endDate)}</span>
         ) : (
-          <span className={monoValue}>
-            {project.startDate ? formatDate(project.startDate) : '—'} —{' '}
-            {project.endDate ? formatDate(project.endDate) : '—'}
-          </span>
+          ui.common.notSet
         ),
     },
     {

@@ -73,22 +73,13 @@ export function ProjectTabStrip({
         );
       })}
 
-      {channelPanel ? (
-        <div className="ml-auto flex h-10 shrink-0 items-center pr-1">
-          <ChatPanelToggle open={channelPanel.open} onToggle={channelPanel.onToggle} />
-        </div>
-      ) : null}
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
             aria-label={ui.projects.tabsManage}
             title={ui.projects.tabsManage}
-            className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-              channelPanel ? 'mr-1' : 'ml-1',
-            )}
+            className="ml-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
           </button>
@@ -107,6 +98,14 @@ export function ProjectTabStrip({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Тоггл панели «О канале» — ВСЕГДА у правого края полосы: «+» остаётся
+          сразу за вкладками и не улетает вправо (вердикт владельца 07.11.2026). */}
+      {channelPanel ? (
+        <div className="ml-auto flex h-10 shrink-0 items-center pr-1">
+          <ChatPanelToggle open={channelPanel.open} onToggle={channelPanel.onToggle} />
+        </div>
+      ) : null}
     </div>
   );
 }

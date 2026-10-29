@@ -255,40 +255,24 @@ export function VisibilityField({
   );
 }
 
-/** Пара дат проекта: начало/окончание. Пикер — НАШ `DateTimePicker`
- *  («только дата»: нативные `type="date"` в портале не используются —
- *  вердикт владельца 07.11.2026), значение — ISO-дата `YYYY-MM-DD`. */
-export function ProjectDateFields({
-  startDate,
-  endDate,
+/** Крайний срок проекта: только дата, НАШ пикер. «Начала» у проекта не
+ *  спрашиваем — в проекте есть срок сдачи (вердикт владельца 07.11.2026:
+ *  «странный атрибут „Срок начала“ — никто такое не указывает»). */
+export function ProjectDeadlineField({
+  value,
   onChange,
 }: {
-  startDate: string | null;
-  endDate: string | null;
-  onChange: (patch: { startDate?: string | null; endDate?: string | null }) => void;
+  value: string | null;
+  onChange: (value: string | null) => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <div className="min-w-0 flex-1">
-        <DateTimePicker
-          value={fromIsoDate(startDate)}
-          onChange={(date) => onChange({ startDate: toIsoDate(date) })}
-          ariaLabel={ui.projects.startDate}
-          placeholder={ui.projects.startDate}
-          withTime={false}
-        />
-      </div>
-      <span className="text-xs text-muted-foreground">—</span>
-      <div className="min-w-0 flex-1">
-        <DateTimePicker
-          value={fromIsoDate(endDate)}
-          onChange={(date) => onChange({ endDate: toIsoDate(date) })}
-          ariaLabel={ui.projects.endDate}
-          placeholder={ui.projects.endDate}
-          withTime={false}
-        />
-      </div>
-    </div>
+    <DateTimePicker
+      value={fromIsoDate(value)}
+      onChange={(date) => onChange(toIsoDate(date))}
+      ariaLabel={ui.projects.deadline}
+      placeholder={ui.common.pickDate}
+      withTime={false}
+    />
   );
 }
 

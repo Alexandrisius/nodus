@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { CounterpartyRef, ProjectDetail, ProjectVisibility } from '@nodus/contracts';
 import { errorMessages, ErrorCode, ui, updateProjectBodySchema } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -12,12 +12,25 @@ import { useUpdateProject } from '../api/project-mutations.js';
 import {
   AssistantsField,
   PortfolioField,
-  ProjectDateFields,
+  ProjectDeadlineField,
   VisibilityField,
 } from './project-form-fields.js';
 
-function FieldLabel({ children }: { children: string }) {
-  return <span className="text-xs font-medium text-muted-foreground">{children}</span>;
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+/** Звёздочка обязательного поля — тон действия, прижата к метке. */
+function RequiredMark() {
+  return (
+    <span aria-hidden className="text-primary">
+      *
+    </span>
+  );
 }
 
 /**
@@ -43,7 +56,6 @@ export function ProjectEditDialog({
     project.assistants.map((assistant) => assistant.id),
   );
   const [visibility, setVisibility] = useState<ProjectVisibility>(project.visibility);
-  const [startDate, setStartDate] = useState<string | null>(project.startDate);
   const [endDate, setEndDate] = useState<string | null>(project.endDate);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +79,6 @@ export function ProjectEditDialog({
       clientId: client?.id ?? null,
       assistantIds,
       visibility,
-      startDate,
       endDate,
     });
     if (!parsed.success) {
@@ -101,32 +112,33 @@ export function ProjectEditDialog({
         </DialogTitle>
         <form onSubmit={submit} className="flex max-h-[80vh] flex-col">
           <div className="flex flex-col gap-3 overflow-y-auto px-5 py-4">
-            <div className="flex flex-col gap-1.5">
-              <Input
-                autoFocus
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={ui.projects.fieldName}
-                aria-label={ui.projects.fieldName}
-                className="h-9 text-body-lg"
-              />
-              {codeShown ? (
-                <Input
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  placeholder={
-                    codeField === 'required'
-                      ? ui.projects.codeRequiredPlaceholder
-                      : ui.projects.fieldCode
-                  }
-                  aria-label={ui.projects.fieldCode}
-                  aria-required={codeField === 'required'}
-                  className="h-8 font-mono text-label-lg tabular-nums"
-                />
-              ) : null}
-            </div>
+            <Input
+              autoFocus
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={ui.projects.fieldName}
+              aria-label={ui.projects.fieldName}
+              className="h-9 text-body-lg"
+            />
 
             <div className="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-3">
+              {codeShown ? (
+                <>
+                  <FieldLabel>
+                    {ui.projects.fieldCode}
+                    {codeField === 'required' ? <RequiredMark /> : null}
+                  </FieldLabel>
+                  <Input
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    placeholder={ui.projects.codePlaceholder}
+                    aria-label={ui.projects.fieldCode}
+                    aria-required={codeField === 'required'}
+                    className="h-8 font-mono text-label-lg tabular-nums"
+                  />
+                </>
+              ) : null}
+
               <FieldLabel>{ui.projects.assistants}</FieldLabel>
               <AssistantsField
                 value={assistantIds}
@@ -159,15 +171,8 @@ export function ProjectEditDialog({
                 onChange={setVisibility}
               />
 
-              <FieldLabel>{`${ui.projects.startDate} — ${ui.projects.endDate}`}</FieldLabel>
-              <ProjectDateFields
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(patch) => {
-                  if (patch.startDate !== undefined) setStartDate(patch.startDate);
-                  if (patch.endDate !== undefined) setEndDate(patch.endDate);
-                }}
-              />
+              <FieldLabel>{ui.projects.deadline}</FieldLabel>
+              <ProjectDeadlineField value={endDate} onChange={setEndDate} />
             </div>
 
             <Textarea
@@ -185,12 +190,12 @@ export function ProjectEditDialog({
               </p>
             ) : null}
           </div>
-          <div className="flex h-12 shrink-0 items-center gap-2 px-5">
-            <Button type="submit" size="sm" disabled={!canSubmit}>
-              {ui.common.save}
-            </Button>
+          <div className="flex h-12 shrink-0 items-center justify-end gap-2 px-5">
             <Button type="button" size="sm" variant="ghost" onClick={onClose}>
               {ui.common.cancel}
+            </Button>
+            <Button type="submit" size="sm" disabled={!canSubmit}>
+              {ui.common.save}
             </Button>
           </div>
         </form>

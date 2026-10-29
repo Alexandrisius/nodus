@@ -13,6 +13,7 @@ import { EmployeeCard } from '../../features/directory/components/employee-card.
 import { subscribeMessengerThread, takeMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
 import { ProjectCard } from '../../features/projects/components/project-card.js';
+import { ProjectTitle } from '../../features/projects/components/project-title.js';
 import { TaskCard } from '../../features/tasks/components/task-card.js';
 import { TaskTitle } from '../../features/tasks/components/task-title.js';
 import type { CardRef } from './card-stack.js';
@@ -60,14 +61,10 @@ function ProjectEntry({ id, source, onClose, dormant }: EntryProps) {
   return (
     <SliderPanel
       title={
-        project ? (
-          <span className="flex min-w-0 items-center gap-2">
-            <ProjectIdentityIcon color={project.color} />
-            <span className="truncate">{project.name}</span>
-          </span>
-        ) : (
-          ui.projects.title
-        )
+        <span className="flex min-w-0 items-center gap-2">
+          {project ? <ProjectIdentityIcon color={project.color} /> : null}
+          <ProjectTitle projectId={id} />
+        </span>
       }
       onClose={onClose}
       sourceRect={source}

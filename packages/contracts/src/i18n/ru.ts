@@ -111,6 +111,7 @@ export const ui = {
     showAll: 'Показать все',
     notSet: 'Не задано',
     noDeadline: 'Без срока',
+    pickDate: 'Выберите дату',
     online: 'онлайн',
     offline: 'не в сети',
     away: 'нет на месте',
@@ -295,8 +296,8 @@ export const ui = {
     manager: 'Руководитель проекта',
     assistants: 'Помощники',
     creator: 'Создатель',
-    startDate: 'Начало',
-    endDate: 'Окончание',
+    deadline: 'Крайний срок проекта',
+    endDate: 'Крайний срок',
     created: 'Создан',
     noCode: 'Без шифра',
     activity: 'Активность',
@@ -359,7 +360,7 @@ export const ui = {
     createTitle: 'Новый проект',
     createSubmit: 'Создать',
     typePlaceholder: 'Выберите тип проекта',
-    codeRequiredPlaceholder: 'Шифр · обязателен',
+    codePlaceholder: 'Например, 2026-01',
     // История проекта (вкладка «История» — лента outbox-событий)
     history: {
       empty: 'Событий пока нет',
@@ -381,7 +382,7 @@ export const ui = {
         portfolioId: 'Портфель',
         clientId: 'Заказчик',
         startDate: 'Начало',
-        endDate: 'Окончание',
+        endDate: 'Крайний срок',
       },
     },
     // Автоматизация: типы проектов

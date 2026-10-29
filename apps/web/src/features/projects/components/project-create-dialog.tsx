@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { CounterpartyRef, ProjectType, ProjectVisibility } from '@nodus/contracts';
 import { createProjectBodySchema, ErrorCode, errorMessages, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -24,12 +24,25 @@ import {
   AssistantsField,
   ManagerField,
   PortfolioField,
-  ProjectDateFields,
+  ProjectDeadlineField,
   VisibilityField,
 } from './project-form-fields.js';
 
-function FieldLabel({ children }: { children: string }) {
-  return <span className="text-xs font-medium text-muted-foreground">{children}</span>;
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+/** Звёздочка обязательного поля — тон действия, прижата к метке. */
+function RequiredMark() {
+  return (
+    <span aria-hidden className="text-primary">
+      *
+    </span>
+  );
 }
 
 /**
@@ -60,7 +73,6 @@ export function ProjectCreateDialog({
   const [portfolioId, setPortfolioId] = useState<string | null>(prefill.portfolioId ?? null);
   const [client, setClient] = useState<CounterpartyRef | null>(null);
   const [visibility, setVisibility] = useState<ProjectVisibility | null>(null);
-  const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,7 +111,6 @@ export function ProjectCreateDialog({
       managerId: managerId || undefined,
       assistantIds,
       visibility: effectiveVisibility,
-      startDate,
       endDate,
     });
     if (!parsed.success) {
@@ -142,43 +153,47 @@ export function ProjectCreateDialog({
               className="h-9 text-body-lg"
             />
 
-            {/* Тип — сразу после названия: от него зависит набор полей формы
-                (как тип задачи; схема типа — #38/#468). */}
-            {types.isLoading ? (
-              <Skeleton className="h-8 w-full" />
-            ) : liveTypes.length === 0 ? (
-              <span className="text-xs text-muted-foreground">{ui.projects.typesEmpty}</span>
-            ) : (
-              <Select value={typeId} onValueChange={selectType}>
-                <SelectTrigger className="h-8 w-full" aria-label={ui.projects.fieldType}>
-                  <SelectValue placeholder={ui.projects.typePlaceholder} />
-                </SelectTrigger>
-                <SelectContent position="popper" className="nokey">
-                  {liveTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {codeShown ? (
-              <Input
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder={
-                  codeField === 'required'
-                    ? ui.projects.codeRequiredPlaceholder
-                    : ui.projects.fieldCode
-                }
-                aria-label={ui.projects.fieldCode}
-                aria-required={codeField === 'required'}
-                className="h-8 font-mono text-label-lg tabular-nums"
-              />
-            ) : null}
-
             <div className="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-3">
+              {/* Тип — ПЕРВОЕ поле формы сразу после названия и обычной
+                  строкой сетки (label слева, селект справа — как «Тип задачи»):
+                  от типа зависит набор полей (схема типа — #38/#468). */}
+              <FieldLabel>{ui.projects.fieldType}</FieldLabel>
+              {types.isLoading ? (
+                <Skeleton className="h-8 w-full" />
+              ) : liveTypes.length === 0 ? (
+                <span className="text-xs text-muted-foreground">{ui.projects.typesEmpty}</span>
+              ) : (
+                <Select value={typeId} onValueChange={selectType}>
+                  <SelectTrigger className="h-8 w-full" aria-label={ui.projects.fieldType}>
+                    <SelectValue placeholder={ui.projects.typePlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="nokey">
+                    {liveTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {codeShown ? (
+                <>
+                  <FieldLabel>
+                    {ui.projects.fieldCode}
+                    {codeField === 'required' ? <RequiredMark /> : null}
+                  </FieldLabel>
+                  <Input
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    placeholder={ui.projects.codePlaceholder}
+                    aria-label={ui.projects.fieldCode}
+                    aria-required={codeField === 'required'}
+                    className="h-8 font-mono text-label-lg tabular-nums"
+                  />
+                </>
+              ) : null}
+
               <FieldLabel>{ui.projects.manager}</FieldLabel>
               <ManagerField
                 value={managerId}
@@ -221,15 +236,8 @@ export function ProjectCreateDialog({
                 onChange={setVisibility}
               />
 
-              <FieldLabel>{`${ui.projects.startDate} — ${ui.projects.endDate}`}</FieldLabel>
-              <ProjectDateFields
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(patch) => {
-                  if (patch.startDate !== undefined) setStartDate(patch.startDate);
-                  if (patch.endDate !== undefined) setEndDate(patch.endDate);
-                }}
-              />
+              <FieldLabel>{ui.projects.deadline}</FieldLabel>
+              <ProjectDeadlineField value={endDate} onChange={setEndDate} />
             </div>
 
             <Textarea
@@ -247,12 +255,14 @@ export function ProjectCreateDialog({
               </p>
             ) : null}
           </div>
-          <div className="flex h-12 shrink-0 items-center gap-2 px-5">
-            <Button type="submit" size="sm" disabled={!canSubmit}>
-              {ui.projects.createSubmit}
-            </Button>
+          {/* Кнопки окна — СПРАВА, как во всех окнах портала (вердикт
+              владельца 07.11.2026): отмена — тихая, главное действие — primary. */}
+          <div className="flex h-12 shrink-0 items-center justify-end gap-2 px-5">
             <Button type="button" size="sm" variant="ghost" onClick={onClose}>
               {ui.common.cancel}
+            </Button>
+            <Button type="submit" size="sm" disabled={!canSubmit}>
+              {ui.projects.createSubmit}
             </Button>
           </div>
         </form>

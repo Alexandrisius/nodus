@@ -36,8 +36,18 @@ export function ProjectActionBar({ project }: { project: ProjectDetail }) {
 
   return (
     <div className="flex h-16 w-full items-center gap-2">
+      {/* Правка полей — НЕ главное действие проекта: тихая ghost-кнопка без
+          рамки и заливки, отклик — подложка на ховере (вердикт владельца
+          07.11.2026: «чёрных кнопок» и outline-угольков в карточках нет;
+          заливка primary — только у главного действия экрана). */}
       {project.access.canManage ? (
-        <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditOpen(true)}
+          className="text-muted-foreground hover:text-foreground"
+        >
           <Pencil className="size-3.5" strokeWidth={1.75} />
           {ui.projects.editProject}
         </Button>
