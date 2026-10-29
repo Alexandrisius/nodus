@@ -22,6 +22,10 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CONFLICT]: HttpStatus.CONFLICT,
   [ErrorCode.RATE_LIMITED]: HttpStatus.TOO_MANY_REQUESTS,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
+  // Системные коды фреймворк-ошибок (#535): лимит multipart/bodyLimit — 413;
+  // чужой content-type у JSON-маршрута — 415.
+  [ErrorCode.PAYLOAD_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
+  [ErrorCode.UNSUPPORTED_MEDIA_TYPE]: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
   // Доменные коды с нестандартным статусом (остальные доменные → 400 ниже).
   [ErrorCode.AUTH_INVALID_CREDENTIALS]: HttpStatus.UNAUTHORIZED,
   [ErrorCode.AUTH_SESSION_INVALID]: HttpStatus.UNAUTHORIZED,
@@ -119,6 +123,11 @@ const STATUS_TO_CODE: Record<number, ErrorCode> = {
   [HttpStatus.NOT_FOUND]: ErrorCode.NOT_FOUND,
   [HttpStatus.CONFLICT]: ErrorCode.CONFLICT,
   [HttpStatus.TOO_MANY_REQUESTS]: ErrorCode.RATE_LIMITED,
+  // Фреймворк/плагины Fastify (#535): лимит multipart/bodyLimit и чужой
+  // content-type — до этого уходили в фолбэк VALIDATION_FAILED, и статус
+  // противоречил коду в теле ответа.
+  [HttpStatus.PAYLOAD_TOO_LARGE]: ErrorCode.PAYLOAD_TOO_LARGE,
+  [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: ErrorCode.UNSUPPORTED_MEDIA_TYPE,
 };
 
 /**

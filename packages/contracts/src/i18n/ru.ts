@@ -25,6 +25,8 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.CONFLICT]: 'Действие конфликтует с текущим состоянием объекта',
   [ErrorCode.RATE_LIMITED]: 'Слишком много запросов, повторите чуть позже',
   [ErrorCode.INTERNAL_ERROR]: 'Внутренняя ошибка, мы уже разбираемся',
+  [ErrorCode.PAYLOAD_TOO_LARGE]: 'Файл или данные запроса слишком большие',
+  [ErrorCode.UNSUPPORTED_MEDIA_TYPE]: 'Формат данных запроса не поддерживается',
   [ErrorCode.AUTH_INVALID_CREDENTIALS]: 'Неверный email или пароль',
   [ErrorCode.AUTH_SESSION_INVALID]: 'Сессия завершена, войдите снова',
   [ErrorCode.DIRECTORY_EMAIL_TAKEN]: 'Пользователь с таким email уже существует',

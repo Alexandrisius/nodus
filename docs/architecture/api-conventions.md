@@ -90,6 +90,8 @@ FORBIDDEN           # нет права (RBAC)
 NOT_FOUND           # сущность не найдена / нет доступа
 CONFLICT            # конфликт состояния (в т.ч. идемпотентность с иным payload)
 RATE_LIMITED        # превышен лимит запросов
+PAYLOAD_TOO_LARGE   # тело запроса или файл больше лимита (multipart, bodyLimit) — 413
+UNSUPPORTED_MEDIA_TYPE  # content-type запроса маршрут не поддерживает — 415
 INTERNAL_ERROR      # непредвиденное (без деталей наружу)
 ```
 
