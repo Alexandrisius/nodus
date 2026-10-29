@@ -6,6 +6,7 @@ import {
   type TransactionClient,
 } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
+import { FeatureFlagService } from '../../../core/feature-flags/feature-flag.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import {
   PROJECT_CHAT_READER,
@@ -152,7 +153,7 @@ export class ProjectChatService {
 export class ProjectChatHandlers {
   constructor(
     private readonly chat: ProjectChatService,
-    private readonly flags: { isEnabled(flag: string): Promise<boolean> },
+    private readonly flags: FeatureFlagService,
   ) {}
 
   async created(event: DomainEvent<Record<string, unknown>>): Promise<void> {

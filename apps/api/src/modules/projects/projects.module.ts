@@ -21,6 +21,7 @@ import {
   TaskAssignedProjectHandler,
   TaskCreatedProjectHandler,
   TaskDeletedProjectHandler,
+  TaskParticipantsProjectionRunner,
   TaskParticipantsProjectHandler,
   TaskUpdatedProjectHandler,
 } from './events/task-participants.handler.js';
@@ -47,6 +48,7 @@ import {
     ProjectsQueryService,
     ProjectLifecycleService,
     // Проекция участия «из задач» (Р2): события task.*.
+    TaskParticipantsProjectionRunner,
     TaskCreatedProjectHandler,
     TaskUpdatedProjectHandler,
     TaskAssignedProjectHandler,

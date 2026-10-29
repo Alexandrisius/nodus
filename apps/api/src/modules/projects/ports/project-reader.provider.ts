@@ -38,10 +38,17 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
   async refsFor(actor: ProjectActor, ids: readonly string[]): Promise<ProjectRef[]> {
     if (ids.length === 0) return [];
     if (!(await this.enabled())) return [];
-    const scope = await this.viewScopeFor(actor);
+    // Без кэша: ответ мутации («создал задачу → project в DTO») не должен
+    // зависеть от TTL/доставки инвалидации (фиды — кэшированный путь).
+    const scope = await this.buildScope(actor);
     const visible = new Set(scope.visibleProjectIds);
     const found = await this.projects.refsByIds([...ids]);
     return found.filter((ref) => visible.has(ref.id));
+  }
+
+  /** Сброс кэша множеств (события project.* меняют состав видимости). */
+  invalidateScopeCache(): void {
+    this.scopeCache.clear();
   }
 
   async viewScopeFor(actor: ProjectActor): Promise<ProjectViewScope> {
@@ -69,7 +76,9 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
 
   async assertTaskProjectVisible(actor: ProjectActor, projectId: string): Promise<void> {
     if (!(await this.enabled())) return;
-    const scope = await this.viewScopeFor(actor);
+    // Валидация записи — БЕЗ кэша: «создал проект → сразу задача» не должна
+    // зависеть от TTL/доставки инвалидации (фиды — кэшированный путь).
+    const scope = await this.buildScope(actor);
     if (!scope.visibleProjectIds.includes(projectId)) {
       // Без оракула секретности: скрытый и несуществующий — один ответ (Т1).
       throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is not available', {

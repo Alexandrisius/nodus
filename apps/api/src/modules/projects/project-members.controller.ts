@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -69,6 +69,7 @@ export class ProjectMembersController {
   }
 
   @Post(':id/join')
+  @HttpCode(200)
   @Audit({ action: 'project.join', entity: 'project' })
   @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
   @ApiOperation({
@@ -85,6 +86,7 @@ export class ProjectMembersController {
   }
 
   @Post(':id/leave')
+  @HttpCode(200)
   @Audit({ action: 'project.leave', entity: 'project' })
   @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
   @ApiOperation({ summary: '«Покинуть» (свой ряд вступившего наблюдателя)' })
@@ -99,6 +101,7 @@ export class ProjectMembersController {
   }
 
   @Post(':id/members')
+  @HttpCode(201)
   @Audit({ action: 'project.member_add', entity: 'project' })
   @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
   @ApiOperation({

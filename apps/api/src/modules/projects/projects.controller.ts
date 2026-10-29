@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -132,6 +132,7 @@ export class ProjectsController {
   }
 
   @Post(':id/status')
+  @HttpCode(200)
   @Audit({ action: 'project.status', entity: 'project' })
   @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
   @ApiOperation({
@@ -153,6 +154,7 @@ export class ProjectsController {
   }
 
   @Post(':id/transfer')
+  @HttpCode(200)
   @Audit({ action: 'project.transfer', entity: 'project' })
   @ApiParam({ name: 'id', description: 'UUID проекта', schema: { type: 'string', format: 'uuid' } })
   @ApiOperation({
