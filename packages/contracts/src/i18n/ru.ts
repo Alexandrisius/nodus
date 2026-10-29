@@ -10,6 +10,8 @@ import { filesStrings } from './ru-files.js';
 import { notificationsStrings } from './ru-notifications.js';
 import { taskCreateStrings } from './ru-task-create.js';
 import { tasksStrings } from './ru-tasks.js';
+import { structureStrings } from './ru-structure.js';
+import { projectsStrings } from './ru-projects.js';
 import { whatsNewStrings } from './ru-whats-new.js';
 
 /**
@@ -90,6 +92,14 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.ROLE_LOCKED]: 'Права администратора не меняются — у него всегда все права',
   [ErrorCode.ROLE_PERMISSION_NOT_HELD]: 'Выдать можно только право, которое есть у вас',
   [ErrorCode.ROLE_LAST_ADMIN]: 'Нельзя убрать последнего администратора портала',
+  [ErrorCode.PROJECT_NODE_INVALID]: 'Узел недоступен — проверьте структуру проекта',
+  [ErrorCode.PROJECT_NODE_CYCLE]: 'Узел нельзя перенести внутрь самого себя',
+  [ErrorCode.PROJECT_NODE_NOT_EMPTY]:
+    'Узел не пустой — сначала перенесите из него задачи и дочерние узлы',
+  [ErrorCode.PROJECT_NODE_CODE_TAKEN]: 'Шифр уже занят другим узлом этого проекта',
+  [ErrorCode.PROJECT_NODE_LIMIT_REACHED]: 'Достигнут предел структуры проекта',
+  [ErrorCode.PROJECT_NODE_LEVEL_ARCHIVED]: 'Этот вид уровня в архиве — выберите другой',
+  [ErrorCode.PROJECT_NODE_LEVEL_NAME_TAKEN]: 'Вид уровня с таким названием уже есть',
 };
 
 /**
@@ -258,168 +268,14 @@ export const ui = {
   /** Единое окно создания задачи (#432) — своя секция: строки окна общие
    *  для всех входов (страница задач, карточка сотрудника, чат, канбан). */
   taskCreate: taskCreateStrings,
+  /** Дерево проекта (#467, ADR-0030) — своя секция: вкладка «Структура». */
+  structure: structureStrings,
   automation: automationStrings,
   access: accessStrings,
   customFields: customFieldsStrings,
   letters: lettersStrings,
   counterparties: counterpartiesStrings,
-  projects: {
-    title: 'Проекты',
-    createProject: 'Создать проект',
-    journalEmpty: 'Проектов пока нет',
-    journalEmptyFiltered: 'Ничего не найдено — измените фильтры',
-    // Фильтры журнала
-    filterPortfolio: 'Портфель',
-    filterRole: 'Моя роль',
-    filterVisibility: 'Видимость',
-    filterStatus: 'Статус',
-    scopeAll: 'Все',
-    scopeMine: 'Мои',
-    presetManaging: 'Руковожу',
-    presetOpen: 'Открытые',
-    presetSecret: 'Секретные',
-    presetArchived: 'В архиве',
-    role: {
-      manager: 'Руковожу',
-      assistant: 'Помогаю',
-      participant: 'Участвую',
-      observer: 'Наблюдаю',
-    },
-    visibility: { open: 'Открытый', secret: 'Секретный' },
-    status: { active: 'Действует', completed: 'Завершён', archived: 'В архиве' },
-    // Поля
-    fieldCode: 'Шифр',
-    fieldName: 'Название',
-    fieldDescription: 'Описание',
-    fieldType: 'Тип',
-    fieldClient: 'Заказчик',
-    fieldVisibility: 'Видимость',
-    fieldStatus: 'Статус',
-    manager: 'Руководитель проекта',
-    assistants: 'Помощники',
-    creator: 'Создатель',
-    deadline: 'Крайний срок проекта',
-    endDate: 'Крайний срок',
-    created: 'Создан',
-    noCode: 'Без шифра',
-    activity: 'Активность',
-    members: 'Участники',
-    observers: 'Наблюдатели',
-    // Карточка: слева — панель «О проекте», справа — рабочая зона вкладок
-    tabTasks: 'Задачи',
-    tabAbout: 'О проекте',
-    tabChannel: 'Канал',
-    tabMembers: 'Участники',
-    tabHistory: 'История',
-    tabsLabel: 'Вкладки проекта',
-    tabsManage: 'Вкладки',
-    channel: 'Канал проекта',
-    noChannel: 'У проекта пока нет канала в мессенджере',
-    membersEmpty: 'В проекте пока нет участников',
-    channelMembersOnly: 'Канал проекта видят его участники',
-    channelJoinHint: 'Присоединитесь к проекту, чтобы читать и обсуждать его канал',
-    // Участие
-    source: {
-      manager: 'Руководитель',
-      assistant: 'Помощник',
-      task: 'Из задач',
-      member: 'Добавлен вручную',
-      observer: 'Наблюдатель',
-    },
-    observerKind: { invited: 'Приглашён', creator: 'Создатель', joined: 'Вступил сам' },
-    membersHintOpen:
-      'Состав живёт из задач: постановщик, ответственный и соисполнители становятся участниками автоматически. Наблюдателей руководство добавляет вручную — они видят проект без прав правки',
-    membersHintSecret:
-      'Состав управляется вручную: в задачах проекта можно назначать только его участников',
-    join: 'Присоединиться',
-    leave: 'Покинуть проект',
-    addMember: 'Добавить в состав',
-    addObserver: 'Добавить наблюдателя',
-    memberKind: { member: 'Участник', observer: 'Наблюдатель' },
-    memberKindHint: 'Участник может получать задачи, наблюдатель — только просмотр',
-    removeMember: 'Убрать из состава',
-    // Действия
-    actionsTitle: 'Действия с проектом',
-    editProject: 'Редактировать проект',
-    editTitle: 'Поля проекта',
-    transfer: 'Передать руководство',
-    transferTo: 'Новый руководитель',
-    statusComplete: 'Завершить',
-    statusArchive: 'В архив',
-    statusReactivate: 'Вернуть в работу',
-    archiveConfirmTitle: 'Архивировать проект?',
-    archiveConfirmBody:
-      'Проект замораживается: создание задач в нём запрещено, состав и канал сохраняются. Вернуть в работу может руководитель.',
-    // Тост-подтверждения
-    createdDone: 'Проект создан',
-    updatedDone: 'Проект сохранён',
-    joinedDone: 'Вы присоединились к проекту',
-    leftDone: 'Вы покинули проект',
-    memberAddedDone: 'Участник добавлен',
-    memberRemovedDone: 'Участник убран из проекта',
-    observerAddedDone: 'Наблюдатель добавлен',
-    observerRemovedDone: 'Наблюдатель убран из проекта',
-    transferDone: 'Руководство передано',
-    statusChangedDone: 'Статус проекта изменён',
-    savedDone: 'Сохранено',
-    // Окно создания
-    createTitle: 'Новый проект',
-    createSubmit: 'Создать',
-    typePlaceholder: 'Выберите тип проекта',
-    codePlaceholder: 'Например, 2026-01',
-    // История проекта (вкладка «История» — лента outbox-событий)
-    history: {
-      empty: 'Событий пока нет',
-      loadError: 'Не удалось загрузить историю',
-      created: 'Проект создан',
-      updated: 'Изменены поля',
-      statusChanged: 'Статус изменён',
-      participantsChanged: 'Изменён состав',
-      system: 'Система',
-      field: {
-        name: 'Название',
-        code: 'Шифр',
-        description: 'Описание',
-        color: 'Цвет',
-        status: 'Статус',
-        visibility: 'Видимость',
-        managerId: 'Руководитель',
-        assistantIds: 'Помощники',
-        portfolioId: 'Портфель',
-        clientId: 'Заказчик',
-        startDate: 'Начало',
-        endDate: 'Крайний срок',
-      },
-    },
-    // Автоматизация: типы проектов
-    typesTitle: 'Типы проектов',
-    typesCreate: 'Новый тип',
-    typesNamePlaceholder: 'Например: Тендер',
-    typesEmpty: 'Типов пока нет',
-    typesArchive: 'Архивировать тип',
-    typesRestore: 'Вернуть тип',
-    /** Политика системного поля «Шифр» у типа проекта (окно создания
-     *  показывает поле только там, где оно есть у типа). */
-    codeFieldLabel: 'Поле «Шифр»',
-    codeField: {
-      hidden: 'Без шифра',
-      optional: 'По желанию',
-      required: 'Обязателен',
-    },
-    // Настройки портала
-    settingsTitle: 'Настройки портала',
-    settingsProjects: 'Проекты',
-    settingsDefaultVisibility: 'Видимость новых проектов',
-    settingsDefaultVisibilityHint:
-      'Применяется к проектам, у которых видимость не выбрана при создании',
-    settingsSaved: 'Настройки сохранены',
-    // Портфели
-    portfoliosTitle: 'Портфели',
-    portfolioCreate: 'Новый портфель',
-    portfolioNamePlaceholder: 'Например: Метро, линия 4',
-    portfolioEmpty: 'Портфелей пока нет',
-    portfolioArchive: 'Архивировать портфель',
-  },
+  projects: projectsStrings,
   chat: chatStrings,
   files: filesStrings,
   notifications: notificationsStrings,

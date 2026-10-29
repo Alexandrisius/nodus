@@ -93,6 +93,9 @@ export const taskListItemSchema = z.object({
   project: projectRefSchema.nullable(),
   /** Родительская задача (вложенность: граф уровней в списке). */
   parentId: z.uuid().nullable(),
+  /** Узел структуры проекта (дерево #467, ADR-0030); null — вне структуры
+   *  (секция «Без узла»). Меняется только в дереве проекта, не в карточке. */
+  nodeId: z.uuid().nullable(),
   /** Трудозатраты суммарно, минуты (I14). */
   spentMinutes: z.number().int().min(0),
   commentsCount: z.number().int().min(0),
@@ -208,6 +211,9 @@ export const createTaskBodySchema = z.object({
   personalStageId: z.uuid().optional(),
   stageId: z.uuid().optional(),
   projectId: z.uuid().optional(),
+  /** Узел структуры проекта («+ задача» на узле дерева, #467): задача
+   *  создаётся сразу в узле (валидация принадлежности проекту — read-порт). */
+  nodeId: z.uuid().optional(),
   /** Тип задачи; по умолчанию — системный «Задача». */
   typeId: z.uuid().optional(),
   parentId: z.uuid().optional(),

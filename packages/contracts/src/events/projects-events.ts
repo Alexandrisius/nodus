@@ -12,6 +12,12 @@ export const PROJECT_EVENTS = {
   CREATED: 'project.created',
   UPDATED: 'project.updated',
   PARTICIPANTS_CHANGED: 'project.participants_changed',
+  /** Дерево проекта (#467): события узлов — они же аудит-след структуры
+   *  (gateway их не маршрутизирует: реалтайма структуры до пилота нет). */
+  NODE_CREATED: 'project.node_created',
+  NODE_UPDATED: 'project.node_updated',
+  NODE_MOVED: 'project.node_moved',
+  NODE_DELETED: 'project.node_deleted',
 } as const;
 
 export type ProjectEventType = (typeof PROJECT_EVENTS)[keyof typeof PROJECT_EVENTS];
@@ -55,3 +61,43 @@ export const projectParticipantsChangedPayloadSchema = z.object({
 export type ProjectParticipantsChangedPayload = z.infer<
   typeof projectParticipantsChangedPayloadSchema
 >;
+
+// ===== Дерево проекта (#467) =====
+
+/** Узел создан (в т.ч. пакетно — по событию на каждый). */
+export const projectNodeCreatedPayloadSchema = z.object({
+  projectId: z.uuid(),
+  nodeId: z.uuid(),
+  parentId: z.uuid().nullable(),
+  levelId: z.uuid(),
+  name: z.string(),
+});
+export type ProjectNodeCreatedPayload = z.infer<typeof projectNodeCreatedPayloadSchema>;
+
+/** Правка узла: имя/код/вид-ярлык; fields — изменённые ключи. */
+export const projectNodeUpdatedPayloadSchema = z.object({
+  projectId: z.uuid(),
+  nodeId: z.uuid(),
+  fields: z.array(z.string()),
+  name: z.string().optional(),
+  code: z.string().nullable().optional(),
+  levelId: z.uuid().optional(),
+});
+export type ProjectNodeUpdatedPayload = z.infer<typeof projectNodeUpdatedPayloadSchema>;
+
+/** Перенос узла (DnD): прежний и новый родитель (null — корень). */
+export const projectNodeMovedPayloadSchema = z.object({
+  projectId: z.uuid(),
+  nodeId: z.uuid(),
+  parentId: z.uuid().nullable(),
+  previousParentId: z.uuid().nullable(),
+});
+export type ProjectNodeMovedPayload = z.infer<typeof projectNodeMovedPayloadSchema>;
+
+/** Узел удалён насовсем (узлы без архивации; пустой — вердикт 30.10). */
+export const projectNodeDeletedPayloadSchema = z.object({
+  projectId: z.uuid(),
+  nodeId: z.uuid(),
+  parentId: z.uuid().nullable(),
+});
+export type ProjectNodeDeletedPayload = z.infer<typeof projectNodeDeletedPayloadSchema>;

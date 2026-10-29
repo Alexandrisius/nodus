@@ -68,13 +68,17 @@ export type TaskCreatedPayload = z.infer<typeof taskCreatedPayloadSchema>;
  *  Кастомные поля (#431): в `fields` — ключи `cf.<id>`, реальные изменения
  *  значений — в `customFieldChanges` (long_text обрезан до 500, ≤ 50).
  *  `projectId`/`previousProjectId` (#52): перенос задачи между проектами —
- *  обе проекции участников пересчитываются (optional — старые события). */
+ *  обе проекции участников пересчитываются (optional — старые события).
+ *  `nodeId`/`previousNodeId` (#467): перенос задачи между узлами дерева
+ *  проекта; смена проекта обнуляет узел (nodeId=null). */
 export const taskUpdatedPayloadSchema = taskEventBaseSchema.extend({
   fields: z.array(z.string()),
   title: z.string().optional(),
   deadline: z.iso.datetime().nullable().optional(),
   projectId: z.uuid().nullable().optional(),
   previousProjectId: z.uuid().nullable().optional(),
+  nodeId: z.uuid().nullable().optional(),
+  previousNodeId: z.uuid().nullable().optional(),
   customFieldChanges: z.array(customFieldChangeSchema).max(CUSTOM_FIELD_LIMITS.changes).optional(),
 });
 export type TaskUpdatedPayload = z.infer<typeof taskUpdatedPayloadSchema>;

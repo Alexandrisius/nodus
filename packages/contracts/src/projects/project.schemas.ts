@@ -155,6 +155,12 @@ export const projectDetailSchema = projectListItemSchema.extend({
   customFields: customFieldValuesSchema,
   customFieldRefs: z.array(customFieldRefSchema),
   access: projectAccessSchema,
+  /** Сводка структуры (#467): дефолт вкладки карточки — «Структура» первична,
+   *  когда есть узел с прямыми задачами-детьми (вердикт владельца 07.11). */
+  structureSummary: z.object({
+    nodeCount: z.number().int().min(0),
+    hasTaskNodes: z.boolean(),
+  }),
   createdAt: z.iso.datetime(),
 });
 
@@ -302,6 +308,9 @@ export const projectTypeSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
   codeField: projectCodeFieldSchema,
+  /** Подсказка дефолтного вида узла при создании (#467, вердикт 30.10:
+   *  НЕ жёсткий порядок уровней — только подсказка); null — нет подсказки. */
+  levelKindIds: z.array(z.uuid()).nullable(),
   archivedAt: z.iso.datetime().nullable(),
 });
 
@@ -317,6 +326,8 @@ export const projectTypeUpdateBodySchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     codeField: projectCodeFieldSchema.optional(),
+    /** Подсказка дефолтного вида узла (#467): null — подсказки нет. */
+    levelKindIds: z.array(z.uuid()).max(10).nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 
