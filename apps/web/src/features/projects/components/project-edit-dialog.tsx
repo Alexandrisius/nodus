@@ -10,7 +10,7 @@ import { ApiError } from '../../../shared/api-client.js';
 import { CounterpartyCombobox } from '../../../shared/counterparties/counterparty-combobox.js';
 import { useUpdateProject } from '../api/project-mutations.js';
 import {
-  AssistantsField,
+  PeopleMultiField,
   PortfolioField,
   ProjectDeadlineField,
   VisibilityField,
@@ -140,7 +140,7 @@ export function ProjectEditDialog({
               ) : null}
 
               <FieldLabel>{ui.projects.assistants}</FieldLabel>
-              <AssistantsField
+              <PeopleMultiField
                 value={assistantIds}
                 label={ui.projects.assistants}
                 excludeIds={project.manager ? [project.manager.id] : []}

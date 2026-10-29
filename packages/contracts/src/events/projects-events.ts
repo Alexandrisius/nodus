@@ -27,6 +27,8 @@ export const projectCreatedPayloadSchema = z.object({
   clientId: z.uuid().nullable(),
   visibility: projectVisibilitySchema,
   typeId: z.uuid(),
+  /** Наблюдатели, заданные при создании (просмотр без прав правки). */
+  observerIds: z.array(z.uuid()).optional(),
 });
 export type ProjectCreatedPayload = z.infer<typeof projectCreatedPayloadSchema>;
 

@@ -59,6 +59,7 @@ describe('ProjectsService (#52)', () => {
     syncManagement: vi.fn(),
     onVisibilityChanged: vi.fn(),
     recomputeTaskSource: vi.fn(),
+    emitChanged: vi.fn(),
   };
   const queries = { detail: vi.fn() };
   const profiles = { filterActiveUserIds: vi.fn() };
@@ -145,6 +146,27 @@ describe('ProjectsService (#52)', () => {
       types.findActive.mockResolvedValue({ id: TYPE, name: 'Тип', codeField: 'optional' });
       await service.create(user(CREATOR), { name: 'x', typeId: TYPE, code: '2026-02' } as never);
       expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ code: '2026-02' }), {});
+    });
+
+    it('наблюдатели задаются при создании; руководство наблюдателем не становится', async () => {
+      await service.create(user(CREATOR), {
+        name: 'x',
+        typeId: TYPE,
+        managerId: CREATOR,
+        assistantIds: [HELPER],
+        observers: [HIP, CREATOR, HELPER],
+      } as never);
+      // HIP — наблюдатель; создатель-РП и помощник отфильтрованы.
+      expect(participantsRepo.add).toHaveBeenCalledWith({}, [
+        { projectId: ID, userId: HIP, source: 'observer', observerKind: 'invited' },
+      ]);
+      expect(members.emitChanged).toHaveBeenCalledWith({}, ID, [HIP]);
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        {},
+        PROJECT_EVENTS.CREATED,
+        expect.objectContaining({ observerIds: [HIP] }),
+        expect.anything(),
+      );
     });
 
     it('создатель-не-руководитель → наблюдатель-создатель; РП по умолчанию — создатель', async () => {

@@ -163,6 +163,7 @@ export type ProjectDetail = z.infer<typeof projectDetailSchema>;
 /** Лимиты проекта (допущения техплана #52). */
 export const PROJECT_LIMITS = {
   assistants: 10,
+  observers: 100,
   nameLength: 200,
   codeLength: 64,
   descriptionLength: 2000,
@@ -197,6 +198,9 @@ export const createProjectBodySchema = z.object({
   clientId: z.uuid().nullable().optional(),
   managerId: z.uuid().optional(),
   assistantIds: z.array(z.uuid()).max(PROJECT_LIMITS.assistants).optional(),
+  /** Наблюдатели, заданные при создании (просмотр без прав правки): ручные
+   *  ряды source=observer/kind=invited. Участники приходят из задач. */
+  observers: z.array(z.uuid()).max(PROJECT_LIMITS.observers).optional(),
   visibility: projectVisibilitySchema.optional(),
   startDate: z.iso.date().nullable().optional(),
   endDate: z.iso.date().nullable().optional(),

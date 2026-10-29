@@ -6,7 +6,6 @@ import {
   PROJECT_LIMITS,
   type AuthUser,
   type CreateProjectBody,
-  type ProjectCodeField,
   type ProjectDetail,
   type UpdateProjectBody,
 } from '@nodus/contracts';
@@ -26,6 +25,7 @@ import {
   type CustomFieldRegistry,
 } from '../custom-fields/ports/custom-field-registry.port.js';
 import type { ProjectFacts } from './project-access.js';
+import { assertCodePolicy } from './project-code-policy.js';
 import { ProjectsQueryService } from './projects-query.service.js';
 import { ProjectGroupsRepository } from './project-groups.repository.js';
 import { ProjectMembersService } from './project-members.service.js';
@@ -68,7 +68,12 @@ export class ProjectsService {
     if (assistantIds.length > PROJECT_LIMITS.assistants) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Too many assistants');
     }
-    const people = [...new Set([managerId, ...assistantIds])];
+    // Наблюдатели задаются сразу при создании (вердикт 07.11.2026); руководство
+    // наблюдателем быть не может — его ряд сильнее и уже есть.
+    const observerIds = [...new Set(body.observers ?? [])].filter(
+      (id) => id !== managerId && !assistantIds.includes(id),
+    );
+    const people = [...new Set([managerId, ...assistantIds, ...observerIds])];
     if ((await this.profiles.filterActiveUserIds(people)).length !== people.length) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown or inactive user');
     }
@@ -109,6 +114,18 @@ export class ProjectsService {
         tx,
       );
       await this.members.syncManagement(tx, row.id, { managerId, assistantIds });
+      if (observerIds.length > 0) {
+        await this.participantsRepo.add(
+          tx,
+          observerIds.map((userId) => ({
+            projectId: row.id,
+            userId,
+            source: 'observer' as const,
+            observerKind: 'invited',
+          })),
+        );
+        await this.members.emitChanged(tx, row.id, observerIds);
+      }
       // Создатель, назначивший руководство другим, — наблюдатель-создатель
       // (Т5); создатель-руководитель уже в составе источником manager.
       if (managerId !== user.id) {
@@ -128,6 +145,7 @@ export class ProjectsService {
           clientId: row.clientId,
           visibility,
           typeId: row.typeId,
+          observerIds,
         },
         { actorId: user.id, aggregateType: 'project', aggregateId: row.id },
       );
@@ -302,18 +320,5 @@ export class ProjectsService {
     if (!clientId) return;
     const client = await this.counterparties.activeRef(clientId);
     if (!client) throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Unknown counterparty');
-  }
-}
-
-/** Политика системного поля «Шифр» у типа проекта (вердикт владельца
- *  07.11.2026): «Договор» — шифр обязателен, «Тема» — поля нет. Сервер —
- *  истина (I7/I8): клиент, приславший поле, которого у типа нет, получает 400,
- *  а не «тихо потерянный» шифр. */
-function assertCodePolicy(policy: ProjectCodeField, code: string | null): void {
-  if (policy === 'required' && !code) {
-    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project code is required by its type');
-  }
-  if (policy === 'hidden' && code) {
-    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project type has no code field');
   }
 }

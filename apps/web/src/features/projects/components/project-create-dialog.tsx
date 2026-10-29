@@ -21,7 +21,7 @@ import { CounterpartyCombobox } from '../../../shared/counterparties/counterpart
 import type { ProjectCreatePrefill } from '../../../shared/projects/project-create-store.js';
 import { useCreateProject } from '../api/project-mutations.js';
 import {
-  AssistantsField,
+  PeopleMultiField,
   ManagerField,
   PortfolioField,
   ProjectDeadlineField,
@@ -70,6 +70,7 @@ export function ProjectCreateDialog({
   const [typeId, setTypeId] = useState(prefill.typeId ?? '');
   const [managerId, setManagerId] = useState(me?.id ?? '');
   const [assistantIds, setAssistantIds] = useState<string[]>([]);
+  const [observerIds, setObserverIds] = useState<string[]>([]);
   const [portfolioId, setPortfolioId] = useState<string | null>(prefill.portfolioId ?? null);
   const [client, setClient] = useState<CounterpartyRef | null>(null);
   const [visibility, setVisibility] = useState<ProjectVisibility | null>(null);
@@ -110,6 +111,7 @@ export function ProjectCreateDialog({
       clientId: client?.id ?? null,
       managerId: managerId || undefined,
       assistantIds,
+      observers: observerIds,
       visibility: effectiveVisibility,
       endDate,
     });
@@ -201,15 +203,26 @@ export function ProjectCreateDialog({
                 onChange={(userId) => {
                   setManagerId(userId);
                   setAssistantIds((prev) => prev.filter((id) => id !== userId));
+                  setObserverIds((prev) => prev.filter((id) => id !== userId));
                 }}
               />
 
               <FieldLabel>{ui.projects.assistants}</FieldLabel>
-              <AssistantsField
+              <PeopleMultiField
                 value={assistantIds}
                 label={ui.projects.assistants}
-                excludeIds={[managerId]}
+                excludeIds={[managerId, ...observerIds]}
                 onChange={setAssistantIds}
+              />
+
+              {/* Наблюдатели задаются сразу при создании: просмотр без прав
+                  правки, участники придут из задач (вердикт 29.10 В2). */}
+              <FieldLabel>{ui.projects.observers}</FieldLabel>
+              <PeopleMultiField
+                value={observerIds}
+                label={ui.projects.observers}
+                excludeIds={[managerId, ...assistantIds]}
+                onChange={setObserverIds}
               />
 
               <FieldLabel>{ui.projects.filterPortfolio}</FieldLabel>

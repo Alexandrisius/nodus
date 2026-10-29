@@ -79,6 +79,16 @@ export function createDemoProject(body: CreateProjectBody, actor: DemoActor): De
   };
   demoProjectRows.unshift(row);
   syncManagement(row);
+  for (const observerId of new Set(body.observers ?? [])) {
+    if (observerId === managerId || row.assistantIds.includes(observerId)) continue;
+    addDemoParticipant({
+      projectId: row.id,
+      userId: observerId,
+      source: 'observer',
+      observerKind: 'invited',
+      joinedAt: now,
+    });
+  }
   if (managerId !== actor.id) {
     addDemoParticipant({
       projectId: row.id,

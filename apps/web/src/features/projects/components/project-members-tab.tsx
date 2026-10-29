@@ -1,5 +1,5 @@
-import { Plus, Trash2 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useMemo, useRef } from 'react';
 import type { ProjectDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -8,13 +8,11 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { useUsersList } from '../../../shared/api/users-list.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { PeoplePicker } from '../../../shared/ui/people-picker.js';
-import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
 import { useInfiniteSentinel } from '../../../shared/views/use-infinite-sentinel.js';
-import { useAddProjectMember, useRemoveProjectMember } from '../api/project-member-mutations.js';
+import { useRemoveProjectMember } from '../api/project-member-mutations.js';
 import { useProjectMembers } from '../api/projects-api.js';
+import { AddProjectMemberButton } from './project-add-member-button.js';
 import {
   groupProjectMembers,
   manualMembershipKind,
@@ -30,12 +28,11 @@ const SOURCE_TONE = {
 } as const;
 
 /**
- * Вкладка «Участники» (Р2 #52): открытый проект — просмотр живого состава с
- * источниками (руками не правится, состав живёт из задач); секретный —
- * управление руководством: добавить участника/наблюдателя, снять ручной
- * состав. Строки группируются по сотруднику, у каждого — чипы всех
- * источников (руководитель, помощник, из задач, добавлен вручную,
- * наблюдатель с видом).
+ * Вкладка «Участники» (Р2 #52; вердикт 07.11.2026): открытый проект — живой
+ * состав из задач + ручные НАБЛЮДАТЕЛИ (руководство добавляет их кнопкой:
+ * клик сразу открывает поповер с множественным выбором, без инлайн-формы и
+ * прыжков верстки); секретный — ручные участники и наблюдатели. Строки
+ * группируются по сотруднику, у каждого — чипы всех источников.
  */
 export function ProjectMembersTab({ project }: { project: ProjectDetail }) {
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useProjectMembers(
@@ -54,6 +51,11 @@ export function ProjectMembersTab({ project }: { project: ProjectDetail }) {
   const remove = useRemoveProjectMember(project.id);
   const secret = project.visibility === 'secret';
   const canManage = project.access.canManageMembers;
+  const managementIds = rows
+    .filter((row) => row.source === 'manager' || row.source === 'assistant')
+    .map((row) => row.user.id);
+  const manualIds = (kind: 'member' | 'observer') =>
+    rows.filter((row) => row.source === kind).map((row) => row.user.id);
 
   return (
     <div ref={containerRef} className="h-full overflow-y-auto p-6">
@@ -62,7 +64,24 @@ export function ProjectMembersTab({ project }: { project: ProjectDetail }) {
           {secret ? ui.projects.membersHintSecret : ui.projects.membersHintOpen}
         </p>
 
-        {canManage ? <AddMemberRow projectId={project.id} secret={secret} /> : null}
+        {canManage ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {secret ? (
+              <AddProjectMemberButton
+                projectId={project.id}
+                kind="member"
+                selectedIds={manualIds('member')}
+                excludeIds={managementIds}
+              />
+            ) : null}
+            <AddProjectMemberButton
+              projectId={project.id}
+              kind="observer"
+              selectedIds={manualIds('observer')}
+              excludeIds={managementIds}
+            />
+          </div>
+        ) : null}
 
         {isLoading ? (
           <div className="flex flex-col gap-2">
@@ -160,98 +179,5 @@ function MemberRow({
         <span className="w-6 shrink-0" aria-hidden />
       )}
     </li>
-  );
-}
-
-/** Добавление руководством: в секретный — участник или наблюдатель (участник
- *  может получать задачи, наблюдатель — только просмотр); в открытый —
- *  ТОЛЬКО наблюдатель (участники живут из задач, вердикт 29.10 В2). */
-function AddMemberRow({ projectId, secret }: { projectId: string; secret: boolean }) {
-  const { data: users } = useUsersList();
-  const add = useAddProjectMember(projectId);
-  const [open, setOpen] = useState(false);
-  const [userId, setUserId] = useState('');
-  const [kind, setKind] = useState<'member' | 'observer'>('member');
-  const selected = users?.items.find((user) => user.id === userId);
-
-  if (!open) {
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="-ml-2 self-start text-muted-foreground hover:text-foreground"
-        onClick={() => setOpen(true)}
-      >
-        <Plus className="size-3.5" strokeWidth={1.75} />
-        {secret ? ui.projects.addMember : ui.projects.addObserver}
-      </Button>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2">
-      <PeoplePicker
-        selectedIds={userId ? [userId] : []}
-        ariaLabel={ui.projects.addMember}
-        onToggle={(id) => setUserId(id)}
-      >
-        <button
-          type="button"
-          aria-label={ui.projects.addMember}
-          className="flex h-8 min-w-40 items-center gap-2 rounded-lg border border-input px-2.5 text-sm hover:bg-accent/40 dark:bg-input/30"
-        >
-          {selected ? (
-            <>
-              <PersonAvatar
-                name={selected.displayName}
-                avatarUrl={selected.avatarUrl}
-                className="size-5"
-              />
-              <span className="truncate">{selected.displayName}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">{ui.common.notSet}</span>
-          )}
-        </button>
-      </PeoplePicker>
-      {secret ? (
-        <SegmentedControl
-          size="sm"
-          ariaLabel={ui.projects.addMember}
-          value={kind}
-          options={[
-            { value: 'member', label: ui.projects.memberKind.member },
-            { value: 'observer', label: ui.projects.memberKind.observer },
-          ]}
-          onChange={setKind}
-          activeClassName="bg-accent text-foreground"
-          className="w-48"
-        />
-      ) : null}
-      <Button
-        type="button"
-        size="sm"
-        disabled={!userId || add.isPending}
-        onClick={() =>
-          add.mutate(
-            { userId, kind: secret ? kind : 'observer' },
-            {
-              onSuccess: () => {
-                setUserId('');
-                setKind('member');
-                setOpen(false);
-              },
-            },
-          )
-        }
-      >
-        {ui.common.add}
-      </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-        {ui.common.cancel}
-      </Button>
-      <span className="w-full text-xs text-muted-foreground">{ui.projects.memberKindHint}</span>
-    </div>
   );
 }
