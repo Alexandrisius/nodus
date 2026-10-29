@@ -37,6 +37,7 @@ describe('DepartmentsService', () => {
   const departments = {
     findAllByKind: vi.fn(),
     findById: vi.fn(),
+    lockForUpdate: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     findParentChain: vi.fn(),
@@ -53,6 +54,7 @@ describe('DepartmentsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     membership.effectiveRoleIds.mockResolvedValue([]);
+    departments.lockForUpdate.mockResolvedValue(true);
     const guard = new RoleAssignmentGuard(roles as never, membership as never);
     service = new DepartmentsService(
       departments as never,

@@ -37,6 +37,16 @@ export class DepartmentsRepository {
     return client.department.findUnique({ where: { id }, include: departmentInclude });
   }
 
+  /** Строка подразделения под `FOR UPDATE` (#490): сериализует перенос с
+   *  параллельными правками той же строки — решение о bind-снимке принимается
+   *  по parentId, зафиксированному в транзакции, а не по чтению вне её. */
+  async lockForUpdate(id: string, tx: TransactionClient): Promise<boolean> {
+    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM departments WHERE id = ${id}::uuid FOR UPDATE
+    `);
+    return rows.length === 1;
+  }
+
   async create(
     data: Prisma.DepartmentUncheckedCreateInput,
     tx?: TransactionClient,

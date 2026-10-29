@@ -109,7 +109,14 @@ export class DepartmentsService {
     return this.tx.run(async (tx) => {
       // bind (#490): перенос меняет роли сотрудников поддерева. Снимок «до» —
       // до смены родителя; отказ проверки после мутации откатывает перенос.
-      const beforeByIds = await this.escalationSnapshot(id, current, dto, tx);
+      // Строка под `FOR UPDATE`, состояние перечитывается в транзакции:
+      // параллельный перенос коммитится до нас — решение о снимке принимается
+      // по зафиксированному parentId, а не по чтению вне транзакции.
+      if (!(await this.departments.lockForUpdate(id, tx))) {
+        throw DomainException.notFound('Department not found');
+      }
+      const locked = (await this.departments.findById(id, tx)) ?? current;
+      const beforeByIds = await this.escalationSnapshot(id, locked, dto, tx);
       const updated = await this.departments.update(id, dto, tx);
       if (beforeByIds !== null) {
         await this.guard.assertNoEscalationForUsers(
