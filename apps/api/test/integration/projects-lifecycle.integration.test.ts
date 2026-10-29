@@ -100,7 +100,15 @@ describe.skipIf(!process.env.DATABASE_URL)('projects: трассы Т3–Т6 (in
     body: Record<string, unknown>,
   ): Promise<{ id: string }> {
     const res = await fx.api(actor, 'POST', '/projects', {
-      body: { typeId, ...body },
+      // Тип «Договор» по политике #52 требует шифр: подставляем уникальный,
+      // если тест не задаёт свой код и не выбирает другой тип («Тема» и др.).
+      body: {
+        typeId,
+        ...(body.code === undefined && body.typeId === undefined
+          ? { code: `CI-pl-${fx.runId}-${projectIds.length}` }
+          : {}),
+        ...body,
+      },
       key: `pl-${fx.runId}-${projectIds.length}`,
     });
     expect(res.status).toBe(201);

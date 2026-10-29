@@ -72,10 +72,10 @@ async function main(): Promise<void> {
   // 20261105000000_projects_core; сид назначает в неё учётку Системного
   // Администратора (ниже, после создания пользователя).
   const supervisionRole = await prisma.role.upsert({
-    where: { code: 'system_supervision' },
+    where: { code: 'system-supervision' },
     update: {},
     create: {
-      code: 'system_supervision',
+      code: 'system-supervision',
       name: 'Системный надзор',
       description: 'Видит секретные проекты вне участия (служебная учётка)',
       isSystem: true,

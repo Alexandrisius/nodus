@@ -150,7 +150,7 @@ ON CONFLICT ("key") DO NOTHING;
 -- Системного Администратора) назначается сидом/матрицей — в миграции роль
 -- пустая, право закреплено.
 INSERT INTO "roles" ("id", "code", "name", "description", "is_system", "created_at", "updated_at")
-VALUES ('33333333-3333-4333-8333-333333333333', 'system_supervision', 'Системный надзор',
+VALUES ('33333333-3333-4333-8333-333333333333', 'system-supervision', 'Системный надзор',
         'Видит секретные проекты вне участия (служебная учётка)', true,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT ("code") DO NOTHING;
@@ -173,7 +173,7 @@ ON CONFLICT ("role_id", "permission") DO NOTHING;
 
 INSERT INTO "role_permissions" ("role_id", "permission")
 SELECT r."id", 'project.view_secret' FROM "roles" r
-WHERE r."code" = 'system_supervision'
+WHERE r."code" = 'system-supervision'
 ON CONFLICT ("role_id", "permission") DO NOTHING;
 
 -- Типы проектов (допущение техплана #52: тип обязателен; сид «Договор» +
