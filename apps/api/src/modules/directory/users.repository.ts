@@ -20,6 +20,8 @@ const userListSelect = {
   managerId: true,
   departmentId: true,
   legalDepartmentId: true,
+  positionId: true,
+  legalPositionId: true,
   position: { select: { name: true } },
   department: { select: { name: true } },
 } satisfies Prisma.UserSelect;
@@ -137,5 +139,16 @@ export class UsersRepository {
       orderBy: { id: 'asc' },
     });
     return rows.map((row) => row.id);
+  }
+
+  /** Ссылка-сотрудник (валидация оргструктуры #441): статус без карточки. */
+  async findRef(
+    id: string,
+    tx?: TransactionClient,
+  ): Promise<{ id: string; status: 'active' | 'deactivated' } | null> {
+    return (tx ?? this.prisma).user.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
   }
 }
