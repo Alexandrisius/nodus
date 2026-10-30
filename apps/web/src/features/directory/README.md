@@ -89,9 +89,10 @@
 - Эндпоинты — живые (`apps/api/src/modules/directory`): `GET /directory/users?limit=100`
   (курсор, `fetchAllUsers` листает все страницы), `GET /directory/users/:id`
   (UserCard), `GET /directory/presence` (только моки — presence эфемерный, WS),
-  `GET /directory/departments/tree?kind=` (лес корней DepartmentNode; клиентский
-  путь ждёт мёржа PR #545/#540 — сейчас `/departments`), `POST/PATCH
-/directory/departments`, `GET/POST/PATCH/archive /directory/positions`.
+  `GET /directory/departments/tree?kind=` (лес корней DepartmentNode; единая
+  константа `DEPARTMENTS_TREE_PATH` + страж-тест, моки синхронизированы),
+  `POST/PATCH /directory/departments`, `GET/POST/PATCH/archive
+/directory/positions`.
   Ссылки оргструктуры валидирует сервер (#441): руководитель/зам подразделения,
   `managerId/departmentId/positionId/legal*` сотрудника — только активные
   объекты своего вида; `kind` подразделения и должности неизменяем после
