@@ -1,11 +1,10 @@
-import { FileText } from 'lucide-react';
-import type { NodeLevel, TaskListItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { CalendarClock, FileText } from 'lucide-react';
+import type { NodeLevel, TaskListItem, TaskSystemState } from '@nodus/contracts';
+import { isOpenState, ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDate, formatMinutes } from '../../../../shared/lib/format.js';
-import { DeadlineChip } from '../../../../shared/ui/deadline-chip.js';
 import { identityTone } from '../../../../shared/ui/identity-tone.js';
 import { monoCell, PersonCell } from '../../../../shared/ui/person-cell.js';
 import { TaskStatusBadge } from '../../../../shared/ui/task-status-badge.js';
@@ -69,6 +68,7 @@ export function HoursCell({
   spent: number;
   count: number;
 }) {
+  if (planned === null && spent === 0) return null;
   if (count === 0 && spent === 0) return null;
   return (
     <span className="flex min-w-0 items-baseline gap-1 font-mono text-label-sm tabular-nums">
@@ -131,6 +131,33 @@ export function nodeCell(row: StructureNodeRow, fieldId: string, level: NodeLeve
   }
 }
 
+/** Срок задачи в дереве — только дата (без времени и без длинной плашки):
+ *  структура показывает «когда», а не «во сколько»; цвет — срочность. */
+function TaskDeadline({ deadline, state }: { deadline: string | null; state: TaskSystemState }) {
+  if (!deadline) return null;
+  const date = new Date(deadline);
+  const now = new Date();
+  const dayEnd = new Date();
+  dayEnd.setHours(23, 59, 59, 999);
+  const urgent = isOpenState(state);
+  const overdue = urgent && date < now;
+  const today = urgent && !overdue && date <= dayEnd;
+  return (
+    <span
+      title={overdue ? ui.tasks.overdue : undefined}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums',
+        overdue && 'bg-danger-soft text-danger',
+        today && 'bg-warning-soft text-warning',
+        !overdue && !today && 'bg-muted text-muted-foreground',
+      )}
+    >
+      <CalendarClock className="size-3.5" />
+      {formatDate(deadline)}
+    </span>
+  );
+}
+
 export function taskCell(task: TaskListItem, fieldId: string) {
   switch (fieldId) {
     case 'name':
@@ -148,7 +175,7 @@ export function taskCell(task: TaskListItem, fieldId: string) {
     case 'hours':
       return <HoursCell planned={null} spent={task.spentMinutes} count={1} />;
     case 'deadline':
-      return <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />;
+      return <TaskDeadline deadline={task.deadline} state={task.stage.systemState} />;
     case 'assignee':
       return <PersonCell user={task.assignee} />;
     case 'stage':

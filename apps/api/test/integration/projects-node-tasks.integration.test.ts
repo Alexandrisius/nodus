@@ -150,6 +150,34 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(event?.payload).toMatchObject({ nodeId: null, previousNodeId: nodeA.id });
     });
 
+    it('совмещённый PATCH projectId+nodeId не оставляет узел чужого проекта', async () => {
+      const a = await s.createProject(s.alice, { name: s.unique('PATCH A') });
+      const b = await s.createProject(s.alice, { name: s.unique('PATCH B') });
+      const nodeA = await s.node(s.alice, a.id, { levelId: s.levelId, name: 'Узел A' });
+      const nodeB = await s.node(s.alice, b.id, { levelId: s.levelId, name: 'Узел B' });
+      const task = await s.createTask(s.alice, { projectId: a.id });
+
+      const foreign = await s.fx.api(s.alice, 'PATCH', `/tasks/${task.id}`, {
+        body: { projectId: b.id, nodeId: nodeA.id },
+      });
+      await s.expectError(foreign, 422, ErrorCode.PROJECT_NODE_INVALID);
+      const unchanged = await s.fx.prisma.task.findUniqueOrThrow({
+        where: { id: task.id },
+        select: { projectId: true, nodeId: true },
+      });
+      expect(unchanged).toEqual({ projectId: a.id, nodeId: null });
+
+      const moved = await s.fx.api(s.alice, 'PATCH', `/tasks/${task.id}`, {
+        body: { projectId: b.id, nodeId: nodeB.id },
+      });
+      expect(moved.status).toBe(200);
+      const after = await s.fx.prisma.task.findUniqueOrThrow({
+        where: { id: task.id },
+        select: { projectId: true, nodeId: true },
+      });
+      expect(after).toEqual({ projectId: b.id, nodeId: null });
+    });
+
     it('задача коллеги видна в дереве: scope=all, но не в scope=mine', async () => {
       const project = await s.createProject(s.alice, { name: s.unique('Дерево коллеги') });
       const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });

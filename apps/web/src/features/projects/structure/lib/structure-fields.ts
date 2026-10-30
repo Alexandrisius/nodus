@@ -7,7 +7,8 @@ import type { FieldDef, ViewField } from '../../../../shared/views/use-view-fiel
  *  прогресс поддерева, задачи — стадию/ответственного/срок/факт; общие
  *  колонки — единая сетка разнородных строк (проводник: у папок и файлов
  *  одни колонки, пустые ячейки просто пустые, без дефисов). По умолчанию —
- *  шесть колонок; шифр и поздний срок — в шестерёнке. */
+ *  четыре колонки, которые реально влезают в рабочую зону карточки;
+ *  ответственный, стадия, шифр и поздний срок — в шестерёнке. */
 export const STRUCTURE_VIEW_KEY = 'projects.structure.v2';
 
 export const structureFields: FieldDef[] = [
@@ -15,7 +16,7 @@ export const structureFields: FieldDef[] = [
     id: 'name',
     label: ui.structure.columnName,
     defaultVisible: true,
-    defaultWidth: 300,
+    defaultWidth: 236,
     minWidth: 220,
     maxWidth: 640,
     locked: true,
@@ -24,34 +25,34 @@ export const structureFields: FieldDef[] = [
     id: 'progress',
     label: ui.structure.columnProgress,
     defaultVisible: true,
-    defaultWidth: 96,
-    minWidth: 80,
+    defaultWidth: 84,
+    minWidth: 76,
   },
   {
     id: 'hours',
     label: ui.structure.columnHours,
     defaultVisible: true,
-    defaultWidth: 112,
-    minWidth: 96,
+    defaultWidth: 88,
+    minWidth: 80,
   },
   {
     id: 'deadline',
     label: ui.structure.columnDeadline,
     defaultVisible: true,
-    defaultWidth: 120,
-    minWidth: 100,
+    defaultWidth: 88,
+    minWidth: 84,
   },
   {
     id: 'assignee',
     label: ui.tasks.assignee,
-    defaultVisible: true,
+    defaultVisible: false,
     defaultWidth: 136,
     minWidth: 104,
   },
   {
     id: 'stage',
     label: ui.tasks.fieldStage,
-    defaultVisible: true,
+    defaultVisible: false,
     defaultWidth: 120,
     minWidth: 112,
   },

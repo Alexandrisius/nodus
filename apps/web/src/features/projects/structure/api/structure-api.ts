@@ -27,8 +27,7 @@ export { useProjectStructure } from '../../../../shared/api/project-structure.js
  *  модуля достают и дерево, и справочник видов уровней. */
 export const structureKeys = {
   of: (projectId: string) => projectsKeys.structure(projectId),
-  nodeLevels: (includeArchived = false) =>
-    [...projectsKeys.all, 'node-levels', includeArchived] as const,
+  nodeLevels: () => [...projectsKeys.all, 'node-levels'] as const,
 };
 
 type QueryClient = ReturnType<typeof useQueryClient>;

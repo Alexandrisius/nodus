@@ -172,6 +172,12 @@ export class TasksService {
         // Обязательные поля — после умолчаний: если сервер заполнил значение
         // сам, «не хватает» его не считает (Р5).
         this.policy.assertComplete(type, { ...body, customFields });
+        // Узел проверен до транзакции; под advisory-локом структуры
+        // перепроверяем — параллельное удаление узла не оставит висячий node_id.
+        if (body.nodeId && body.projectId) {
+          await this.projects.lockNodeStructure(tx, body.projectId);
+          await this.projects.assertNodeAllowed(body.projectId, body.nodeId);
+        }
         const task = await this.repo.create(
           {
             title: body.title,

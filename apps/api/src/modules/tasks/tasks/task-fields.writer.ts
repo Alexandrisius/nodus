@@ -110,19 +110,26 @@ export class TaskFieldsWriter {
         throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
       }
     }
-    // Узел структуры (#467): валидна привязка только к проекту задачи; в
-    // одном патче с projectId узел старого проекта сбрасывается (узел не
-    // переносится — перенос в узел отдельным действием после переноса).
+    // Узел структуры (#467): валидна привязка только к ЭФФЕКТИВНОМУ проекту
+    // патча. Совмещённый PATCH projectId+nodeId не должен валидировать узел
+    // против старого проекта: иначе задача уезжает в проект B с узлом проекта
+    // A (утечка агрегатов A и вечный 409 на удаление узла). Смена проекта
+    // всегда обнуляет узел — перенос в узел отдельным действием после него.
+    const projectChanged = patch.projectId !== undefined && patch.projectId !== row.projectId;
+    const effectiveProjectId = patch.projectId !== undefined ? patch.projectId : row.projectId;
     let nodeReset = false;
     if (patch.nodeId !== undefined && patch.nodeId !== null) {
-      if (!row.projectId) {
+      if (!effectiveProjectId) {
         throw new DomainException(ErrorCode.PROJECT_NODE_INVALID, 'Node is not available', {
           nodeId: patch.nodeId,
         });
       }
-      await this.projects.assertNodeAllowed(row.projectId, patch.nodeId);
+      // Тот же advisory-лок, что у create/move/delete узла: удаление пустого
+      // узла не должно гоняться с назначением задачи (висячий node_id).
+      await this.projects.lockNodeStructure(tx, effectiveProjectId);
+      await this.projects.assertNodeAllowed(effectiveProjectId, patch.nodeId);
     }
-    if (patch.projectId !== undefined && row.nodeId !== null) nodeReset = true;
+    if (projectChanged) nodeReset = true;
     await this.assertRequiredKept(row.typeId, patch);
     const data: TaskFieldsPatch = {};
     // Значения атрибутов читаются и пишутся под замком строки: параллельные

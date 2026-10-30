@@ -1,3 +1,8 @@
+/**
+ * НЕ ПОДКЛЮЧЁН (#467): редактор видов-подсказок убран из «Типов проектов»,
+ * виды узлов настраиваются в карточке проекта. Файл остаётся до переделки
+ * «Типов проектов» отдельным issue вместе с полем `levelKindIds`.
+ */
 import { ListTree } from 'lucide-react';
 import type { ProjectType } from '@nodus/contracts';
 import { NODE_LIMITS, ui } from '@nodus/contracts';
@@ -23,7 +28,7 @@ export function TypeLevelsHint({
   type: ProjectType;
   onApply: (levelKindIds: string[] | null) => void;
 }) {
-  const { data: levels } = useNodeLevels(true);
+  const { data: levels } = useNodeLevels();
   const active = (levels ?? []).filter((level) => level.archivedAt === null);
   const selected = type.levelKindIds ?? [];
 

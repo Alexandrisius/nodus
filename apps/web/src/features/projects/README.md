@@ -96,11 +96,11 @@
   (`app/automation-route.tsx`): типы (право `project.setup.manage`) и
   портфели (создание — `project.create`, переименование/архив —
   `project.manage`); архив — не удаление. У типа — политика системного поля
-  «Шифр» (`hidden | optional | required`), которую читают окна проекта, и
-  виды-подсказки структуры `levelKindIds` (мультиселект ≤10,
-  `components/type-levels-hint.tsx`). Ниже — секция «Виды уровней»
-  (`components/node-levels-section.tsx`): ярлыки узлов (значок + цвет,
-  `structure/api/node-levels-api.ts`), архив — не удаление.
+  «Шифр» (`hidden | optional | required`), которую читают окна проекта.
+  Виды узлов структуры живут в карточке проекта («Структура» → «Виды узлов»,
+  `structure/components/node-levels-dialog.tsx`); поле модели `levelKindIds`
+  и `components/type-levels-hint.tsx` остаются до переделки «Типов проектов»
+  отдельным issue, UI-редактор к ним не подключён.
 - Окно «Настройки портала» (`portal-settings-dialog.tsx`, хост в оболочке,
   входы — меню профиля и шапка вкладки типов): раздел «Проекты» — видимость
   новых проектов по умолчанию (`GET/PUT /settings/portal`). Полный дом общих

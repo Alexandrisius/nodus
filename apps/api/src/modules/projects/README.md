@@ -136,7 +136,9 @@ node_moved / node_deleted`; мутации — аудит (`project.node_*`) и
   `refsFor` (невидимые → пропущены), `viewScopeFor` (множества Р3, кэш 5 с),
   `assertTaskProjectVisible` (422 #432), `assertMembersAllowed` (422),
   `projectTaskRights` (supervisor), `assertNodeAllowed(projectId, nodeId)`
-  (узел этого проекта, иначе 422 #467). Выключенный флаг — нейтрален.
+  (узел этого проекта, иначе 422 #467), `lockNodeStructure(tx, projectId)`
+  (advisory-лок структуры на привязку задачи — не гоняется с удалением узла).
+  Выключенный флаг — нейтрален.
 - `PROJECT_CHAT_READER` (потребитель: chat): `roster`/`canView`/`canPost`/
   `refs` — канал проекта. Выключенный флаг — `roster` → null, `canView` →
   false.

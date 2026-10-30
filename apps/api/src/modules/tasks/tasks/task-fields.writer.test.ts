@@ -58,7 +58,10 @@ function setup(required: CreationFieldSlot['key'][] = []) {
     prepareUpdate: vi.fn(async () => ({ next: {}, changes: [] })),
   };
   const catalog = { typeById: vi.fn(async () => type(required)) };
-  const projects = { assertNodeAllowed: vi.fn(async () => void 0) };
+  const projects = {
+    assertNodeAllowed: vi.fn(async () => void 0),
+    lockNodeStructure: vi.fn(async () => void 0),
+  };
   const writer = new TaskFieldsWriter(
     repo as never,
     facts as never,
@@ -142,9 +145,10 @@ describe('TaskFieldsWriter: узел структуры (#467)', () => {
     expect(projects.assertNodeAllowed).not.toHaveBeenCalled();
   });
 
-  it('nodeId проверяется портом по проекту задачи', async () => {
+  it('nodeId проверяется портом по проекту задачи под локом структуры', async () => {
     const { writer, projects } = setup();
     await applyOf(writer, projectRow(), { nodeId: NODE_ID });
+    expect(projects.lockNodeStructure).toHaveBeenCalledWith(expect.anything(), 'p1');
     expect(projects.assertNodeAllowed).toHaveBeenCalledWith('p1', NODE_ID);
   });
 
@@ -170,7 +174,10 @@ describe('TaskFieldsWriter: узел структуры (#467)', () => {
       { sync: vi.fn(async () => void 0) } as never,
       { prepareUpdate: vi.fn(async () => ({ next: {}, changes: [] })) } as never,
       { typeById: vi.fn(async () => null) } as never,
-      { assertNodeAllowed: vi.fn(async () => void 0) } as never,
+      {
+        assertNodeAllowed: vi.fn(async () => void 0),
+        lockNodeStructure: vi.fn(async () => void 0),
+      } as never,
     );
     await applyOf(writer, projectRow(), { projectId: 'p2' });
     expect(repo.updateFields).toHaveBeenCalledWith(expect.anything(), 't1', {

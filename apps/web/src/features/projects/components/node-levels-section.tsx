@@ -98,7 +98,7 @@ function ColorSelect({
  * не удаление: узлы архивного вида живут, новые создавать нельзя.
  */
 export function NodeLevelsSection({ canManage }: { canManage: boolean }) {
-  const { data, isLoading } = useNodeLevels(true);
+  const { data, isLoading } = useNodeLevels();
   const create = useCreateNodeLevel();
   const update = useUpdateNodeLevel();
   const archive = useArchiveNodeLevel();

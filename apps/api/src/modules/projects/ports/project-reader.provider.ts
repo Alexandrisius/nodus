@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ErrorCode, Permission, type ProjectRef } from '@nodus/contracts';
 
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FeatureFlagService } from '../../../core/feature-flags/feature-flag.service.js';
 import { ProjectParticipantsRepository } from '../project-participants.repository.js';
@@ -149,6 +150,11 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
   async projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }> {
     if (!(await this.enabled())) return { supervisor: false };
     return { supervisor: await this.participants.isManagement(projectId, actorId) };
+  }
+
+  async lockNodeStructure(tx: TransactionClient, projectId: string): Promise<void> {
+    if (!(await this.enabled())) return;
+    await this.nodes.lockStructure(tx, projectId);
   }
 
   async assertNodeAllowed(projectId: string, nodeId: string): Promise<void> {

@@ -8,17 +8,18 @@ import { toastApiError } from '../../../../shared/api/error-toast.js';
 import { projectsKeys } from '../../../../shared/api/projects-list.js';
 import { structureKeys } from './structure-api.js';
 
-/** Справочник видов уровней (#467): ярлыки узлов (значок + цвет), живёт в
- *  «Автоматизации» рядом с типами проектов. Архив — не удаление: узлы
- *  архивного вида живут, новые создавать нельзя. */
+/** Справочник видов узлов (#467): ярлыки узлов (значок + цвет), живёт в
+ *  карточке проекта («Структура» → «Виды узлов»). Архив — не удаление: узлы
+ *  архивного вида живут, новые создавать нельзя. Сервер отдаёт все виды
+ *  сразу (архивные — с `archivedAt`), параметра фильтра нет. */
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 const levelsPrefix = [...projectsKeys.all, 'node-levels'] as const;
 
-export function useNodeLevels(includeArchived = false) {
+export function useNodeLevels() {
   return useQuery({
-    queryKey: structureKeys.nodeLevels(includeArchived),
-    queryFn: () => api<NodeLevel[]>(`/projects/node-levels?includeArchived=${includeArchived}`),
+    queryKey: structureKeys.nodeLevels(),
+    queryFn: () => api<NodeLevel[]>('/projects/node-levels'),
   });
 }
 
