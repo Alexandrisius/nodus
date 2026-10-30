@@ -18,6 +18,15 @@ describe('CatalogBootstrap — «засев один раз» (ADR-0021)', () =>
     expect(eventBus.emit).not.toHaveBeenCalled();
   });
 
+  it('«Комплект» сеется с бумажным значком file-text (#467)', async () => {
+    const { bootstrap, repo } = setup();
+    await bootstrap.ensure();
+    expect(repo.ensureType).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ code: 'kit', icon: 'file-text' }),
+    );
+  });
+
   it('старая ревизия: стадия обновляется, переход вне каталога — в архив, системная публикация', async () => {
     const { bootstrap, repo, eventBus, tx } = setup({
       workflows: { 'task.default': { customizedAt: null, catalogRevision: 1 } },

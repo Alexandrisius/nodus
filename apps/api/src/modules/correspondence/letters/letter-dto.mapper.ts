@@ -260,6 +260,7 @@ export class LetterDtoMapper {
         code: 'letter',
         name: 'Письмо',
         category: 'letter',
+        icon: 'send',
       },
       signer: row.signerId ? (refs.contacts.get(row.signerId) ?? null) : null,
       registrar: row.registrarId ? (refs.users.get(row.registrarId) ?? null) : null,

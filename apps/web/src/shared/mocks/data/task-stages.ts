@@ -74,6 +74,7 @@ export const systemProcessType = {
   code: 'task',
   name: 'Стандартный',
   category: 'task',
+  icon: 'square-check',
 } as const;
 
 export const quickProcessType = {
@@ -81,4 +82,5 @@ export const quickProcessType = {
   code: 'quick',
   name: 'Быстрый',
   category: 'task',
+  icon: 'zap',
 } as const;

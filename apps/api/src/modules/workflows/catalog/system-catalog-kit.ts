@@ -7,11 +7,13 @@ import type { CatalogProcessType, CatalogStage, CatalogWorkflow } from './system
  * стадий ЛИНЕЙНО (каждый следующий шаг — переход с предыдущей; жмут
  * ответственный и постановщик). Категория task; ревизия каталога своя
  * (KIT_CATALOG_REVISION): правки задач/писем эти маршруты не перезасевают.
+ * Ревизия 2 — значок «Комплекта»: лист бумаги с загнутым углом (file-text,
+ * вердикт владельца 05.11), прежний package.
  * Регистрация — в CATALOG_PROCESS_TYPES (system-catalog.ts); имя,
  * занятое пользовательским типом, — skip+warn в бутстрапе (не падаем).
  */
 
-const KIT_CATALOG_REVISION = 1;
+const KIT_CATALOG_REVISION = 2;
 
 const owners: WorkflowCondition = { kind: 'role_in', roles: ['assignee', 'creator'] };
 
@@ -84,7 +86,7 @@ export const KIT_PROCESS_TYPE: CatalogProcessType = {
   code: 'kit',
   name: 'Комплект',
   category: 'task',
-  icon: 'package',
+  icon: 'file-text',
   color: 'info',
   description: 'Маршрут комплектации документа: от разработки до госорганов',
   sortOrder: 2,

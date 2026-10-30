@@ -14,6 +14,7 @@ const systemProcessType = {
   code: 'task',
   name: 'Задача',
   category: 'task',
+  icon: 'square-check',
 } as const;
 
 const STAGE_ACTIVE = {

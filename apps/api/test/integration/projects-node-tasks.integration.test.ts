@@ -114,6 +114,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const byId = new Map(page.items.map((item) => [item.id, item]));
       expect(byId.get(withPlan.id)?.plannedMinutes).toBe(120);
       expect(byId.get(withoutPlan.id)?.plannedMinutes).toBeNull();
+      // Значок типа едет в строке списка — дерево рисует его слева от названия.
+      expect(byId.get(withPlan.id)?.type.icon).toBe('square-check');
     });
 
     it('structureSummary карточки: hasTaskNodes флипается задачей в узле', async () => {

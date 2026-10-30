@@ -94,6 +94,7 @@ export const processTypeRefSchema = processTypeSchema.pick({
   code: true,
   name: true,
   category: true,
+  icon: true,
 });
 export type ProcessTypeRef = z.infer<typeof processTypeRefSchema>;
 

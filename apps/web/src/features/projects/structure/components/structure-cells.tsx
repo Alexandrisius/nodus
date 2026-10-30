@@ -1,4 +1,4 @@
-import { ChevronRight, FileText } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { NodeLevel, TaskListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
@@ -10,6 +10,7 @@ import { monoCell, PersonCell } from '../../../../shared/ui/person-cell.js';
 import { TaskStatusBadge } from '../../../../shared/ui/task-status-badge.js';
 import { RowMenu, type RowMenuItem } from '../../../../shared/views/row-menu.js';
 import type { FieldDef, ViewField } from '../../../../shared/views/use-view-fields.js';
+import { ProcessTypeGlyph } from '../../../../shared/workflow/process-type-icon.js';
 import { NodeLevelGlyph } from '../lib/node-level-icon.js';
 import type { StructureNodeRow } from '../lib/structure-tree.js';
 
@@ -118,8 +119,10 @@ export function taskCell(task: TaskListItem, fieldId: string) {
     case 'name':
       return (
         <span className="flex min-w-0 items-center gap-2">
-          <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-          <span className={monoCell}>{task.number}</span>
+          <ProcessTypeGlyph
+            icon={task.type.icon ?? 'file-text'}
+            className="size-3.5 shrink-0 text-muted-foreground"
+          />
           <span className="truncate text-sm" title={task.title}>
             {task.title}
           </span>
