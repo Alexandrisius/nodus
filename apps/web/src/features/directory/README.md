@@ -87,7 +87,7 @@
   относится само подразделение (kind сервер берёт из подразделения).
 - Эндпоинты (моки): `GET /directory/users?limit=50` (+`departmentId`),
   `GET /directory/users/:id` (UserCard), `GET /directory/presence`,
-  `GET /directory/departments?kind=` (лес корней DepartmentNode),
+  `GET /directory/departments/tree?kind=` (лес корней DepartmentNode),
   `POST /directory/departments`, `PATCH /directory/departments/:id`.
   Бэкенд: users-эндпоинты живые (`apps/api/src/modules/directory`, kind-осознанный
   фильтр подразделения реализован), endpoints подразделений — контракт-ТЗ для
