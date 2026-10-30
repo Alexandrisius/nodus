@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { statesOfPhase } from '@nodus/contracts';
 
 import { PrismaService } from '../../../core/database/prisma.service.js';
+import { Prisma } from '../../../generated/prisma/client.js';
 import type { TaskNodeRollup, TaskProjectReader } from './task-project-reader.port.js';
 
 /** Строка сырого агрегата узла (даты — timestamptz). */
@@ -82,7 +84,7 @@ export class TaskProjectReaderProvider implements TaskProjectReader {
              COALESCE(SUM(t.planned_minutes), 0)::int AS planned_minutes,
              COALESCE(SUM(t.spent_minutes), 0)::int AS spent_minutes,
              MIN(t.deadline) FILTER (
-               WHERE ws.system_state IN ('backlog', 'active', 'paused')
+               WHERE ws.system_state IN (${Prisma.join(statesOfPhase('open'))})
              ) AS nearest_deadline,
              MAX(t.deadline) AS latest_deadline
       FROM project_nodes n

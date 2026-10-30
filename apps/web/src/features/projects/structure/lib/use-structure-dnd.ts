@@ -64,6 +64,10 @@ export function nodeDropPlacement(
   }
   if (parentId === draggingId) return null;
   if (parentId !== null && subtreeNodeIds(nodes, draggingId).has(parentId)) return null;
+  // Якорь не может быть самим переносимым узлом: дроп на собственную строку
+  // (before/after) или первым ребёнком раскрытого родителя дал бы серверу
+  // beforeId/afterId === draggingId и безобидное действие падало бы 422.
+  if (beforeId === draggingId || afterId === draggingId) return null;
   return { parentId, beforeId, afterId };
 }
 

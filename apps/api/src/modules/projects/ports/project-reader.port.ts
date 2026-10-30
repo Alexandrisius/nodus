@@ -53,7 +53,8 @@ export interface ProjectReader {
   projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }>;
 
   /** Узел пригоден задаче этого проекта: существует и принадлежит проекту;
-   *  иначе — 422 PROJECT_NODE_INVALID без оракула существования (#467). */
+   *  архивный проект — 400 (структура заморожена); иначе — 422
+   *  PROJECT_NODE_INVALID без оракула существования (#467). */
   assertNodeAllowed(projectId: string, nodeId: string): Promise<void>;
 
   /** Сериализует привязку задачи к узлу с мутациями структуры: тот же

@@ -206,6 +206,35 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(after).toEqual({ projectId: b.id, nodeId: null });
     });
 
+    it('архивный проект: перенос в узел заморожен, снятие узла разрешено', async () => {
+      const project = await s.createProject(s.alice, { name: s.unique('Архив') });
+      const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });
+      const task = await s.createTask(s.alice, { projectId: project.id, nodeId: root.id });
+
+      const archived = await s.fx.api(s.alice, 'POST', `/projects/${project.id}/status`, {
+        body: { status: 'archived' },
+        key: `st-${s.unique('k')}`,
+      });
+      expect(archived.status).toBe(200);
+
+      // Дерево заморожено: переставить задачу в узел нельзя (как CRUD узлов).
+      const into = await s.fx.api(s.alice, 'PATCH', `/tasks/${task.id}`, {
+        body: { nodeId: root.id },
+      });
+      await s.expectError(into, 400, ErrorCode.VALIDATION_FAILED);
+
+      // Вынос из структуры (nodeId=null) — не перенос по замороженному дереву.
+      const detach = await s.fx.api(s.alice, 'PATCH', `/tasks/${task.id}`, {
+        body: { nodeId: null },
+      });
+      expect(detach.status).toBe(200);
+      const row = await s.fx.prisma.task.findUniqueOrThrow({
+        where: { id: task.id },
+        select: { nodeId: true },
+      });
+      expect(row.nodeId).toBeNull();
+    });
+
     it('задача коллеги видна в дереве: scope=all, но не в scope=mine', async () => {
       const project = await s.createProject(s.alice, { name: s.unique('Дерево коллеги') });
       const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });

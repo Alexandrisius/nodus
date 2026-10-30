@@ -159,6 +159,13 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
 
   async assertNodeAllowed(projectId: string, nodeId: string): Promise<void> {
     if (!(await this.enabled())) return;
+    // Архив — заморозка структуры (симметрично loadForStructureManage):
+    // задача не переставляется по зафиксированному дереву. Снятие узла
+    // (nodeId=null) сюда не приходит — вынос из структуры не блокируется.
+    const project = await this.projects.findById(projectId);
+    if (project?.status === 'archived') {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived', { projectId });
+    }
     // Без оракула: чужой проект, чужой узел и несуществующий узел — один
     // ответ (узел структуры не раскрывает соседние проекты).
     const node = await this.nodes.findById(nodeId);

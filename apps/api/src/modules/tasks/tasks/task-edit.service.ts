@@ -42,9 +42,9 @@ const FIELD_KEYS = [
   'nodeId',
 ] as const;
 
-/** PATCH-тело контракта + перенос в узел структуры (#467): nodeId не входит
- *  в контракт карточки (меняется в дереве проекта и bulk set_node), сюда
- *  приходит из BulkService. */
+/** PATCH-тело контракта + перенос в узел структуры (#467): nodeId входит в
+ *  `taskUpdateBodySchema`, приходит из дерева проекта (одиночный перенос) и
+ *  BulkService (`set_node`); отдельного поля в карточке задачи нет. */
 export type TaskEditBody = TaskUpdateBody & { nodeId?: string | null };
 
 /**
