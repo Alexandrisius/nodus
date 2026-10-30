@@ -82,7 +82,14 @@ export function useStructureModel(projectId: string) {
     [selection.selected],
   );
   const branchIds = useMemo(
-    () => rows.flatMap((r) => (r.kind === 'node' && r.hasChildren ? [r.node.id] : [])),
+    () =>
+      rows.flatMap((r) =>
+        r.kind === 'node' && r.hasChildren
+          ? [r.node.id]
+          : r.kind === 'task' && r.hasChildren
+            ? [r.task.id]
+            : [],
+      ),
     [rows],
   );
   const gridTemplateColumns = structureGrid(visibleFields);

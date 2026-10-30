@@ -24,8 +24,12 @@ export interface StructureNodeRow {
 export interface StructureTaskRow {
   kind: 'task';
   task: TaskListItem;
-  /** depth = глубина узла + 1 (лист под папкой). */
+  /** Глубина в дереве: узел + 1, подзадача — глубже родителя. */
   depth: number;
+  /** Есть подзадачи (стрелка раскрытия). */
+  hasChildren: boolean;
+  /** Все потомки-подзадачи — счётчик свёрнутой ветки «+N». */
+  descendantCount: number;
 }
 
 /** Заголовок секции задач вне структуры (внизу дерева). */
@@ -111,14 +115,38 @@ export function buildStructureRows(nodes: ProjectNode[], tasks: TaskListItem[]):
     });
     for (const child of children) addRollup(subtree, walk(child, depth + 1));
     // Задачи-листья — после поддерева папок (проводник: папки выше файлов).
-    for (const task of ownTasks) {
-      rows.push({ kind: 'task', task, depth: depth + 1 });
-    }
+    // Подзадачи вкладываются под родительскую задачу, а не встают с ней на
+    // один уровень.
+    pushTaskTree(rows, ownTasks, depth + 1);
     return subtree;
+  };
+  const pushTaskTree = (target: StructureRow[], tasks: TaskListItem[], depth: number): void => {
+    const ids = new Set(tasks.map((task) => task.id));
+    const byParent = new Map<string | null, TaskListItem[]>();
+    for (const task of tasks) {
+      const parent = task.parentId && ids.has(task.parentId) ? task.parentId : null;
+      const list = byParent.get(parent) ?? [];
+      list.push(task);
+      byParent.set(parent, list);
+    }
+    const count = (id: string): number =>
+      (byParent.get(id) ?? []).reduce((sum, child) => sum + 1 + count(child.id), 0);
+    const walkTask = (task: TaskListItem, taskDepth: number): void => {
+      const children = byParent.get(task.id) ?? [];
+      target.push({
+        kind: 'task',
+        task,
+        depth: taskDepth,
+        hasChildren: children.length > 0,
+        descendantCount: count(task.id),
+      });
+      for (const child of children) walkTask(child, taskDepth + 1);
+    };
+    for (const root of byParent.get(null) ?? []) walkTask(root, depth);
   };
   for (const root of childrenOf.get(null) ?? []) walk(root, 0);
   if (noNode.length > 0) rows.push({ kind: 'noNode', count: noNode.length });
-  for (const task of noNode) rows.push({ kind: 'task', task, depth: 0 });
+  pushTaskTree(rows, noNode, 0);
   return rows;
 }
 
@@ -141,8 +169,9 @@ export function filterVisibleRows(
     }
     if (hiddenBelow.length > 0) continue;
     visible.push(row);
-    if (row.kind === 'node' && row.hasChildren && collapsed.has(row.node.id)) {
-      hiddenBelow.push(row.depth);
+    if (row.hasChildren) {
+      const id = row.kind === 'node' ? row.node.id : row.task.id;
+      if (collapsed.has(id)) hiddenBelow.push(row.depth);
     }
   }
   return visible;
@@ -179,7 +208,7 @@ export function filterStructureRows(rows: StructureRow[], query: string): Struct
     let depth = row.depth;
     for (let j = index - 1; j >= 0 && depth > 0; j -= 1) {
       const prev = rows[j];
-      if (prev && prev.kind === 'node' && prev.depth < depth) {
+      if (prev && prev.kind !== 'noNode' && prev.depth < depth) {
         keep.add(j);
         depth = prev.depth;
       }

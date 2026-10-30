@@ -22,6 +22,7 @@ import { TaskDescription } from './task-description.js';
 import { TaskResultSection } from './task-result.js';
 import { TaskSubtasks } from './task-subtasks.js';
 import { TaskDiscussion } from './task-discussion.js';
+import { TaskTitle } from './task-title.js';
 import { TaskCustomFields } from './task-custom-fields.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
@@ -43,8 +44,9 @@ const ABOUT_W = uiPx(360);
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
  * происхождения (Письмо → Резолюция → Поручение → Задача; само-узел — только
  * «ТИП · №», БЕЗ повтора названия — оно один раз в главном заголовке) и
- * кнопки панелей «Ветка»/«О задаче»; слева — название, описание, доска полей,
- * подзадачи и чек-лист + замоноличенный нижний бар действий; справа —
+ * кнопки панелей «Ветка»/«О задаче»; слева — название (в панели данных над
+ * описанием), описание, доска полей, подзадачи и чек-лист + замоноличенный
+ * нижний бар действий; справа —
  * постоянная колонка обсуждения; «О задаче» — вталкивающая колонка справа.
  * Полоса цепочки — `task-card-chain-bar.tsx`; здесь — раскладка зон и канон
  * «чат — буфер сужений».
@@ -236,6 +238,9 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 в теле не дублируется: тело начинается с описания. Секции
                 разделяются отступами, без висячих линий-сепараторов. */}
               <div className="mx-auto max-w-4xl pb-4">
+                <div className="mb-4 text-lg font-semibold">
+                  <TaskTitle taskId={taskId} />
+                </div>
                 {layout.blockVisible('description') ? <TaskDescription task={task} /> : null}
                 <TaskFields task={task} layout={layout} onOpenSubtask={navigateInCard} />
                 {/* Поля процесса (#431) — сразу после системных полей: тот же

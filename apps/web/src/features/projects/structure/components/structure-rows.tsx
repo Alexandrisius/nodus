@@ -143,6 +143,8 @@ export function StructureNodeRowView({
 
 export function StructureTaskRowView({
   row,
+  collapsed,
+  onToggle,
   selected,
   onToggleSelected,
   items,
@@ -155,6 +157,8 @@ export function StructureTaskRowView({
   readOnly,
 }: {
   row: StructureTaskRow;
+  collapsed: boolean;
+  onToggle: () => void;
   selected: boolean;
   onToggleSelected: () => void;
   items: RowMenuItem[];
@@ -181,6 +185,7 @@ export function StructureTaskRowView({
         {...(readOnly ? {} : drag.listeners)}
         role="row"
         tabIndex={0}
+        aria-expanded={row.hasChildren ? !collapsed : undefined}
         onClick={(e) => onOpen(e.currentTarget)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -212,8 +217,17 @@ export function StructureTaskRowView({
           >
             {field.id === 'name' ? (
               <>
-                <span className="size-5 shrink-0" />
+                {row.hasChildren ? (
+                  <BranchButton collapsed={collapsed} onToggle={onToggle} />
+                ) : (
+                  <span className="size-5 shrink-0" />
+                )}
                 {taskCell(row.task, field.id)}
+                {collapsed && row.descendantCount > 0 ? (
+                  <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+                    +{row.descendantCount}
+                  </span>
+                ) : null}
               </>
             ) : (
               taskCell(row.task, field.id)

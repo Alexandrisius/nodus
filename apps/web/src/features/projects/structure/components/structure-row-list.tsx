@@ -62,6 +62,8 @@ export function StructureRowList({
     <StructureTaskRowView
       key={row.task.id}
       row={row}
+      collapsed={collapsed.has(row.task.id)}
+      onToggle={() => onToggleBranch(row.task.id)}
       selected={selection.selected.has(`t:${row.task.id}`)}
       onToggleSelected={() => selection.toggle(`t:${row.task.id}`)}
       items={taskMenuItems(row.task.id, {

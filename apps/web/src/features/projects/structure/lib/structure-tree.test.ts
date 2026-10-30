@@ -52,7 +52,7 @@ function node(
 }
 
 let seq = 0;
-function task(id: string, nodeId: string | null): TaskListItem {
+function task(id: string, nodeId: string | null, parentId: string | null = null): TaskListItem {
   seq += 1;
   return {
     id,
@@ -68,7 +68,7 @@ function task(id: string, nodeId: string | null): TaskListItem {
     assignee: null,
     participants: [],
     project: null,
-    parentId: null,
+    parentId,
     nodeId,
     spentMinutes: 0,
     commentsCount: 0,
@@ -139,6 +139,31 @@ describe('buildStructureRows (дерево структуры проекта)', 
     const ar = rows.find((r) => r.kind === 'node' && r.node.id === 'ar');
     expect(root).toMatchObject({ descendantCount: 4 });
     expect(ar).toMatchObject({ descendantCount: 1 });
+  });
+
+  it('подзадача вложена под родительскую задачу, а не на её уровень', () => {
+    const nodes = [node('b1'), node('ar', 'b1')];
+    const rows = buildStructureRows(nodes, [
+      task('t1', 'ar'),
+      task('t2', 'ar', 't1'),
+      task('t3', 'ar', 't2'),
+    ]);
+    expect(
+      rows.map((r) =>
+        r.kind === 'node'
+          ? `n:${r.node.id}:${r.depth}`
+          : r.kind === 'task'
+            ? `t:${r.task.id}:${r.depth}`
+            : 'noNode',
+      ),
+    ).toEqual(['n:b1:0', 'n:ar:1', 't:t1:2', 't:t2:3', 't:t3:4']);
+    const parent = rows.find((r) => r.kind === 'task' && r.task.id === 't1');
+    expect(parent).toMatchObject({ hasChildren: true, descendantCount: 2 });
+    expect(
+      filterVisibleRows(rows, new Set(['t1'])).map((r) =>
+        r.kind === 'node' ? r.node.id : r.kind === 'task' ? r.task.id : 'noNode',
+      ),
+    ).toEqual(['b1', 'ar', 't1']);
   });
 
   it('задача с nodeId вне набора узлов уходит в «Без узла»', () => {
