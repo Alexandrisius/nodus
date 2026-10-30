@@ -81,7 +81,7 @@ export function departmentOfUser(user: UserListItem, kind: OrgUnitKind): string 
 }
 
 /**
- * Лес корней DepartmentNode для вида (контракт GET /directory/departments?kind=):
+ * Лес корней DepartmentNode для вида (контракт GET /directory/departments/tree?kind=):
  * children рекурсивно по parentId (сортировка sortOrder), memberCount —
  * НЕ-рекурсивно (прикреплённые к подразделению), денормализованные имена
  * руководителя/зама — для UI без второго запроса.

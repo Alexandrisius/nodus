@@ -12,7 +12,7 @@ export const departmentsListKey = ['directory', 'departments', 'management'] as 
 export function useDepartmentTreeManagement() {
   return useQuery({
     queryKey: departmentsListKey,
-    queryFn: () => api<DepartmentNode[]>('/directory/departments?kind=management'),
+    queryFn: () => api<DepartmentNode[]>('/directory/departments/tree?kind=management'),
     staleTime: 60_000,
   });
 }

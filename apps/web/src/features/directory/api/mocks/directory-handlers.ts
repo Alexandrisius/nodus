@@ -20,7 +20,7 @@ import {
 
 /**
  * MSW-слой справочника (ADR-0001): контракты — источник формы ответов.
- * Дерево подразделений (GET /directory/departments?kind=) и фильтр людей по
+ * Дерево подразделений (GET /directory/departments/tree?kind=) и фильтр людей по
  * подразделению (принадлежность в ТОЙ структуре, к которой относится отдел —
  * семантика контракта listUsersQuerySchema.departmentId, #84) — образец для
  * бэкенд-агента: UI сверстан по этим контрактам и есть ТЗ на эндпоинты.
@@ -29,6 +29,15 @@ import {
  * схемами contracts.
  */
 let departmentState = demoDepartments;
+
+/** Дерево из concept-state (departmentState), иначе POST/PATCH теряются на
+ *  рефетче после оптимистичной мутации (валидация 24.09). */
+function departmentTree({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const query = departmentTreeQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+  const kind = query.success ? query.data.kind : 'management';
+  return HttpResponse.json(buildDepartmentTree(kind, demoUserListItems, departmentState));
+}
 
 export const directoryHandlers = [
   http.get('/api/v1/directory/users', ({ request }) => {
@@ -42,14 +51,11 @@ export const directoryHandlers = [
     }
     return HttpResponse.json({ items, nextCursor: null });
   }),
-  http.get('/api/v1/directory/departments', ({ request }) => {
-    const url = new URL(request.url);
-    const query = departmentTreeQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-    const kind = query.success ? query.data.kind : 'management';
-    // Дерево — из concept-state (departmentState), иначе POST/PATCH теряются
-    // на рефетче после оптимистичной мутации (валидация 24.09).
-    return HttpResponse.json(buildDepartmentTree(kind, demoUserListItems, departmentState));
-  }),
+  // Реальный контракт API — /tree (#540).
+  http.get('/api/v1/directory/departments/tree', departmentTree),
+  // Временный алиас: directory-api.ts (экран «Сотрудники») пока зовёт старый
+  // путь — отдельная находка, в #540 не чинится. Удалить после её фикса.
+  http.get('/api/v1/directory/departments', departmentTree),
   http.post('/api/v1/directory/departments', async ({ request }) => {
     const parsed = createDepartmentSchema.safeParse(await request.json());
     if (!parsed.success)
