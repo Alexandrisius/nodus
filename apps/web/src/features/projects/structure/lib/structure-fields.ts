@@ -6,9 +6,10 @@ import type { FieldDef, ViewField } from '../../../../shared/views/use-view-fiel
 /** Реестр колонок таблицы структуры (#467): узлы заполняют шифр/часы/сроки/
  *  прогресс поддерева, задачи — стадию/ответственного/срок/факт; общие
  *  колонки — единая сетка разнородных строк (проводник: у папок и файлов
- *  одни колонки, пустые ячейки просто пустые, без дефисов). По умолчанию —
- *  четыре колонки, которые реально влезают в рабочую зону карточки;
- *  ответственный, стадия, шифр и поздний срок — в шестерёнке. */
+ *  одни колонки, пустые ячейки просто пустые, без дефисов). План и факт —
+ *  отдельные колонки (не одно поле с двумя числами). По умолчанию — пять
+ *  колонок, которые влезают в рабочую зону карточки; ответственный, стадия,
+ *  шифр и поздний срок — в шестерёнке. */
 export const STRUCTURE_VIEW_KEY = 'projects.structure.v2';
 
 export const structureFields: FieldDef[] = [
@@ -16,7 +17,7 @@ export const structureFields: FieldDef[] = [
     id: 'name',
     label: ui.structure.columnName,
     defaultVisible: true,
-    defaultWidth: 300,
+    defaultWidth: 260,
     minWidth: 220,
     maxWidth: 640,
     locked: true,
@@ -29,18 +30,25 @@ export const structureFields: FieldDef[] = [
     minWidth: 76,
   },
   {
-    id: 'hours',
-    label: ui.structure.columnHours,
+    id: 'plan',
+    label: ui.structure.columnPlan,
     defaultVisible: true,
-    defaultWidth: 88,
-    minWidth: 80,
+    defaultWidth: 74,
+    minWidth: 68,
+  },
+  {
+    id: 'fact',
+    label: ui.structure.columnFact,
+    defaultVisible: true,
+    defaultWidth: 74,
+    minWidth: 68,
   },
   {
     id: 'deadline',
     label: ui.structure.columnDeadline,
     defaultVisible: true,
-    defaultWidth: 88,
-    minWidth: 84,
+    defaultWidth: 74,
+    minWidth: 70,
   },
   {
     id: 'assignee',

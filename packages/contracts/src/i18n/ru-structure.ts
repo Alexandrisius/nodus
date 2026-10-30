@@ -24,7 +24,8 @@ export const structureStrings = {
   // Колонки
   columnName: 'Название',
   columnCode: 'Шифр',
-  columnHours: 'Часы',
+  columnPlan: 'План',
+  columnFact: 'Факт',
   columnDeadline: 'Срок',
   columnLatest: 'Поздний срок',
   columnProgress: 'Прогресс',

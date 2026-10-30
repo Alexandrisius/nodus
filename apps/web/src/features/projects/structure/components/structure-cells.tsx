@@ -47,7 +47,7 @@ export function ProgressCell({ done, total }: { done: number; total: number }) {
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}
-        className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-accent"
+        className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-accent"
       >
         <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
       </span>
@@ -58,26 +58,11 @@ export function ProgressCell({ done, total }: { done: number; total: number }) {
   );
 }
 
-export function HoursCell({
-  planned,
-  spent,
-  count,
-}: {
-  planned: number | null;
-  spent: number;
-  count: number;
-}) {
-  if (planned === null && spent === 0) return null;
-  if (count === 0 && spent === 0) return null;
+export function TimeCell({ minutes }: { minutes: number | null }) {
+  if (minutes === null || minutes === 0) return null;
   return (
     <span className="flex min-w-0 items-baseline gap-1 font-mono text-label-sm tabular-nums">
-      {planned !== null ? (
-        <>
-          <span className="text-muted-foreground">{formatMinutes(planned)}</span>
-          <span className="text-muted-foreground/60">/</span>
-        </>
-      ) : null}
-      <span className="text-foreground">{formatMinutes(spent)}</span>
+      <span className="text-foreground">{formatMinutes(minutes)}</span>
       <span className="text-label-sm text-muted-foreground">{ui.structure.hoursShort}</span>
     </span>
   );
@@ -109,14 +94,10 @@ export function nodeCell(row: StructureNodeRow, fieldId: string, level: NodeLeve
       return row.node.code ? <span className={monoCell}>{row.node.code}</span> : null;
     case 'progress':
       return <ProgressCell done={row.subtree.doneCount} total={row.subtree.taskCount} />;
-    case 'hours':
-      return (
-        <HoursCell
-          planned={row.subtree.taskCount > 0 ? row.subtree.plannedMinutes : null}
-          spent={row.subtree.spentMinutes}
-          count={row.subtree.taskCount}
-        />
-      );
+    case 'plan':
+      return <TimeCell minutes={row.subtree.taskCount > 0 ? row.subtree.plannedMinutes : null} />;
+    case 'fact':
+      return <TimeCell minutes={row.subtree.spentMinutes} />;
     case 'deadline':
       return row.subtree.nearestDeadline ? (
         <span className={monoCell}>{formatDate(row.subtree.nearestDeadline)}</span>
@@ -144,8 +125,10 @@ export function taskCell(task: TaskListItem, fieldId: string) {
       );
     case 'progress':
       return <ProgressCell done={task.checklistDone} total={task.checklistTotal} />;
-    case 'hours':
-      return <HoursCell planned={null} spent={task.spentMinutes} count={1} />;
+    case 'plan':
+      return null;
+    case 'fact':
+      return <TimeCell minutes={task.spentMinutes} />;
     case 'deadline':
       return task.deadline ? <span className={monoCell}>{formatDate(task.deadline)}</span> : null;
     case 'assignee':
