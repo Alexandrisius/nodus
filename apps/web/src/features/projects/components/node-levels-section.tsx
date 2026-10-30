@@ -97,7 +97,15 @@ function ColorSelect({
  * Живёт в карточке проекта, не в «Автоматизации» (вердикт владельца). Архив —
  * не удаление: узлы архивного вида живут, новые создавать нельзя.
  */
-export function NodeLevelsSection({ canManage }: { canManage: boolean }) {
+export function NodeLevelsSection({
+  canManage,
+  embedded = false,
+}: {
+  canManage: boolean;
+  /** Внутри окна «Виды узлов»: без собственной карточки-панели (иначе
+   *  двойная рамка и «Закрыть» снаружи внутренней панели). */
+  embedded?: boolean;
+}) {
   const { data, isLoading } = useNodeLevels();
   const create = useCreateNodeLevel();
   const update = useUpdateNodeLevel();
@@ -135,7 +143,7 @@ export function NodeLevelsSection({ canManage }: { canManage: boolean }) {
   }
 
   return (
-    <section className="node-panel flex flex-col gap-2 p-4">
+    <section className={cn('flex flex-col gap-2', embedded ? 'p-0' : 'node-panel p-4')}>
       <div className="flex items-center gap-2">
         <NodeLabel label={ui.structure.levelsTitle} count={levels.length} />
         {canManage ? (

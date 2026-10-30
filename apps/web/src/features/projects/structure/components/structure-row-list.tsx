@@ -7,13 +7,12 @@ import {
   StructureTaskRowView,
 } from './structure-rows.js';
 import { nodeMenuItems, taskMenuItems, type StructureMenuActions } from './structure-menus.js';
-import { StructureTreeGraph, type StructureGraphRow } from '../lib/structure-tree-graph.js';
 import type { StructureRow, StructureTaskRow } from '../lib/structure-tree.js';
 import type { StructureDnd } from '../lib/use-structure-dnd.js';
 
-/** Рендер строк дерева структуры: узлы, задачи-листья, секция «Без узла» и
- *  SVG-контур вложенности. Вынесен из вкладки (I5); состояние и мутации
- *  остаются у вкладки — здесь только вид. */
+/** Рендер строк дерева структуры: узлы, задачи-листья и секция «Без узла».
+ *  Вложенность — отступами (как в проводнике), без линий и точек. Вынесен
+ *  из вкладки (I5); состояние и мутации остаются у вкладки — здесь вид. */
 export function StructureRowList({
   treeRows,
   noNodeRow,
@@ -28,9 +27,6 @@ export function StructureRowList({
   target,
   actions,
   canEdit,
-  graphRows,
-  graphWidth,
-  reveal,
   onToggleBranch,
   onToggleNoNode,
   onOpenTask,
@@ -50,9 +46,6 @@ export function StructureRowList({
   target: StructureDnd['dropTarget'];
   actions: StructureMenuActions;
   canEdit: boolean;
-  graphRows: StructureGraphRow[];
-  graphWidth: number;
-  reveal: { base: number; key: number };
   onToggleBranch: (id: string) => void;
   onToggleNoNode: () => void;
   onOpenTask: (id: string, anchor?: HTMLElement) => void;
@@ -96,7 +89,7 @@ export function StructureRowList({
 
   return (
     <>
-      <div className="relative">
+      <div>
         {treeRows.map((row) => {
           if (row.kind === 'noNode') return null;
           if (row.kind === 'node') {
@@ -122,12 +115,6 @@ export function StructureRowList({
           }
           return renderTask(row, row.task.nodeId !== null);
         })}
-        <StructureTreeGraph
-          rows={graphRows}
-          width={graphWidth}
-          revealBase={reveal.base}
-          revealKey={reveal.key}
-        />
       </div>
       {noNodeRow ? (
         <StructureNoNodeRowView

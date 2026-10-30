@@ -1,4 +1,4 @@
-import { CalendarClock, FileText } from 'lucide-react';
+import { CalendarClock, ChevronRight, FileText } from 'lucide-react';
 import type { NodeLevel, TaskListItem, TaskSystemState } from '@nodus/contracts';
 import { isOpenState, ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
@@ -11,7 +11,6 @@ import { TaskStatusBadge } from '../../../../shared/ui/task-status-badge.js';
 import { RowMenu, type RowMenuItem } from '../../../../shared/views/row-menu.js';
 import type { FieldDef, ViewField } from '../../../../shared/views/use-view-fields.js';
 import { NodeLevelGlyph } from '../lib/node-level-icon.js';
-import { structureGraphX } from '../lib/structure-tree-graph.js';
 import type { StructureNodeRow } from '../lib/structure-tree.js';
 
 /** Общие ячейки строк структуры: значок/номер, прогресс, часы, срок,
@@ -21,7 +20,7 @@ import type { StructureNodeRow } from '../lib/structure-tree.js';
 export type StructureField = ViewField<FieldDef>;
 
 export const rowBase =
-  'group/row relative grid h-12 w-max min-w-full items-stretch gap-3 border-b border-border/60 px-4 transition-colors [contain-intrinsic-size:auto_3rem] [content-visibility:auto] focus-visible:outline-2 focus-visible:outline-ring';
+  'group/row relative grid h-12 w-max min-w-full items-stretch gap-3 border-b border-border/60 px-4 select-none transition-colors [contain-intrinsic-size:auto_3rem] [content-visibility:auto] focus-visible:outline-2 focus-visible:outline-ring';
 
 export function InsertLine({ zone }: { zone: 'before' | 'after' | null }) {
   if (!zone) return null;
@@ -217,13 +216,13 @@ export function LeadingCell({
   );
 }
 
+/** Шеврон раскрытия — обычная кнопка в строке названия (проводник), без
+ *  отдельной колонки графа, линий и точек. */
 export function BranchButton({
   collapsed,
-  depth,
   onToggle,
 }: {
   collapsed: boolean;
-  depth: number;
   onToggle: () => void;
 }) {
   return (
@@ -237,17 +236,12 @@ export function BranchButton({
       onDoubleClick={(e) => e.stopPropagation()}
       aria-expanded={!collapsed}
       aria-label={collapsed ? ui.tasks.expandBranch : ui.tasks.collapseBranch}
-      className="absolute top-1/2 -translate-y-1/2 cursor-pointer text-port/70 transition-colors duration-200 group-hover/row:text-port hover:text-port"
-      style={{ left: structureGraphX(depth) - 9 }}
+      className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
-      <svg width={18} height={18} viewBox="0 0 18 18" aria-hidden>
-        <circle cx={9} cy={9} r={7} fill="var(--card)" stroke="currentColor" strokeWidth={1} />
-        <path
-          d={collapsed ? 'M6,9 L12,9 M9,6 L9,12' : 'M6,9 L12,9'}
-          stroke="currentColor"
-          strokeWidth={1.25}
-        />
-      </svg>
+      <ChevronRight
+        className={cn('size-3.5 transition-transform', !collapsed && 'rotate-90')}
+        strokeWidth={1.75}
+      />
     </button>
   );
 }

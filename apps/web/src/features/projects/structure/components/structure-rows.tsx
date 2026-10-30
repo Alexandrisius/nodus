@@ -5,6 +5,7 @@ import type { NodeLevel } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { uiPx } from '../../../../shared/ui/ui-scale.js';
 import type { RowMenuItem } from '../../../../shared/views/row-menu.js';
 import type { StructureNodeRow, StructureTaskRow } from '../lib/structure-tree.js';
 import { NO_NODE_DROP_ID, type DragPayload } from '../lib/use-structure-dnd.js';
@@ -20,9 +21,10 @@ import type { StructureField } from './structure-cells.js';
 import { StructureContextMenu } from './structure-menus.js';
 
 /** Строки таблицы структуры: узел-папка, задача-лист и секция «Без узла».
- *  Единая сетка «ведущая колонка — граф — поля»; колонка графа рисует
- *  контур вложенности, поэтому узел и задача читаются как папка и файл.
- *  Пустые ячейки — пустые (без дефисов, как в проводнике). */
+ *  Вложенность — отступами в ячейке названия (как в проводнике), без
+ *  колонки графа, линий и точек. Пустые ячейки — пустые (без дефисов). */
+
+const INDENT = uiPx(24);
 
 const combineRefs =
   (...refs: ((el: HTMLElement | null) => void)[]) =>
@@ -107,24 +109,31 @@ export function StructureNodeRowView({
           items={items}
           showSelection={showSelection}
         />
-        <div role="cell" className="relative">
-          {row.hasChildren ? (
-            <BranchButton collapsed={collapsed} depth={row.depth} onToggle={onToggle} />
-          ) : null}
-        </div>
         {fields.map((field) => (
           <span
             key={field.id}
             role="cell"
             data-cell-field={field.id}
             className="flex min-w-0 items-center gap-2 overflow-hidden"
+            style={field.id === 'name' ? { paddingLeft: row.depth * INDENT } : undefined}
           >
-            {nodeCell(row, field.id, level)}
-            {field.id === 'name' && collapsed && row.descendantCount > 0 ? (
-              <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                +{row.descendantCount}
-              </span>
-            ) : null}
+            {field.id === 'name' ? (
+              <>
+                {row.hasChildren ? (
+                  <BranchButton collapsed={collapsed} onToggle={onToggle} />
+                ) : (
+                  <span className="size-5 shrink-0" />
+                )}
+                {nodeCell(row, field.id, level)}
+                {collapsed && row.descendantCount > 0 ? (
+                  <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+                    +{row.descendantCount}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              nodeCell(row, field.id, level)
+            )}
           </span>
         ))}
       </div>
@@ -193,15 +202,22 @@ export function StructureTaskRowView({
           items={items}
           showSelection={showSelection}
         />
-        <div role="cell" className="relative" />
         {fields.map((field) => (
           <span
             key={field.id}
             role="cell"
             data-cell-field={field.id}
             className="flex min-w-0 items-center gap-2 overflow-hidden"
+            style={field.id === 'name' ? { paddingLeft: row.depth * INDENT } : undefined}
           >
-            {taskCell(row.task, field.id)}
+            {field.id === 'name' ? (
+              <>
+                <span className="size-5 shrink-0" />
+                {taskCell(row.task, field.id)}
+              </>
+            ) : (
+              taskCell(row.task, field.id)
+            )}
           </span>
         ))}
       </div>

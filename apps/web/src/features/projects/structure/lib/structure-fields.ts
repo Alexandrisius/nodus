@@ -16,7 +16,7 @@ export const structureFields: FieldDef[] = [
     id: 'name',
     label: ui.structure.columnName,
     defaultVisible: true,
-    defaultWidth: 236,
+    defaultWidth: 300,
     minWidth: 220,
     maxWidth: 640,
     locked: true,
@@ -73,12 +73,8 @@ export const structureFields: FieldDef[] = [
   },
 ];
 
-/** Общий трек сетки строк и хедера: ведущая колонка + колонка графа + поля. */
-export function structureGrid(
-  fields: readonly ViewField<FieldDef>[],
-  graphWidthPx: number,
-): string {
-  return `${LEADING_COL_W}px ${graphWidthPx}px ${fields
-    .map((f) => `${f.width ?? 120}px`)
-    .join(' ')}`;
+/** Общий трек сетки строк и хедера: ведущая колонка + поля. Вложенность —
+ *  отступами в ячейке названия (проводник), отдельной колонки графа нет. */
+export function structureGrid(fields: readonly ViewField<FieldDef>[]): string {
+  return `${LEADING_COL_W}px ${fields.map((f) => `${f.width ?? 120}px`).join(' ')}`;
 }

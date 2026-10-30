@@ -16,16 +16,14 @@ import {
   type StructureRow,
   type StructureTaskRow,
 } from './structure-tree.js';
-import { structureGraphWidth, type StructureGraphRow } from './structure-tree-graph.js';
-
 const EMPTY_COLLAPSED: ReadonlySet<string> = new Set();
 
 const rowKey = (row: StructureNodeRow | StructureTaskRow): string =>
   row.kind === 'node' ? `n:${row.node.id}` : `t:${row.task.id}`;
 
 /** Состояние и производные данные вкладки «Структура»: дерево, поиск,
- *  сворачивание, колонки, выбор строк, геометрия графа. Вынесено из
- *  компонента (I5) — вкладка остаётся про действия и композицию. */
+ *  сворачивание, колонки, выбор строк. Вынесено из компонента (I5) —
+ *  вкладка остаётся про действия и композицию. */
 export function useStructureModel(projectId: string) {
   const { data: structure, isLoading } = useProjectStructure(projectId);
   const tasksQuery = useProjectTaskPages(projectId);
@@ -87,28 +85,7 @@ export function useStructureModel(projectId: string) {
     () => rows.flatMap((r) => (r.kind === 'node' && r.hasChildren ? [r.node.id] : [])),
     [rows],
   );
-  const maxDepth = useMemo(
-    () =>
-      treeRows.reduce((max, row) => (row.kind === 'noNode' ? max : Math.max(max, row.depth)), 0),
-    [treeRows],
-  );
-  const graphWidth = structureGraphWidth(maxDepth);
-  const gridTemplateColumns = structureGrid(visibleFields, graphWidth);
-  const graphRows: StructureGraphRow[] = useMemo(
-    () =>
-      treeRows.flatMap((row) =>
-        row.kind === 'noNode'
-          ? []
-          : [
-              {
-                key: rowKey(row as StructureNodeRow | StructureTaskRow),
-                depth: row.depth,
-                hasChildren: row.kind === 'node' ? row.hasChildren : false,
-              },
-            ],
-      ),
-    [treeRows],
-  );
+  const gridTemplateColumns = structureGrid(visibleFields);
 
   return {
     isLoading,
@@ -135,8 +112,6 @@ export function useStructureModel(projectId: string) {
     selectedNodeIds,
     selectedTaskIds,
     branchIds,
-    graphWidth,
     gridTemplateColumns,
-    graphRows,
   };
 }

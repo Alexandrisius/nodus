@@ -56,13 +56,12 @@ export function StructureTab({
   const model = useStructureModel(projectId);
   const [dialog, setDialog] = useState<StructureDialog | null>(null);
   const [levelsOpen, setLevelsOpen] = useState(false);
-  const [reveal, setReveal] = useState({ base: 0, key: 1 });
   const [hovered, setHovered] = useState(false);
   const moveNode = useMoveNode(projectId);
   const moveTask = useMoveTaskNode(projectId);
   const setTasksNode = useSetTasksNode(projectId);
   const containerRef = useRef<HTMLDivElement>(null);
-  const autoFitColumn = useAutoFitColumn(containerRef, 2, model.setWidth);
+  const autoFitColumn = useAutoFitColumn(containerRef, 1, model.setWidth);
 
   const dnd = useStructureDnd({
     nodes: model.nodes,
@@ -98,18 +97,12 @@ export function StructureTab({
   }
 
   function toggleBranch(id: string) {
-    const expanding = model.collapsed.has(id);
     model.setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-    const index = model.treeRows.findIndex((row) => row.kind === 'node' && row.node.id === id);
-    setReveal((prev) => ({
-      base: expanding ? index + 1 : Number.MAX_SAFE_INTEGER,
-      key: prev.key + 1,
-    }));
   }
 
   function addTaskToNode(node: ProjectNode) {
@@ -152,14 +145,8 @@ export function StructureTab({
         canEdit={canEdit}
         canSetup={canSetup}
         onCreateNode={() => setDialog({ kind: 'create', parent: null })}
-        onExpandAll={() => {
-          model.setCollapsed(new Set());
-          setReveal((prev) => ({ base: 0, key: prev.key + 1 }));
-        }}
-        onCollapseAll={() => {
-          model.setCollapsed(new Set(model.branchIds));
-          setReveal((prev) => ({ base: Number.MAX_SAFE_INTEGER, key: prev.key + 1 }));
-        }}
+        onExpandAll={() => model.setCollapsed(new Set())}
+        onCollapseAll={() => model.setCollapsed(new Set(model.branchIds))}
         onLevels={() => setLevelsOpen(true)}
       />
       <DndContext {...dnd.context}>
@@ -188,7 +175,6 @@ export function StructureTab({
                   hasActions={false}
                   showSelection={canEdit}
                   style={{ gridTemplateColumns: model.gridTemplateColumns }}
-                  afterLeading={<span />}
                   onToggleAll={model.selection.toggleAll}
                   onResize={model.setWidth}
                   onAutoFit={autoFitColumn}
@@ -209,9 +195,6 @@ export function StructureTab({
                   target={target}
                   actions={actions}
                   canEdit={canEdit}
-                  graphRows={model.graphRows}
-                  graphWidth={model.graphWidth}
-                  reveal={reveal}
                   onToggleBranch={toggleBranch}
                   onToggleNoNode={() => model.setNoNodeCollapsed((prev) => !prev)}
                   onOpenTask={(id, anchor) =>

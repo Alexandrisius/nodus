@@ -25,7 +25,7 @@ export function NodeLevelsDialog({
         aria-describedby={undefined}
       >
         <DialogTitle className="sr-only">{ui.structure.levelsTitle}</DialogTitle>
-        <NodeLevelsSection canManage={canManage} />
+        <NodeLevelsSection canManage={canManage} embedded />
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
             {ui.common.close}
