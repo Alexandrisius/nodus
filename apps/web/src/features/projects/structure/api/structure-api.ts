@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import type {
   BatchCreateProjectNodesBody,
@@ -18,26 +18,18 @@ import { toast } from 'sonner';
 import { api } from '../../../../shared/api-client.js';
 import { toastApiError } from '../../../../shared/api/error-toast.js';
 import { projectsKeys } from '../../../../shared/api/projects-list.js';
-import { tasksKeys } from '../../../../shared/api/tasks-keys.js';
+import { mapTaskInPages, tasksKeys } from '../../../../shared/api/tasks-keys.js';
 import { applyNodeMove } from '../lib/structure-tree.js';
+
+export { useProjectStructure } from '../../../../shared/api/project-structure.js';
 
 /** Ключи кэша структуры (#467): под префиксом `projects` — инвалидации
  *  модуля достают и дерево, и справочник видов уровней. */
 export const structureKeys = {
-  of: (projectId: string) => [...projectsKeys.all, 'structure', projectId] as const,
+  of: (projectId: string) => projectsKeys.structure(projectId),
   nodeLevels: (includeArchived = false) =>
     [...projectsKeys.all, 'node-levels', includeArchived] as const,
 };
-
-/** Дерево структуры проекта: узлы + виды уровней (срез целиком, без курсора —
- *  легализованное исключение из I7, ADR-0030). */
-export function useProjectStructure(projectId: string) {
-  return useQuery({
-    queryKey: structureKeys.of(projectId),
-    queryFn: () => api<ProjectStructureResponse>(`/projects/${projectId}/structure`),
-    enabled: projectId.length > 0,
-  });
-}
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
@@ -269,10 +261,47 @@ export function useDeleteNode(projectId: string) {
   });
 }
 
-/** Перенос задач в узел / «Без узла» (мультиселект и одиночный DnD): bulk
- *  set_node — одиночного PATCH /tasks/:id для узла в контракте нет, единая
- *  точка изменения node_id — массовая операция (#467). Оптимистично патчит
- *  страницы фида задач; агрегаты узлов пересчитает сервер. */
+/** Одиночный перенос задачи в узел — PATCH /tasks/:id (контракт
+ *  `taskUpdateBodySchema.nodeId`). Bulk set_node остаётся для мультиселекта:
+ *  одиночный DnD не должен ходить массовой операцией (#467). */
+export function useMoveTaskNode(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { taskId: string; nodeId: string | null }) =>
+      api<TaskListItem>(`/tasks/${vars.taskId}`, {
+        method: 'PATCH',
+        body: { nodeId: vars.nodeId },
+      }),
+    onMutate: async (vars) => {
+      const snapshots = queryClient.getQueriesData({
+        queryKey: tasksKeys.listPages(),
+      });
+      for (const [key] of snapshots) {
+        queryClient.setQueryData(key, (data) =>
+          mapTaskInPages(data as Parameters<typeof mapTaskInPages>[0], vars.taskId, (task) => ({
+            ...task,
+            nodeId: vars.nodeId,
+          })),
+        );
+      }
+      return { snapshots };
+    },
+    onError: (error, _vars, context) => {
+      for (const [key, data] of context?.snapshots ?? []) queryClient.setQueryData(key, data);
+      toastApiError(error);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+      void queryClient.invalidateQueries({ queryKey: structureKeys.of(projectId) });
+      void queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+    },
+  });
+}
+
+/** Массовый перенос задач в узел / «Без узла» (мультиселект): bulk set_node.
+ *  Одиночный перенос идёт PATCH-ем (`useMoveTaskNode`), bulk — только для
+ *  пачки (#467). Оптимистично патчит страницы фида задач; агрегаты узлов
+ *  пересчитает сервер. */
 export function useSetTasksNode(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({

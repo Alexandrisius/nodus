@@ -31,14 +31,14 @@ export const directoryKeys = {
 };
 
 /**
- * Дерево оргструктуры вида (контракт GET /directory/departments?kind=, #84):
+ * Дерево оргструктуры вида (контракт GET /directory/departments/tree?kind=, #84):
  * лес корней DepartmentNode. Вид «Подразделения» и панель рисуются из него;
  * бэкенд-агент воспроизводит эндпоинт по контракту и мокам.
  */
 export function useDepartmentTree(kind: OrgUnitKind) {
   return useQuery({
     queryKey: directoryKeys.departments(kind),
-    queryFn: () => api<DepartmentNode[]>(`/directory/departments?kind=${kind}`),
+    queryFn: () => api<DepartmentNode[]>(`/directory/departments/tree?kind=${kind}`),
   });
 }
 

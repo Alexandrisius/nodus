@@ -15,8 +15,10 @@ export interface StructureNodeRow {
   depth: number;
   /** Сумма rollup по поддереву (узел + потомки). */
   subtree: NodeSubtreeRollup;
-  /** Есть дочерние узлы (стрелка раскрытия). */
+  /** Есть дочерние узлы или прямые задачи (стрелка раскрытия). */
   hasChildren: boolean;
+  /** Все потомки (узлы + задачи) — счётчик свёрнутой ветки «+N». */
+  descendantCount: number;
 }
 
 export interface StructureTaskRow {
@@ -87,6 +89,10 @@ export function buildStructureRows(nodes: ProjectNode[], tasks: TaskListItem[]):
     }
   }
 
+  const countDescendants = (nodeId: string): number =>
+    (childrenOf.get(nodeId) ?? []).reduce((sum, child) => sum + 1 + countDescendants(child.id), 0) +
+    (tasksOf.get(nodeId)?.length ?? 0);
+
   const rows: StructureRow[] = [];
   const walk = (node: ProjectNode, depth: number): ProjectNodeRollup => {
     const subtree: ProjectNodeRollup = { ...EMPTY_ROLLUP };
@@ -101,6 +107,7 @@ export function buildStructureRows(nodes: ProjectNode[], tasks: TaskListItem[]):
       depth,
       subtree,
       hasChildren: children.length > 0 || ownTasks.length > 0,
+      descendantCount: countDescendants(node.id),
     });
     for (const child of children) addRollup(subtree, walk(child, depth + 1));
     // Задачи-листья — после поддерева папок (проводник: папки выше файлов).
@@ -139,6 +146,58 @@ export function filterVisibleRows(
     }
   }
   return visible;
+}
+
+/**
+ * Поиск по структуре: оставляет совпавшие узлы/задачи и их предков (путь
+ * виден), «Без узла» — только при совпадениях среди её задач. Узел-совпадение
+ * не раскрывает всё поддерево — поиск показывает место, а не всё содержимое.
+ * Пустой запрос возвращает исходный список.
+ */
+export function filterStructureRows(rows: StructureRow[], query: string): StructureRow[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return rows;
+  const matches = (row: StructureRow): boolean => {
+    if (row.kind === 'node') {
+      return (
+        row.node.name.toLowerCase().includes(needle) ||
+        (row.node.code?.toLowerCase().includes(needle) ?? false)
+      );
+    }
+    if (row.kind === 'task') {
+      return (
+        row.task.title.toLowerCase().includes(needle) || String(row.task.number).includes(needle)
+      );
+    }
+    return false;
+  };
+
+  const keep = new Set<number>();
+  rows.forEach((row, index) => {
+    if (row.kind === 'noNode' || !matches(row)) return;
+    keep.add(index);
+    let depth = row.depth;
+    for (let j = index - 1; j >= 0 && depth > 0; j -= 1) {
+      const prev = rows[j];
+      if (prev && prev.kind === 'node' && prev.depth < depth) {
+        keep.add(j);
+        depth = prev.depth;
+      }
+    }
+  });
+
+  const out: StructureRow[] = [];
+  rows.forEach((row, index) => {
+    if (row.kind === 'noNode') {
+      const matchedTasks = rows
+        .slice(index + 1)
+        .filter((below) => below.kind === 'task' && matches(below)).length;
+      if (matchedTasks > 0) out.push({ ...row, count: matchedTasks });
+      return;
+    }
+    if (keep.has(index)) out.push(row);
+  });
+  return out;
 }
 
 /** Все id узлов поддерева (сам узел + потомки) — блок циклов DnD. */

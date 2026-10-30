@@ -43,14 +43,14 @@ function IconSelect({
       onValueChange={(next) => onChange(next as NodeLevelIcon)}
       disabled={disabled}
     >
-      <SelectTrigger className="h-7 w-24 shrink-0 text-xs" aria-label={label} title={label}>
+      <SelectTrigger className="h-7 w-36 shrink-0 text-xs" aria-label={label} title={label}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent position="popper" className="max-h-64">
         {NODE_LEVEL_ICON_KEYS.map((key) => (
           <SelectItem key={key} value={key}>
             <NodeLevelGlyph icon={key} className="size-3.5 shrink-0" />
-            {key}
+            {ui.structure.iconNames[key]}
           </SelectItem>
         ))}
       </SelectContent>
@@ -93,9 +93,9 @@ function ColorSelect({
 }
 
 /**
- * «Автоматизация → Типы проектов → Виды уровней» (#467): справочник ярлыков
- * узлов (значок + цвет). Архив — не удаление: узлы архивного вида живут,
- * новые создавать нельзя. Функциональная механика; визуал — UI-агент.
+ * «Структура → Виды узлов» (#467): справочник ярлыков узлов (значок + цвет).
+ * Живёт в карточке проекта, не в «Автоматизации» (вердикт владельца). Архив —
+ * не удаление: узлы архивного вида живут, новые создавать нельзя.
  */
 export function NodeLevelsSection({ canManage }: { canManage: boolean }) {
   const { data, isLoading } = useNodeLevels(true);

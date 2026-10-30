@@ -38,6 +38,7 @@ export function DataTableHeader({
   hasActions,
   style,
   afterLeading,
+  showSelection = true,
   onToggleAll,
   onResize,
   onAutoFit,
@@ -52,6 +53,9 @@ export function DataTableHeader({
   style: { gridTemplateColumns: string };
   /** Слот между ведущей колонкой и полями (спейсер колонки графа дерева). */
   afterLeading?: ReactNode;
+  /** Показывать «выбрать все»: в read-only режиме ведущая ячейка пустая
+   *  (структура архивного проекта — только просмотр). */
+  showSelection?: boolean;
   onToggleAll: () => void;
   onResize: (fieldId: string, width: number) => void;
   onAutoFit: (fieldIndex: number, fieldId: string, minWidth: number, maxWidth: number) => void;
@@ -236,11 +240,13 @@ export function DataTableHeader({
       `}</style>
       {/* «Выбрать все» (модель Битрикс24): indeterminate при частичном. */}
       <span role="columnheader" className="flex items-center">
-        <Checkbox
-          checked={headerChecked}
-          onCheckedChange={onToggleAll}
-          aria-label={ui.common.selectAll}
-        />
+        {showSelection ? (
+          <Checkbox
+            checked={headerChecked}
+            onCheckedChange={onToggleAll}
+            aria-label={ui.common.selectAll}
+          />
+        ) : null}
       </span>
       {afterLeading ?? null}
       {fields.map((field, index) => {

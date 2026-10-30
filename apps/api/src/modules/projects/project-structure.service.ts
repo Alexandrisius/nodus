@@ -41,7 +41,7 @@ import {
  * TASK_PROJECT_READER). Права — как у правки полей проекта (руководство или
  * project.manage, ProjectsService.loadForManage); архив — заморозка (400).
  * Все мутации — под advisory-локом структуры проекта; события project.node_*
- * — outbox в той же транзакции (I9). Срез узлов без курсора (≤500) —
+ * — outbox в той же транзакции (I9). Срез узлов без курсора (≤1000) —
  * легализованное исключение (дополнение ADR-0030).
  *
  * Перенос узла — ProjectStructureMoveService (I5); доступ — access-гард;

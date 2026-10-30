@@ -2,9 +2,11 @@ import type {
   CreateTaskBody,
   CreationFieldKey,
   CreationForm,
+  CustomFieldDefinition,
+  RoleLabels,
   TaskListItem,
 } from '@nodus/contracts';
-import { missingCreateFields, withCreateBodyValue } from '@nodus/contracts';
+import { missingCreateFields, slotLabel, withCreateBodyValue } from '@nodus/contracts';
 
 import type { DraftChecklistItem } from './task-checklist-sheet.js';
 
@@ -30,8 +32,8 @@ export interface TaskCreatePrefill {
   /** Плюсик доски проекта: стадия и проект. */
   stageId?: string;
   projectId?: string;
-  /** «Задача» на узле дерева структуры (#467): узел ставится ТОЛЬКО
-   *  пресетом (поля «Узел» в форме нет), контекст — contextLabel. */
+  /** «Задача» на узле дерева структуры (#467): узел подставлен пресетом;
+   *  при обычном создании с проектом поле «Структура» спрашивает узел само. */
   nodeId?: string;
   /** «В задачу» из сообщения чата. */
   sourceMessageId?: string;
@@ -45,6 +47,9 @@ export interface TaskCreateDraft {
   typeId: string | null;
   /** Значения по ключам слотов. */
   values: Record<string, unknown>;
+  /** Узел структуры проекта (#467): обязателен при выборе проекта, у
+   *  которого уже есть узлы; подзадача наследует узел родителя на сервере. */
+  nodeId: string | null;
   /** Чип «Чек-лист»: пункты, введённые в окне. */
   checklist: DraftChecklistItem[];
   /** Чип «Планируемое время», минуты. */
@@ -61,6 +66,7 @@ export function emptyDraft(prefill: TaskCreatePrefill = {}): TaskCreateDraft {
     title: prefill.title ?? '',
     typeId: prefill.typeId ?? null,
     values,
+    nodeId: prefill.nodeId ?? null,
     checklist: [],
     plannedMinutes: null,
   };
@@ -85,6 +91,32 @@ export function withValue(
   if (value === null || value === undefined || value === '') delete values[key];
   else values[key] = value;
   return { ...draft, values };
+}
+
+export function withNode(draft: TaskCreateDraft, nodeId: string | null): TaskCreateDraft {
+  return { ...draft, nodeId };
+}
+
+/** Человеческая строка «Не хватает: …» (подписи слотов формы). */
+export function missingTextOf(
+  missing: readonly CreationFieldKey[],
+  form: CreationForm,
+  roleLabels: RoleLabels | undefined,
+  definitions: readonly CustomFieldDefinition[],
+): string {
+  return missing
+    .map((key) =>
+      slotLabel(
+        form.fields.find((slot) => slot.key === key) ?? {
+          key,
+          label: null,
+          required: true,
+          preset: null,
+        },
+        { roleLabels, definitions },
+      ),
+    )
+    .join(', ');
 }
 
 export function withChecklist(
@@ -133,8 +165,9 @@ export function buildCreateBody(
     ...(prefill.stageId ? { stageId: prefill.stageId } : {}),
     ...(prefill.parentId ? { parentId: prefill.parentId } : {}),
     ...(prefill.sourceMessageId ? { sourceMessageId: prefill.sourceMessageId } : {}),
-    // Узел структуры — только пресетом (поля в форме нет, #467).
-    ...(prefill.nodeId ? { nodeId: prefill.nodeId } : {}),
+    // Узел структуры: выбор в окне создания (если у проекта есть узлы) или
+    // пресет «+ задача» на узле; подзадача наследует узел родителя сервером.
+    ...((draft.nodeId ?? prefill.nodeId) ? { nodeId: draft.nodeId ?? prefill.nodeId } : {}),
     // Проект и ответственный из входа — если форма их не показала.
     ...(!body.projectId && prefill.projectId ? { projectId: prefill.projectId } : {}),
     ...(!body.assigneeId && prefill.assigneeId ? { assigneeId: prefill.assigneeId } : {}),

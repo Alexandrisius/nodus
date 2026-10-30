@@ -196,6 +196,9 @@ export const createSubtaskBodySchema = z.object({
   title: z.string().trim().min(1).max(200),
   assigneeId: z.uuid().optional(),
   deadline: z.iso.datetime().optional(),
+  /** Узел структуры (#467): без явного значения подзадача наследует узел
+   *  родителя — отдельного шага выбора узла в окне подзадачи нет. */
+  nodeId: z.uuid().optional(),
 });
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;

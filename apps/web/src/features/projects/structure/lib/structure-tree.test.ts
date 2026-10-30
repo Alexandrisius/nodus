@@ -4,6 +4,7 @@ import type { ProjectNode, ProjectNodeRollup, TaskListItem } from '@nodus/contra
 import {
   applyNodeMove,
   buildStructureRows,
+  filterStructureRows,
   filterVisibleRows,
   subtreeNodeIds,
 } from './structure-tree.js';
@@ -131,6 +132,15 @@ describe('buildStructureRows (дерево структуры проекта)', 
     });
   });
 
+  it('счётчик свёрнутой ветки: все потомки — узлы и задачи', () => {
+    const nodes = [node('b1'), node('ar', 'b1'), node('kr', 'b1')];
+    const rows = buildStructureRows(nodes, [task('t1', 'ar'), task('t2', 'kr'), task('t3', null)]);
+    const root = rows.find((r) => r.kind === 'node' && r.node.id === 'b1');
+    const ar = rows.find((r) => r.kind === 'node' && r.node.id === 'ar');
+    expect(root).toMatchObject({ descendantCount: 4 });
+    expect(ar).toMatchObject({ descendantCount: 1 });
+  });
+
   it('задача с nodeId вне набора узлов уходит в «Без узла»', () => {
     const rows = buildStructureRows([node('b1')], [task('t1', 'ghost'), task('t2', 'b1')]);
     const noNode = rows.find((r) => r.kind === 'noNode');
@@ -171,6 +181,34 @@ describe('filterVisibleRows (сворачивание)', () => {
         r.kind === 'node' ? r.node.id : r.kind === 'task' ? r.task.id : 'noNode',
       ),
     ).toEqual(['b1', 'noNode', 't3']);
+  });
+});
+
+describe('filterStructureRows (поиск по структуре)', () => {
+  const nodes = [node('b1'), node('ar', 'b1'), node('kr', 'b1')];
+  const rows = buildStructureRows(nodes, [task('t1', 'ar'), task('t2', 'kr'), task('t3', null)]);
+
+  it('находит задачу и оставляет путь предков', () => {
+    expect(
+      filterStructureRows(rows, 't2').map((r) =>
+        r.kind === 'node' ? r.node.id : r.kind === 'task' ? r.task.id : 'noNode',
+      ),
+    ).toEqual(['b1', 'kr', 't2']);
+  });
+
+  it('находит узел по имени и не тянет всё поддерево', () => {
+    expect(
+      filterStructureRows(rows, 'Узел ar').map((r) =>
+        r.kind === 'node' ? r.node.id : r.kind === 'task' ? r.task.id : 'noNode',
+      ),
+    ).toEqual(['b1', 'ar']);
+  });
+
+  it('«Без узла» остаётся только при совпадении её задач', () => {
+    const filtered = filterStructureRows(rows, 't3');
+    expect(filtered.find((r) => r.kind === 'noNode')).toMatchObject({ count: 1 });
+    expect(filtered.some((r) => r.kind === 'task' && r.task.id === 't3')).toBe(true);
+    expect(filterStructureRows(rows, 'нет такого')).toEqual([]);
   });
 });
 

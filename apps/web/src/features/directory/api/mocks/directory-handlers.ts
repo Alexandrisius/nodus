@@ -20,7 +20,7 @@ import {
 
 /**
  * MSW-слой справочника (ADR-0001): контракты — источник формы ответов.
- * Дерево подразделений (GET /directory/departments?kind=) и фильтр людей по
+ * Дерево подразделений (GET /directory/departments/tree?kind=) и фильтр людей по
  * подразделению (принадлежность в ТОЙ структуре, к которой относится отдел —
  * семантика контракта listUsersQuerySchema.departmentId, #84) — образец для
  * бэкенд-агента: UI сверстан по этим контрактам и есть ТЗ на эндпоинты.
@@ -42,7 +42,7 @@ export const directoryHandlers = [
     }
     return HttpResponse.json({ items, nextCursor: null });
   }),
-  http.get('/api/v1/directory/departments', ({ request }) => {
+  http.get('/api/v1/directory/departments/tree', ({ request }) => {
     const url = new URL(request.url);
     const query = departmentTreeQuerySchema.safeParse(Object.fromEntries(url.searchParams));
     const kind = query.success ? query.data.kind : 'management';

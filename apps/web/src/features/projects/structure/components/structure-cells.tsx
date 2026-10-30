@@ -1,0 +1,226 @@
+import { FileText } from 'lucide-react';
+import type { NodeLevel, TaskListItem } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { Checkbox } from '@nodus/ui/components/checkbox';
+import { cn } from '@nodus/ui/lib/utils';
+
+import { formatDate, formatMinutes } from '../../../../shared/lib/format.js';
+import { DeadlineChip } from '../../../../shared/ui/deadline-chip.js';
+import { identityTone } from '../../../../shared/ui/identity-tone.js';
+import { monoCell, PersonCell } from '../../../../shared/ui/person-cell.js';
+import { TaskStatusBadge } from '../../../../shared/ui/task-status-badge.js';
+import { RowMenu, type RowMenuItem } from '../../../../shared/views/row-menu.js';
+import type { FieldDef, ViewField } from '../../../../shared/views/use-view-fields.js';
+import { NodeLevelGlyph } from '../lib/node-level-icon.js';
+import { structureGraphX } from '../lib/structure-tree-graph.js';
+import type { StructureNodeRow } from '../lib/structure-tree.js';
+
+/** Общие ячейки строк структуры: значок/номер, прогресс, часы, срок,
+ *  ведущая ячейка и кнопка ветки. Вынесены из строк (I5) и переиспользуются
+ *  узлом и задачей — одна грамматика значений. */
+
+export type StructureField = ViewField<FieldDef>;
+
+export const rowBase =
+  'group/row relative grid h-12 w-max min-w-full items-stretch gap-3 border-b border-border/60 px-4 transition-colors [contain-intrinsic-size:auto_3rem] [content-visibility:auto] focus-visible:outline-2 focus-visible:outline-ring';
+
+export function InsertLine({ zone }: { zone: 'before' | 'after' | null }) {
+  if (!zone) return null;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute inset-x-1 z-10 h-0.5 bg-primary',
+        zone === 'before' ? 'top-0' : 'bottom-0',
+      )}
+    >
+      <span className="absolute -top-0.5 left-0 size-1.5 rounded-full bg-primary" />
+    </span>
+  );
+}
+
+export function ProgressCell({ done, total }: { done: number; total: number }) {
+  if (total === 0) return null;
+  const percent = Math.round((done / total) * 100);
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+        className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-accent"
+      >
+        <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+      </span>
+      <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+        {done}/{total}
+      </span>
+    </span>
+  );
+}
+
+export function HoursCell({
+  planned,
+  spent,
+  count,
+}: {
+  planned: number | null;
+  spent: number;
+  count: number;
+}) {
+  if (count === 0 && spent === 0) return null;
+  return (
+    <span className="flex min-w-0 items-baseline gap-1 font-mono text-label-sm tabular-nums">
+      {planned !== null ? (
+        <>
+          <span className="text-muted-foreground">{formatMinutes(planned)}</span>
+          <span className="text-muted-foreground/60">/</span>
+        </>
+      ) : null}
+      <span className="text-foreground">{formatMinutes(spent)}</span>
+      <span className="text-label-sm text-muted-foreground">{ui.structure.hoursShort}</span>
+    </span>
+  );
+}
+
+export function nodeCell(row: StructureNodeRow, fieldId: string, level: NodeLevel | undefined) {
+  switch (fieldId) {
+    case 'name':
+      return (
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            aria-hidden
+            className={cn(
+              'flex size-6 shrink-0 items-center justify-center rounded border',
+              level
+                ? identityTone[level.color].tile
+                : 'border-border bg-accent/40 text-muted-foreground',
+            )}
+            title={level?.name}
+          >
+            <NodeLevelGlyph icon={level?.icon ?? 'folder'} className="size-3.5" />
+          </span>
+          <span className="truncate text-sm font-semibold" title={row.node.name}>
+            {row.node.name}
+          </span>
+        </span>
+      );
+    case 'code':
+      return row.node.code ? <span className={monoCell}>{row.node.code}</span> : null;
+    case 'progress':
+      return <ProgressCell done={row.subtree.doneCount} total={row.subtree.taskCount} />;
+    case 'hours':
+      return (
+        <HoursCell
+          planned={row.subtree.taskCount > 0 ? row.subtree.plannedMinutes : null}
+          spent={row.subtree.spentMinutes}
+          count={row.subtree.taskCount}
+        />
+      );
+    case 'deadline':
+      return row.subtree.nearestDeadline ? (
+        <span className={monoCell}>{formatDate(row.subtree.nearestDeadline)}</span>
+      ) : null;
+    case 'latest':
+      return row.subtree.latestDeadline ? (
+        <span className={monoCell}>{formatDate(row.subtree.latestDeadline)}</span>
+      ) : null;
+    default:
+      return null;
+  }
+}
+
+export function taskCell(task: TaskListItem, fieldId: string) {
+  switch (fieldId) {
+    case 'name':
+      return (
+        <span className="flex min-w-0 items-center gap-2">
+          <FileText className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+          <span className={monoCell}>{task.number}</span>
+          <span className="truncate text-sm" title={task.title}>
+            {task.title}
+          </span>
+        </span>
+      );
+    case 'progress':
+      return <ProgressCell done={task.checklistDone} total={task.checklistTotal} />;
+    case 'hours':
+      return <HoursCell planned={null} spent={task.spentMinutes} count={1} />;
+    case 'deadline':
+      return <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />;
+    case 'assignee':
+      return <PersonCell user={task.assignee} />;
+    case 'stage':
+      return <TaskStatusBadge stage={task.stage} />;
+    default:
+      return null;
+  }
+}
+
+export function LeadingCell({
+  selected,
+  onToggleSelected,
+  items,
+  showSelection,
+}: {
+  selected: boolean;
+  onToggleSelected: () => void;
+  items: RowMenuItem[];
+  showSelection: boolean;
+}) {
+  return (
+    <span
+      role="cell"
+      className="flex items-center gap-1"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {showSelection ? (
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggleSelected}
+          aria-label={ui.common.selectRow}
+        />
+      ) : null}
+      <RowMenu items={items} />
+    </span>
+  );
+}
+
+export function BranchButton({
+  collapsed,
+  depth,
+  onToggle,
+}: {
+  collapsed: boolean;
+  depth: number;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      aria-expanded={!collapsed}
+      aria-label={collapsed ? ui.tasks.expandBranch : ui.tasks.collapseBranch}
+      className="absolute top-1/2 -translate-y-1/2 cursor-pointer text-port/70 transition-colors duration-200 group-hover/row:text-port hover:text-port"
+      style={{ left: structureGraphX(depth) - 9 }}
+    >
+      <svg width={18} height={18} viewBox="0 0 18 18" aria-hidden>
+        <circle cx={9} cy={9} r={7} fill="var(--card)" stroke="currentColor" strokeWidth={1} />
+        <path
+          d={collapsed ? 'M6,9 L12,9 M9,6 L9,12' : 'M6,9 L12,9'}
+          stroke="currentColor"
+          strokeWidth={1.25}
+        />
+      </svg>
+    </button>
+  );
+}

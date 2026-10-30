@@ -1,7 +1,7 @@
 /**
  * Строки дерева проекта (#467): вкладка «Структура» карточки проекта —
  * узлы-папки с видами-ярлыками, задачи-листья, агрегаты часов и сроков.
- * Терминология русская деловая (ux-principles.md): «узел», «вид уровня»,
+ * Терминология русская деловая (ux-principles.md): «узел», «вид узла»,
  * «шайба» не используется — «структура».
  */
 export const structureStrings = {
@@ -10,7 +10,7 @@ export const structureStrings = {
   empty: 'Структура не задана',
   emptyHint: 'Создайте первые узлы — здания, разделы, этапы',
   createNode: 'Создать узел',
-  createNodesBatch: 'Создать пачкой',
+  createNodesBatch: 'Пакетное создание',
   rename: 'Переименовать',
   remove: 'Удалить',
   move: 'Переместить',
@@ -18,12 +18,14 @@ export const structureStrings = {
   /** Секция задач вне структуры. */
   noNodeSection: 'Без узла',
   noNodeHint: 'Задачи проекта, не разложенные по структуре',
+  /** Поиск по структуре: узлы и задачи. */
+  searchEmpty: 'Ничего не найдено',
+  searchReset: 'Сбросить поиск',
   // Колонки
   columnName: 'Название',
   columnCode: 'Шифр',
-  columnPlan: 'План',
-  columnFact: 'Факт',
-  columnNearest: 'Ближайший срок',
+  columnHours: 'Часы',
+  columnDeadline: 'Срок',
   columnLatest: 'Поздний срок',
   columnProgress: 'Прогресс',
   /** Часы, кратко. */
@@ -31,7 +33,7 @@ export const structureStrings = {
   // Окно создания узла
   nodeName: 'Название узла',
   nodeCode: 'Шифр узла',
-  nodeKind: 'Вид уровня',
+  nodeKind: 'Вид узла',
   nodeParent: 'Родительский узел',
   rootParent: 'Корень проекта',
   // Окно пакетного создания («Здания: поз. 1–3»)
@@ -43,6 +45,8 @@ export const structureStrings = {
   moveTasksTo: 'Переместить в узел',
   moveTasksNoNode: 'Без узла',
   movedTasks: 'Задачи перемещены',
+  movedNodes: 'Узлы перемещены',
+  nodeForms: ['узел', 'узла', 'узлов'] as const,
   // Перетаскивание
   dropInto: 'Переместить в «{name}»',
   cantDropHere: 'Сюда переносить нельзя',
@@ -51,11 +55,13 @@ export const structureStrings = {
   expandAll: 'Развернуть всё',
   // Пункты меню строки узла/задачи
   createInside: 'Создать узел внутри',
-  createBatchInside: 'Создать пачкой внутри',
   removeFromStructure: 'Убрать из структуры',
   openTask: 'Открыть задачу',
   /** Контекст окна создания задачи: «Узел: Здание 1». */
   nodeContext: 'Узел: {name}',
+  // Поле «Структура» в окне создания задачи (широкое, как «Описание»)
+  taskNodeLabel: 'Структура',
+  taskNodePlaceholder: 'Выберите узел',
   // Подтверждение удаления узла
   deleteTitle: 'Удалить узел',
   deleteText: 'Узел должен быть пуст: без дочерних узлов и задач',
@@ -63,15 +69,32 @@ export const structureStrings = {
   moveTitle: 'Переместить узел',
   // Плашка перетаскивания задач: «3 задачи»
   taskForms: ['задача', 'задачи', 'задач'] as const,
-  // Справочник видов уровней («Автоматизация → Виды уровней»)
-  levelsTitle: 'Виды уровней',
+  // Справочник видов узлов («Структура → Виды узлов»)
+  levelsTitle: 'Виды узлов',
   levelsCreate: 'Новый вид',
   levelsNamePlaceholder: 'Например: Очередь строительства',
   levelsEmpty: 'Видов пока нет',
   levelsArchive: 'Архивировать вид',
   fieldIcon: 'Значок',
   fieldColor: 'Цвет',
-  /** Названия цветов-идентичности (селект цвета вида уровня). */
+  /** Названия значков видов (закрытый enum контракта). */
+  iconNames: {
+    folder: 'Папка',
+    folderTree: 'Дерево папок',
+    layers: 'Слои',
+    building: 'Здание',
+    building2: 'Два здания',
+    landmark: 'Госучреждение',
+    boxes: 'Коробки',
+    box: 'Коробка',
+    listTree: 'Список-дерево',
+    flag: 'Флаг',
+    milestone: 'Этап',
+    factory: 'Завод',
+    route: 'Маршрут',
+    squareStack: 'Стопка',
+  } as const,
+  /** Названия цветов-идентичности (селект цвета вида узла). */
   colorNames: {
     blue: 'Синий',
     green: 'Зелёный',
@@ -80,7 +103,7 @@ export const structureStrings = {
     sky: 'Голубой',
     terra: 'Терракотовый',
   } as const,
-  // Виды-подсказки в типе проекта
+  // Виды-подсказки в типе проекта (временно живут до переделки «Типов проектов»)
   typeHintTitle: 'Виды-подсказки структуры',
   typeHintNone: 'Не заданы',
 } as const;

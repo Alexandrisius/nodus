@@ -18,7 +18,7 @@ import { isFilteringActive, type ActiveListFilter } from '../../../shared/views/
 import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
-import { useMoveProjectTask } from '../api/projects-api.js';
+import { projectKanbanFeedUrl, useMoveProjectTask } from '../api/projects-api.js';
 
 /** Реестр — module-константа; «Проект» скрыт по умолчанию (контекст очевиден). */
 export const projectKanbanCardFields = makeTaskCardFields({ projectVisible: false });
@@ -56,7 +56,7 @@ export function ProjectKanban({
     stages,
     queryKey: tasksKeys.kanban(`project:${projectId}`),
     feedUrl: (stageId, cursor) =>
-      `/tasks?stageId=${stageId}&projectId=${projectId}&limit=${KANBAN_FEED_LIMIT}${cursor ? `&cursor=${cursor}` : ''}`,
+      projectKanbanFeedUrl(projectId, stageId, cursor, KANBAN_FEED_LIMIT),
     onMove: (vars, opts) =>
       move.mutate(
         { taskId: vars.taskId, stageId: vars.stageId, index: vars.index },

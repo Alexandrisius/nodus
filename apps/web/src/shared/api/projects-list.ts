@@ -27,6 +27,8 @@ export const projectsKeys = {
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
   members: (id: string) => [...projectsKeys.all, 'members', id] as const,
   history: (id: string) => [...projectsKeys.all, 'history', id] as const,
+  /** Дерево структуры проекта (#467): узлы + виды узлов. */
+  structure: (id: string) => [...projectsKeys.all, 'structure', id] as const,
 };
 
 /** Предохранитель добора: 10 × 100 = 1000 проектов — выше штата портала. */

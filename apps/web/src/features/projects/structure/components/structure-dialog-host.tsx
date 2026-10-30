@@ -1,15 +1,20 @@
 import type { NodeLevel, ProjectNode } from '@nodus/contracts';
 
-import { NodeBatchCreateDialog, NodeCreateDialog } from './node-create-dialog.js';
-import { NodeDeleteDialog, NodeMoveDialog, NodeRenameDialog } from './node-edit-dialog.js';
+import { NodeCreateDialog } from './node-create-dialog.js';
+import {
+  NodeBulkMoveDialog,
+  NodeDeleteDialog,
+  NodeMoveDialog,
+  NodeRenameDialog,
+} from './node-edit-dialog.js';
 import { TaskMoveDialog } from './task-move-dialog.js';
 
 /** Состояние окон вкладки «Структура»: какое окно открыто и над чем. */
 export type StructureDialog =
   | { kind: 'create'; parent: ProjectNode | null }
-  | { kind: 'batch'; parent: ProjectNode | null }
   | { kind: 'rename'; node: ProjectNode }
   | { kind: 'moveNode'; node: ProjectNode }
+  | { kind: 'moveNodes'; nodeIds: string[] }
   | { kind: 'delete'; node: ProjectNode }
   | { kind: 'moveTasks'; taskIds: string[] };
 
@@ -40,15 +45,6 @@ export function StructureDialogHost({
           onClose={onClose}
         />
       );
-    case 'batch':
-      return (
-        <NodeBatchCreateDialog
-          projectId={projectId}
-          parent={dialog.parent}
-          levels={levels}
-          onClose={onClose}
-        />
-      );
     case 'rename':
       return (
         <NodeRenameDialog
@@ -61,6 +57,15 @@ export function StructureDialogHost({
     case 'moveNode':
       return (
         <NodeMoveDialog projectId={projectId} node={dialog.node} nodes={nodes} onClose={onClose} />
+      );
+    case 'moveNodes':
+      return (
+        <NodeBulkMoveDialog
+          projectId={projectId}
+          nodeIds={dialog.nodeIds}
+          nodes={nodes}
+          onClose={onClose}
+        />
       );
     case 'delete':
       return <NodeDeleteDialog projectId={projectId} node={dialog.node} onClose={onClose} />;

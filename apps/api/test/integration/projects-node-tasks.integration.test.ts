@@ -150,6 +150,52 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(event?.payload).toMatchObject({ nodeId: null, previousNodeId: nodeA.id });
     });
 
+    it('задача коллеги видна в дереве: scope=all, но не в scope=mine', async () => {
+      const project = await s.createProject(s.alice, { name: s.unique('Дерево коллеги') });
+      const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });
+      const colleagueTask = await s.createTask(s.carol, {
+        projectId: project.id,
+        nodeId: root.id,
+        assigneeId: s.carol.id,
+      });
+
+      // Видимость проекта в кэше смотрящего обновляется событием: ждём, как
+      // живой клиент после создания задачи коллегой.
+      const deadline = Date.now() + 5_000;
+      for (;;) {
+        const feed = await s.fx.api(s.alice, 'GET', `/tasks?scope=all&projectId=${project.id}`);
+        const items = ((await feed.json()) as { items: { id: string }[] }).items;
+        if (items.some((task) => task.id === colleagueTask.id)) break;
+        if (Date.now() > deadline) throw new Error('task of colleague not visible in project');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      const mine = await s.fx.api(s.alice, 'GET', `/tasks?scope=mine&projectId=${project.id}`);
+      const mineItems = ((await mine.json()) as { items: { id: string }[] }).items;
+      expect(mineItems.some((task) => task.id === colleagueTask.id)).toBe(false);
+
+      const tree = await s.structure(s.alice, project.id);
+      expect(tree.nodes.find((n) => n.id === root.id)!.rollup.taskCount).toBe(1);
+    });
+
+    it('подзадача наследует проект и узел родителя', async () => {
+      const project = await s.createProject(s.alice, { name: s.unique('Наследование') });
+      const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });
+      const parent = await s.createTask(s.alice, { projectId: project.id, nodeId: root.id });
+
+      const res = await s.fx.api(s.alice, 'POST', `/tasks/${parent.id}/subtasks`, {
+        body: { title: s.unique('Подзадача') },
+        key: `st-${s.unique('k')}`,
+      });
+      expect(res.status).toBe(201);
+      const child = (await res.json()) as { id: string };
+      const row = await s.fx.prisma.task.findUniqueOrThrow({
+        where: { id: child.id },
+        select: { projectId: true, nodeId: true },
+      });
+      expect(row).toEqual({ projectId: project.id, nodeId: root.id });
+    });
+
     it('bulk set_node раскладывает задачи (права индивидуально), null — «Без узла»', async () => {
       const project = await s.createProject(s.alice, { name: s.unique('Bulk') });
       const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });

@@ -144,6 +144,12 @@ export async function setupProjectNodeFixture(): Promise<ProjectNodeFixture> {
         await fx.prisma.nodeLevel.deleteMany({ where: { id: { in: state.nodeLevelIds } } });
       }
       if (state.taskIds.length > 0) {
+        // Подзадачи, созданные через API, в трекинге не лежат: снимаем
+        // ссылку на родителя, иначе FK не даёт удалить отслеженные задачи.
+        await fx.prisma.task.updateMany({
+          where: { parentId: { in: state.taskIds } },
+          data: { parentId: null },
+        });
         await fx.prisma.task.deleteMany({ where: { id: { in: state.taskIds } } });
       }
       if (state.projectIds.length > 0) {

@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Files, FolderPlus, ListPlus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Files, FolderPlus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Fragment } from 'react';
 import type { ProjectNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -14,30 +14,29 @@ import type { RowMenuItem } from '../../../../shared/views/row-menu.js';
 
 /** Пункты меню строки дерева структуры (#467): один реестр на «шашку»
  *  (DropdownMenu, модель Битрикс24) и ПКМ (ContextMenu, прецедент чата —
- *  сообщение message-menu.tsx). Действия — коллбэки вкладки. */
+ *  сообщение message-menu.tsx). Действия — коллбэки вкладки. Пакетное
+ *  создание — не пункт меню: оно живёт шевроном в окне «Создать узел». */
 
 export interface StructureMenuActions {
   createInside: (parent: ProjectNode) => void;
-  createBatchInside: (parent: ProjectNode) => void;
   addTask: (node: ProjectNode) => void;
   rename: (node: ProjectNode) => void;
   moveNode: (node: ProjectNode) => void;
   deleteNode: (node: ProjectNode) => void;
 }
 
-export function nodeMenuItems(node: ProjectNode, a: StructureMenuActions): RowMenuItem[] {
+export function nodeMenuItems(
+  node: ProjectNode,
+  a: StructureMenuActions,
+  canManage: boolean,
+): RowMenuItem[] {
+  if (!canManage) return [];
   return [
     {
       id: 'create-inside',
       icon: <FolderPlus className="size-3.5" />,
       label: ui.structure.createInside,
       onSelect: () => a.createInside(node),
-    },
-    {
-      id: 'create-batch-inside',
-      icon: <ListPlus className="size-3.5" />,
-      label: ui.structure.createBatchInside,
-      onSelect: () => a.createBatchInside(node),
     },
     {
       id: 'add-task',
@@ -75,6 +74,8 @@ export interface TaskMenuActions {
   removeFromStructure: (taskId: string) => void;
   /** Задача уже вне структуры — «Убрать» не показывается. */
   inStructure: boolean;
+  /** Можно менять узел (права проекта/не архив). */
+  canMove: boolean;
 }
 
 export function taskMenuItems(taskId: string, a: TaskMenuActions): RowMenuItem[] {
@@ -84,21 +85,25 @@ export function taskMenuItems(taskId: string, a: TaskMenuActions): RowMenuItem[]
       label: ui.structure.openTask,
       onSelect: () => a.open(taskId),
     },
-    {
-      id: 'move',
-      icon: <ArrowRightLeft className="size-3.5" />,
-      label: ui.structure.moveTasksTo,
-      separatorBefore: true,
-      onSelect: () => a.moveTasks([taskId]),
-    },
-    ...(a.inStructure
+    ...(a.canMove
       ? [
           {
-            id: 'remove-from-structure',
-            icon: <Files className="size-3.5" />,
-            label: ui.structure.removeFromStructure,
-            onSelect: () => a.removeFromStructure(taskId),
+            id: 'move',
+            icon: <ArrowRightLeft className="size-3.5" />,
+            label: ui.structure.moveTasksTo,
+            separatorBefore: true,
+            onSelect: () => a.moveTasks([taskId]),
           },
+          ...(a.inStructure
+            ? [
+                {
+                  id: 'remove-from-structure',
+                  icon: <Files className="size-3.5" />,
+                  label: ui.structure.removeFromStructure,
+                  onSelect: () => a.removeFromStructure(taskId),
+                },
+              ]
+            : []),
         ]
       : []),
   ];
@@ -112,6 +117,7 @@ export function StructureContextMenu({
   items: RowMenuItem[];
   children: React.ReactNode;
 }) {
+  if (items.length === 0) return <>{children}</>;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>

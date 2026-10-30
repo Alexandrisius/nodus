@@ -123,7 +123,11 @@ export function ProjectCard({ projectId }: { projectId: string }) {
           <div className="relative min-h-0 flex-1">
             {visited.includes('structure') ? (
               <TabPanel active={tab === 'structure'}>
-                <StructureTab projectId={project.id} />
+                <StructureTab
+                  projectId={project.id}
+                  canManage={project.access.canManage}
+                  readOnly={project.status === 'archived'}
+                />
               </TabPanel>
             ) : null}
             {visited.includes('tasks') ? (
@@ -158,10 +162,12 @@ export function ProjectCard({ projectId }: { projectId: string }) {
 }
 
 /** Панель вкладки: смонтирована при первом показе, скрыта без размонтирования
- *  (прокрутка и локальное состояние живут), `inert` убирает её из обхода. */
+ *  (прокрутка и локальное состояние живут), `inert` убирает её из обхода.
+ *  Скрытие — `hidden` (display:none), а не `invisible`: visibility-предок
+ *  оставлял старую вкладку поверх новой на кадр переключения. */
 function TabPanel({ active, children }: { active: boolean; children: ReactNode }) {
   return (
-    <div role="tabpanel" inert={!active} className={cn('absolute inset-0', !active && 'invisible')}>
+    <div role="tabpanel" inert={!active} className={cn('absolute inset-0', !active && 'hidden')}>
       {children}
     </div>
   );
