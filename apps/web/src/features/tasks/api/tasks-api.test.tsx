@@ -80,6 +80,7 @@ function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
     parentId: null,
     nodeId: null,
     spentMinutes: 0,
+    plannedMinutes: null,
     commentsCount: 0,
     checklistDone: 0,
     checklistTotal: 0,

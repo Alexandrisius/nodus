@@ -71,6 +71,7 @@ function task(id: string, nodeId: string | null, parentId: string | null = null)
     parentId,
     nodeId,
     spentMinutes: 0,
+    plannedMinutes: null,
     commentsCount: 0,
     checklistDone: 0,
     checklistTotal: 0,

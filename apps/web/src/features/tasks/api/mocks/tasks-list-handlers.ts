@@ -210,6 +210,7 @@ export const tasksListHandlers = [
       parentId: parent?.id ?? null,
       nodeId,
       spentMinutes: 0,
+      plannedMinutes: body.plannedMinutes ?? null,
       commentsCount: 0,
       checklistDone: 0,
       checklistTotal: checklist.length,

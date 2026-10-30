@@ -51,6 +51,7 @@ const task = (id: string, stage: TaskStage): TaskListItem =>
     parentId: null,
     nodeId: null,
     spentMinutes: 0,
+    plannedMinutes: null,
     commentsCount: 0,
     checklistDone: 0,
     checklistTotal: 0,

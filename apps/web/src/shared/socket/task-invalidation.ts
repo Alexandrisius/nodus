@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { TASK_EVENTS, type Paginated, type TaskListItem } from '@nodus/contracts';
 
+import { projectsKeys } from '../api/projects-list.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { isFreshFromMutation } from '../api/fresh-from-mutation.js';
 import { stageIdOfColumnKey } from '../lib/board/kanban-column-key.js';
@@ -25,6 +26,20 @@ const COUNT_EVENTS = new Set<string>([
   TASK_EVENTS.PERSONAL_STAGE_CHANGED,
   TASK_EVENTS.COMPLETED,
   TASK_EVENTS.OVERDUE,
+]);
+
+/** События, меняющие агрегаты узлов дерева проекта (#467): счётчики и
+ *  прогресс, часы, крайние сроки — дерево перезапрашивается (агрегаты
+ *  считаются на чтение, клиент их не патчит). */
+const STRUCTURE_EVENTS = new Set<string>([
+  TASK_EVENTS.CREATED,
+  TASK_EVENTS.UPDATED,
+  TASK_EVENTS.STAGE_CHANGED,
+  TASK_EVENTS.STATUS_CHANGED,
+  TASK_EVENTS.COMPLETED,
+  TASK_EVENTS.DELETED,
+  TASK_EVENTS.TIME_LOGGED,
+  TASK_EVENTS.TIMER_STOPPED,
 ]);
 
 const stringsOf = (...values: unknown[]): string[] =>
@@ -123,6 +138,7 @@ export function pushTaskKeys(
     }
   }
   pushKanbanKeys(batcher, queryClient, type, taskId, payload);
+  if (STRUCTURE_EVENTS.has(type)) batcher.push(projectsKeys.structures(), 'list');
   const fields = Array.isArray(payload.fields) ? payload.fields : [];
   if (COUNT_EVENTS.has(type) || (type === TASK_EVENTS.UPDATED && fields.includes('deadline'))) {
     batcher.push(tasksKeys.personalStages(), 'list');

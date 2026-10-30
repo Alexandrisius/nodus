@@ -179,6 +179,7 @@ export class TaskDtoMapper {
       // клиент (ADR-0030 п.7).
       nodeId: r.nodeId,
       spentMinutes: r.spentMinutes,
+      plannedMinutes: r.plannedMinutes,
       commentsCount: r.commentsCount,
       checklistDone: r.checklistDone,
       checklistTotal: r.checklistTotal,

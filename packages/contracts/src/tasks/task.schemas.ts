@@ -98,6 +98,9 @@ export const taskListItemSchema = z.object({
   nodeId: z.uuid().nullable(),
   /** Трудозатраты суммарно, минуты (I14). */
   spentMinutes: z.number().int().min(0),
+  /** Плановое время задачи, минуты; null — не задано. Своё значение задачи,
+   *  не агрегат поддерева (агрегаты узлов — `ProjectNodeRollup`). */
+  plannedMinutes: z.number().int().min(0).nullable(),
   commentsCount: z.number().int().min(0),
   checklistDone: z.number().int().min(0),
   checklistTotal: z.number().int().min(0),
@@ -173,8 +176,6 @@ export const taskDetailSchema = taskListItemSchema.extend({
   chain: z.array(taskChainNodeSchema),
   /** Маршрут типа задачи — «Схема маршрута» в карточке (#378). */
   workflowId: z.uuid(),
-  /** Плановое время, минуты. */
-  plannedMinutes: z.number().int().min(0).nullable(),
   /** УСТАРЕВШЕЕ (#378): утверждение — статус маршрута, флаг не используется;
    *  поле в выдаче живёт до контракта #383 (колонка в БД остаётся). */
   acceptRequired: z.boolean(),

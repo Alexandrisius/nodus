@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '../../../shared/api-client.js';
 import { markFreshFromMutation } from '../../../shared/api/fresh-from-mutation.js';
+import { projectsKeys } from '../../../shared/api/projects-list.js';
 import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Причины блокировки гейтов одной строкой (подпись кнопки и тост). */
@@ -124,6 +125,9 @@ export function useSubmitTransitionWindow(taskId: string) {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.timeEntries(taskId) });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.transitions(taskId) });
+      // Агрегаты узлов дерева (#467): прогресс/часы/сроки пересчитываются
+      // сервером на чтение — дерево перезапрашивается сразу, не по WS-эху.
+      void queryClient.invalidateQueries({ queryKey: projectsKeys.structures() });
       for (const key of [
         tasksKeys.listPages(),
         tasksKeys.kanbanAll(),
@@ -184,6 +188,9 @@ export function useExecuteTransition(taskId: string) {
       ]) {
         void queryClient.invalidateQueries({ queryKey: key, refetchType: 'none' });
       }
+      // Дерево структуры (#467) — сразу: прогресс узла обязан обновиться без
+      // перезагрузки страницы, даже если WS-эхо задержалось.
+      void queryClient.invalidateQueries({ queryKey: projectsKeys.structures() });
     },
   });
 }

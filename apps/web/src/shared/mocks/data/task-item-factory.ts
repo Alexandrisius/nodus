@@ -35,21 +35,35 @@ export const projectRefs = {
   },
 } as const satisfies Record<string, ProjectRef>;
 
+/** Плановое время демо-задач, минуты: единый источник для списка, карточки и
+ *  агрегатов узлов — дерево структуры и карточка показывают одно значение. */
+export const demoPlannedMinutes: Record<string, number> = {
+  [tid(2)]: 2400,
+  [tid(5)]: 180,
+  [tid(6)]: 480,
+  [tid(11)]: 240,
+  [tid(12)]: 120,
+  [tid(13)]: 90,
+};
+
 /** Личное размещение «Мой план» — из глобальной стадии (ADR-0008); явная
  *  колонка — для демонстрации вольных личных колонок того же состояния.
  *  Значения кастомных полей (#431) — необязательны: у большинства демо-задач
  *  их нет (`{}`), заполненные добавляются точечно. Узел структуры (#467) —
- *  тоже необязателен: по умолчанию задача вне структуры. */
+ *  тоже необязателен: по умолчанию задача вне структуры. План (#467) —
+ *  из `demoPlannedMinutes`, если вызывающий не задал своё значение. */
 export function mk(
-  task: Omit<TaskListItem, 'personalStageId' | 'customFields' | 'nodeId'> & {
+  task: Omit<TaskListItem, 'personalStageId' | 'customFields' | 'nodeId' | 'plannedMinutes'> & {
     customFields?: CustomFieldValues;
     nodeId?: string | null;
+    plannedMinutes?: number | null;
   },
   personalStageId?: string,
 ): TaskListItem {
   return {
     ...task,
     nodeId: task.nodeId ?? null,
+    plannedMinutes: task.plannedMinutes ?? demoPlannedMinutes[task.id] ?? null,
     customFields: task.customFields ?? {},
     personalStageId: personalStageId ?? personalStageFor(task.stage),
   };

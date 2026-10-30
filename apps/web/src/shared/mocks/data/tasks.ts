@@ -6,6 +6,7 @@ import { demoRefsForValues } from './custom-fields-refs.js';
 import { isoAgo } from './dates.js';
 import { lid } from './letter-ids.js';
 import { personalNew } from './personal-stages.js';
+import { demoPlannedMinutes } from './task-item-factory.js';
 import { demoTasks, kjSubtask, tid } from './task-items.js';
 import { stageNew, systemProcessType } from './task-stages.js';
 import { layoutOf } from './task-layout.js';
@@ -35,14 +36,16 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     priority: 'normal',
     deadline: null,
     // Как API (POST /tasks/:id/subtasks = create с parentId): постановщик и
-    // ответственный по умолчанию — актор, проект не наследуется.
+    // ответственный по умолчанию — актор, проект и узел структуры наследуются
+    // от родителя (#467).
     creator: userRef(currentAuthUser.id),
     assignee: userRef(currentAuthUser.id),
     participants: [],
-    project: null,
+    project: parent.project,
     parentId: parent.id,
-    nodeId: null,
+    nodeId: parent.nodeId,
     spentMinutes: 0,
+    plannedMinutes: null,
     commentsCount: 0,
     checklistDone: 0,
     checklistTotal: 0,
@@ -147,7 +150,7 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     subtasks: demoSubtasks[task.id] ?? [],
     chain: chainOf(task),
     workflowId: task.type.id === quickProcessType.id ? QUICK_WORKFLOW_ID : STANDARD_WORKFLOW_ID,
-    plannedMinutes: extra.plannedMinutes ?? null,
+    plannedMinutes: extra.plannedMinutes ?? demoPlannedMinutes[task.id] ?? null,
     acceptRequired: extra.acceptRequired ?? false,
     result: extra.result ?? null,
     completedAt: closed ? task.updatedAt : null,

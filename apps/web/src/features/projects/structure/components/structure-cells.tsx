@@ -58,8 +58,10 @@ export function ProgressCell({ done, total }: { done: number; total: number }) {
   );
 }
 
-export function TimeCell({ minutes }: { minutes: number | null }) {
-  if (minutes === null || minutes === 0) return null;
+export function TimeCell({ minutes }: { minutes: number | null | undefined }) {
+  // 0 и отсутствие значения — пустая ячейка; NaN из старого ответа API тоже
+  // не должен превращаться в «NaN:NaN ч».
+  if (!minutes) return null;
   return (
     <span className="flex min-w-0 items-baseline gap-1 font-mono text-label-sm tabular-nums">
       <span className="text-foreground">{formatMinutes(minutes)}</span>
@@ -126,7 +128,7 @@ export function taskCell(task: TaskListItem, fieldId: string) {
     case 'progress':
       return <ProgressCell done={task.checklistDone} total={task.checklistTotal} />;
     case 'plan':
-      return null;
+      return <TimeCell minutes={task.plannedMinutes} />;
     case 'fact':
       return <TimeCell minutes={task.spentMinutes} />;
     case 'deadline':

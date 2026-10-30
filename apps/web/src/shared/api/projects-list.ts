@@ -29,6 +29,8 @@ export const projectsKeys = {
   history: (id: string) => [...projectsKeys.all, 'history', id] as const,
   /** Дерево структуры проекта (#467): узлы + виды узлов. */
   structure: (id: string) => [...projectsKeys.all, 'structure', id] as const,
+  /** Префикс всех деревьев: агрегаты узлов зависят от задач проекта (#467). */
+  structures: () => [...projectsKeys.all, 'structure'] as const,
 };
 
 /** Предохранитель добора: 10 × 100 = 1000 проектов — выше штата портала. */

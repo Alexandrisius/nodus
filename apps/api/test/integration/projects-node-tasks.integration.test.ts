@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ErrorCode, projectDetailSchema } from '@nodus/contracts';
+import {
+  ErrorCode,
+  paginatedSchema,
+  projectDetailSchema,
+  taskListItemSchema,
+} from '@nodus/contracts';
 
 import { setupProjectNodeFixture, type ProjectNodeFixture } from './project-node.fixtures.js';
 
@@ -88,6 +93,27 @@ describe.skipIf(!process.env.DATABASE_URL)(
         nearestDeadline: mid.toISOString(),
         latestDeadline: late.toISOString(),
       });
+    });
+
+    it('список задач проекта отдаёт плановое время задачи (колонка «План»)', async () => {
+      const project = await s.createProject(s.alice, { name: s.unique('План') });
+      const root = await s.node(s.alice, project.id, { levelId: s.levelId, name: 'Корень' });
+      const withPlan = await s.createTask(s.alice, {
+        projectId: project.id,
+        nodeId: root.id,
+        plannedMinutes: 120,
+      });
+      const withoutPlan = await s.createTask(s.alice, {
+        projectId: project.id,
+        nodeId: root.id,
+      });
+
+      const res = await s.fx.api(s.alice, 'GET', `/tasks?projectId=${project.id}&scope=all`);
+      expect(res.status).toBe(200);
+      const page = paginatedSchema(taskListItemSchema).parse(await res.json());
+      const byId = new Map(page.items.map((item) => [item.id, item]));
+      expect(byId.get(withPlan.id)?.plannedMinutes).toBe(120);
+      expect(byId.get(withoutPlan.id)?.plannedMinutes).toBeNull();
     });
 
     it('structureSummary карточки: hasTaskNodes флипается задачей в узле', async () => {

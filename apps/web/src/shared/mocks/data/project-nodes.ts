@@ -3,7 +3,7 @@ import { isCompletedState, isOpenState, NODE_LIMITS } from '@nodus/contracts';
 
 import { isoAgo } from './dates.js';
 import { nodeIds } from './project-node-ids.js';
-import { demoTasks, detailsExtra } from './tasks.js';
+import { demoTasks } from './tasks.js';
 import { projectRefs } from './task-item-factory.js';
 
 /** Структура демо-проектов (#467, ADR-0030): виды уровней (справочник
@@ -139,7 +139,7 @@ export function rollupOfNode(nodeId: string): ProjectNodeRollup {
   return {
     taskCount: tasks.length,
     doneCount: tasks.filter((t) => isCompletedState(t.stage.systemState, t.stage.outcome)).length,
-    plannedMinutes: tasks.reduce((sum, t) => sum + (detailsExtra[t.id]?.plannedMinutes ?? 0), 0),
+    plannedMinutes: tasks.reduce((sum, t) => sum + (t.plannedMinutes ?? 0), 0),
     spentMinutes: tasks.reduce((sum, t) => sum + t.spentMinutes, 0),
     nearestDeadline:
       openDeadlines.length > 0 ? openDeadlines.reduce((a, b) => (a < b ? a : b)) : null,
