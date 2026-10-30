@@ -23,10 +23,12 @@ import {
 import { CatalogSection } from '../components/project-catalog-section.js';
 
 /**
- * «Автоматизация → Типы проектов» (#52): справочники модуля — типы проектов
- * (право `project.setup.manage`) и портфели (создание — `project.create`,
- * переименование/архив — `project.manage`). Архив — не удаление: проекты
- * сохраняют ссылку. Окно «Настройки портала» — второй вход из шапки.
+ * «Автоматизация → Типы проектов» (#52): справочники модуля — типы
+ * проектов (право `project.setup.manage`) и портфели (создание —
+ * `project.create`, переименование/архив — `project.manage`). Виды узлов
+ * структуры живут в самой «Структуре» (#467), не в «Автоматизации».
+ * Архив — не удаление: проекты сохраняют ссылку. Окно «Настройки портала» —
+ * второй вход из шапки.
  */
 export function ProjectTypesPage() {
   const permissions = useAuthStore((s) => s.user?.permissions ?? []);
@@ -86,27 +88,29 @@ function TypesSection({ canSetup }: { canSetup: boolean }) {
       onRestore={(id) => archive.mutate({ id, archived: false })}
       rowExtra={(row) =>
         canSetup ? (
-          <Select
-            value={row.codeField}
-            onValueChange={(value) =>
-              update.mutate({ id: row.id, codeField: value as ProjectType['codeField'] })
-            }
-          >
-            <SelectTrigger
-              className="h-7 w-40 shrink-0 text-xs"
-              aria-label={ui.projects.codeFieldLabel}
-              title={ui.projects.codeFieldLabel}
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={row.codeField}
+              onValueChange={(value) =>
+                update.mutate({ id: row.id, codeField: value as ProjectType['codeField'] })
+              }
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" className="nokey">
-              {(['hidden', 'optional', 'required'] as const).map((value) => (
-                <SelectItem key={value} value={value}>
-                  {ui.projects.codeField[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                className="h-7 w-36 shrink-0 text-xs"
+                aria-label={ui.projects.codeFieldLabel}
+                title={ui.projects.codeFieldLabel}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" className="nokey">
+                {(['hidden', 'optional', 'required'] as const).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {ui.projects.codeField[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         ) : null
       }
     />

@@ -1,47 +1,64 @@
 import { useState } from 'react';
 
-/** Вкладки рабочей зоны карточки проекта (вердикт владельца 07.11.2026):
- *  слева — панель «О проекте», справа — вкладки. «Чат проекта» появится
- *  вместе с пространством проекта (#456) — до него вкладки нет. */
-export type ProjectTabId = 'tasks' | 'channel' | 'members' | 'history';
+/** Вкладки рабочей зоны карточки проекта (#467): «Структура» — ПЕРВОЙ в
+ *  реестре (дерево узлов-папок с задачами-листьями); «Задачи», «Канал»,
+ *  «Участники», «История». «Чат проекта» появится вместе с пространством
+ *  проекта (#456) — до него вкладки нет. */
+export type ProjectTabId = 'structure' | 'tasks' | 'channel' | 'members' | 'history';
 
-/** Порядок вкладок; «Задачи» — первичная и не скрывается (рабочая зона не
- *  может остаться пустой). Персональный порядок и DnD — следующий шаг. */
-export const PROJECT_TAB_IDS: readonly ProjectTabId[] = ['tasks', 'channel', 'members', 'history'];
+/** Порядок вкладок; первичная не скрывается (рабочая зона не может остаться
+ *  пустой). Персональный порядок и DnD — следующий шаг. */
+export const PROJECT_TAB_IDS: readonly ProjectTabId[] = [
+  'structure',
+  'tasks',
+  'channel',
+  'members',
+  'history',
+];
 
-const STORAGE_KEY = 'nodus-project-tabs-v1';
+const STORAGE_KEY = 'nodus-project-tabs-v2';
+
+/** Первичная вкладка (вердикт владельца 07.11): если в структуре есть узлы с
+ *  задачами — «Структура», иначе — «Задачи». */
+export function primaryTab(hasTaskNodes: boolean): ProjectTabId {
+  return hasTaskNodes ? 'structure' : 'tasks';
+}
 
 function isTabId(value: unknown): value is ProjectTabId {
   return typeof value === 'string' && PROJECT_TAB_IDS.includes(value as ProjectTabId);
 }
 
-/** Скрытые пользователем вкладки из памяти (неизвестные ключи отбрасываются;
- *  «Задачи» скрыть нельзя). */
-export function readHiddenTabs(raw: string | null): ProjectTabId[] {
+/** Скрытые пользователем вкладки из памяти (неизвестные ключи и первичная
+ *  вкладка отбрасываются — первичную скрыть нельзя). */
+export function readHiddenTabs(raw: string | null, primary: ProjectTabId): ProjectTabId[] {
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is ProjectTabId => isTabId(id) && id !== 'tasks');
+    return parsed.filter((id): id is ProjectTabId => isTabId(id) && id !== primary);
   } catch {
     return [];
   }
 }
 
-/** Видимые вкладки в порядке реестра. */
-export function visibleTabs(hidden: readonly ProjectTabId[]): ProjectTabId[] {
-  return PROJECT_TAB_IDS.filter((id) => id === 'tasks' || !hidden.includes(id));
+/** Видимые вкладки в порядке реестра; первичная — всегда видима. */
+export function visibleTabs(
+  tabs: readonly ProjectTabId[],
+  hidden: readonly ProjectTabId[],
+  primary: ProjectTabId,
+): ProjectTabId[] {
+  return tabs.filter((id) => id === primary || !hidden.includes(id));
 }
 
 /** Персональная видимость вкладок (память в localStorage, как у полей
  *  паспорта): «+» в полосе вкладок управляет набором. */
-export function useProjectTabs() {
+export function useProjectTabs(primary: ProjectTabId = 'tasks') {
   const [hidden, setHidden] = useState<ProjectTabId[]>(() =>
-    readHiddenTabs(localStorage.getItem(STORAGE_KEY)),
+    readHiddenTabs(localStorage.getItem(STORAGE_KEY), primary),
   );
 
   function toggle(id: ProjectTabId) {
-    if (id === 'tasks') return;
+    if (id === primary) return;
     setHidden((prev) => {
       const next = prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -49,5 +66,5 @@ export function useProjectTabs() {
     });
   }
 
-  return { hidden, toggle, visible: visibleTabs(hidden) };
+  return { hidden, toggle, visible: visibleTabs(PROJECT_TAB_IDS, hidden, primary) };
 }

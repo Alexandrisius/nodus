@@ -45,6 +45,7 @@ export function useCreateProjectType() {
         id: `temp-${crypto.randomUUID()}`,
         name,
         codeField: 'optional',
+        levelKindIds: null,
         archivedAt: null,
       };
       patchTypes(queryClient, (items) => [...items, temp]);
@@ -66,7 +67,8 @@ export function useCreateProjectType() {
   });
 }
 
-/** Правка типа проекта: имя и политика системного поля «Шифр». */
+/** Правка типа проекта: имя, политика системного поля «Шифр», виды-подсказки
+ *  структуры (#467). */
 export function useUpdateProjectType() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -76,6 +78,7 @@ export function useUpdateProjectType() {
         body: {
           ...(vars.name ? { name: vars.name } : {}),
           ...(vars.codeField ? { codeField: vars.codeField } : {}),
+          ...(vars.levelKindIds !== undefined ? { levelKindIds: vars.levelKindIds } : {}),
         },
       }),
     onMutate: async (vars) => {
@@ -89,6 +92,7 @@ export function useUpdateProjectType() {
                 ...row,
                 ...(vars.name ? { name: vars.name } : {}),
                 ...(vars.codeField ? { codeField: vars.codeField } : {}),
+                ...(vars.levelKindIds !== undefined ? { levelKindIds: vars.levelKindIds } : {}),
               }
             : row,
         ),

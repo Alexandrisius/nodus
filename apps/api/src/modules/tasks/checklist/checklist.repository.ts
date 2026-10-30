@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
-import { keyBetween } from '../lib/fractional-index.js';
+import { keyBetween } from '../../../core/lib/fractional-index.js';
 
 /**
  * Пункты чек-листа (`task_checklist_items`): порядок — fractional-index

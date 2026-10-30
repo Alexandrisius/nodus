@@ -13,6 +13,11 @@ export interface CatalogStageData {
   isInitial: boolean;
 }
 
+/** Строка типа процесса (полная модель — как create/findUnique). */
+type ProcessTypeRow = NonNullable<
+  Awaited<ReturnType<TransactionClient['processType']['findUnique']>>
+>;
+
 export interface CatalogTransitionData {
   name: string;
   fromStageId: string | null;
@@ -41,6 +46,12 @@ function json(data: CatalogTransitionData) {
  */
 @Injectable()
 export class CatalogRepository {
+  /**
+   * Тип по коду (создание с ревизией 0 — seedOnce применит текущую). Null —
+   * имя занято другим типом: системный не создаём (дубль имён в библиотеке
+   * выбора собьёт пользователя), бутстрап пропускает с предупреждением
+   * (#467). Для давно засеянных типов ветка недостижима — находятся по коду.
+   */
   async ensureType(
     tx: TransactionClient,
     def: {
@@ -54,20 +65,24 @@ export class CatalogRepository {
       /** Конфигурация типа: у писем — `numbering` с id серии (#55). */
       config?: Record<string, unknown>;
     },
-  ) {
-    return (
-      (await tx.processType.findUnique({ where: { code: def.code } })) ??
-      // Создаётся с ревизией 0: seedOnce применит текущую ревизию каталога
-      // (создание ≠ применённая ревизия).
-      (await tx.processType.create({
-        data: {
-          ...def,
-          config: (def.config ?? {}) as Prisma.InputJsonValue,
-          isSystem: true,
-          catalogRevision: 0,
-        },
-      }))
-    );
+  ): Promise<ProcessTypeRow | null> {
+    const existing = await tx.processType.findUnique({ where: { code: def.code } });
+    if (existing) return existing;
+    const clash = await tx.processType.findFirst({
+      where: { name: def.name },
+      select: { id: true },
+    });
+    if (clash) return null;
+    // Создаётся с ревизией 0: seedOnce применит текущую ревизию каталога
+    // (создание ≠ применённая ревизия).
+    return tx.processType.create({
+      data: {
+        ...def,
+        config: (def.config ?? {}) as Prisma.InputJsonValue,
+        isSystem: true,
+        catalogRevision: 0,
+      },
+    });
   }
 
   /** Серия нумерации по коду (#55): существующая не перетирается — правка

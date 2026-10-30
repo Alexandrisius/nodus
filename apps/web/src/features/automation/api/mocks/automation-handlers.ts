@@ -160,7 +160,13 @@ export const automationHandlers = [
         { status: 422 },
       );
     }
-    task.type = { id: type.id, code: type.code, name: type.name, category: type.category };
+    task.type = {
+      id: type.id,
+      code: type.code,
+      name: type.name,
+      category: type.category,
+      icon: type.icon,
+    };
     task.stage = {
       id: stageDoc.id,
       name: stageDoc.name,

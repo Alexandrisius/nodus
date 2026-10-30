@@ -13,6 +13,9 @@ export const taskBulkActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('set_priority'), priority: taskPrioritySchema }),
   /** Переход маршрута в стадию (у задач разных маршрутов — свой переход). */
   z.object({ kind: z.literal('move_to_stage'), stageId: z.uuid() }),
+  /** Перенос в узел структуры проекта (мультиселект + DnD дерева, #467);
+   *  null — убрать из структуры («Без узла»). */
+  z.object({ kind: z.literal('set_node'), nodeId: z.uuid().nullable() }),
 ]);
 export type TaskBulkAction = z.infer<typeof taskBulkActionSchema>;
 

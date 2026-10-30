@@ -14,6 +14,7 @@ import {
   detailsExtra,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
+import { findDemoNodeRow } from '../../../../shared/mocks/data/project-nodes.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
@@ -189,6 +190,19 @@ export const tasksWorkHandlers = [
         const stage = demoStages.find((s) => s.id === action.stageId);
         if (!stage) return { taskId, ok: false, code: ErrorCode.NOT_FOUND };
         task.stage = stage;
+      }
+      // Перенос в узел структуры (#467): null — «Без узла»; узел обязан
+      // существовать и принадлежать проекту задачи.
+      if (action.kind === 'set_node') {
+        if (action.nodeId === null) {
+          task.nodeId = null;
+        } else {
+          const node = findDemoNodeRow(action.nodeId);
+          if (!node || node.projectId !== task.project?.id) {
+            return { taskId, ok: false, code: ErrorCode.PROJECT_NODE_INVALID };
+          }
+          task.nodeId = node.id;
+        }
       }
       task.updatedAt = new Date().toISOString();
       return { taskId, ok: true };

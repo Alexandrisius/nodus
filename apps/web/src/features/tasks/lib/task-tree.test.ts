@@ -8,6 +8,7 @@ const systemProcessType = {
   code: 'task',
   name: 'Задача',
   category: 'task',
+  icon: 'square-check',
 } as const;
 
 const STAGE: TaskStage = {
@@ -36,7 +37,9 @@ function task(id: string, parentId: string | null = null): TaskListItem {
     participants: [],
     project: null,
     parentId,
+    nodeId: null,
     spentMinutes: 0,
+    plannedMinutes: null,
     commentsCount: 0,
     checklistDone: 0,
     checklistTotal: 0,

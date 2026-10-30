@@ -9,6 +9,7 @@ import { ProjectCatalogsController } from './project-catalogs.controller.js';
 import { ProjectGroupsRepository } from './project-groups.repository.js';
 import { ProjectHistoryRepository } from './project-history.repository.js';
 import { ProjectMembersController } from './project-members.controller.js';
+import { ProjectNodeLevelsController } from './project-node-levels.controller.js';
 import { ProjectLifecycleService } from './project-lifecycle.service.js';
 import { ProjectMembersService } from './project-members.service.js';
 import { ProjectParticipantsRepository } from './project-participants.repository.js';
@@ -18,6 +19,11 @@ import { ProjectsController } from './projects.controller.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectsQueryService } from './projects-query.service.js';
 import { ProjectsService } from './projects.service.js';
+import { NodeLevelsRepository } from './project-node-levels.repository.js';
+import { ProjectNodesRepository } from './project-nodes.repository.js';
+import { ProjectStructureController } from './project-structure.controller.js';
+import { ProjectStructureService } from './project-structure.service.js';
+import { ProjectStructureMoveService } from './project-structure-move.service.js';
 import {
   TaskAssignedProjectHandler,
   TaskCreatedProjectHandler,
@@ -35,7 +41,13 @@ import {
  */
 @Module({
   imports: [CrmPortsModule, CustomFieldsPortsModule, TasksPortsModule],
-  controllers: [ProjectsController, ProjectMembersController, ProjectCatalogsController],
+  controllers: [
+    ProjectsController,
+    ProjectMembersController,
+    ProjectCatalogsController,
+    ProjectNodeLevelsController,
+    ProjectStructureController,
+  ],
   providers: [
     UserProfileProvider,
     { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
@@ -49,6 +61,10 @@ import {
     ProjectsService,
     ProjectsQueryService,
     ProjectLifecycleService,
+    NodeLevelsRepository,
+    ProjectNodesRepository,
+    ProjectStructureService,
+    ProjectStructureMoveService,
     // Проекция участия «из задач» (Р2): события task.*.
     TaskParticipantsProjectionRunner,
     TaskCreatedProjectHandler,

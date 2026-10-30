@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ProjectParticipantsRepository } from './project-participants.repository.js';
+import { ProjectNodesRepository } from './project-nodes.repository.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectReaderProvider } from './ports/project-reader.provider.js';
 import { PROJECT_CHAT_READER, PROJECT_READER } from './ports/project-reader.port.js';
@@ -21,6 +22,7 @@ import {
   providers: [
     ProjectsRepository,
     ProjectParticipantsRepository,
+    ProjectNodesRepository,
     ProjectReaderProvider,
     { provide: PROJECT_READER, useExisting: ProjectReaderProvider },
     { provide: PROJECT_CHAT_READER, useExisting: ProjectReaderProvider },

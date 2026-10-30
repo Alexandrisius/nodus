@@ -5,6 +5,7 @@ import {
   typeAccessFor,
   type ProcessCategory,
   type ProcessType,
+  type ProcessTypeIcon,
   type ProcessTypeRef,
 } from '@nodus/contracts';
 
@@ -110,6 +111,7 @@ export class ProcessCatalogReaderProvider implements ProcessCatalogReader {
         code: t.code,
         name: t.name,
         category: t.category as ProcessCategory,
+        icon: t.icon as ProcessTypeIcon,
       }));
   }
 

@@ -17,6 +17,7 @@ const systemProcessType = {
   code: 'task',
   name: 'Задача',
   category: 'task',
+  icon: 'square-check',
 } as const;
 
 const TASK_ID = '30000000-0000-4000-8000-000000000002';
@@ -78,7 +79,9 @@ function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
     participants: [],
     project: null,
     parentId: null,
+    nodeId: null,
     spentMinutes: 0,
+    plannedMinutes: null,
     commentsCount: 0,
     checklistDone: 0,
     checklistTotal: 0,

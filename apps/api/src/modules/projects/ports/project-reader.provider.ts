@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ErrorCode, Permission, type ProjectRef } from '@nodus/contracts';
 
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FeatureFlagService } from '../../../core/feature-flags/feature-flag.service.js';
 import { ProjectParticipantsRepository } from '../project-participants.repository.js';
+import { ProjectNodesRepository } from '../project-nodes.repository.js';
 import { ProjectsRepository } from '../projects.repository.js';
 import type {
   ProjectActor,
@@ -28,6 +30,7 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
   constructor(
     private readonly projects: ProjectsRepository,
     private readonly participants: ProjectParticipantsRepository,
+    private readonly nodes: ProjectNodesRepository,
     private readonly featureFlags: FeatureFlagService,
   ) {}
 
@@ -147,6 +150,30 @@ export class ProjectReaderProvider implements ProjectReader, ProjectChatReader {
   async projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }> {
     if (!(await this.enabled())) return { supervisor: false };
     return { supervisor: await this.participants.isManagement(projectId, actorId) };
+  }
+
+  async lockNodeStructure(tx: TransactionClient, projectId: string): Promise<void> {
+    if (!(await this.enabled())) return;
+    await this.nodes.lockStructure(tx, projectId);
+  }
+
+  async assertNodeAllowed(projectId: string, nodeId: string): Promise<void> {
+    if (!(await this.enabled())) return;
+    // Архив — заморозка структуры (симметрично loadForStructureManage):
+    // задача не переставляется по зафиксированному дереву. Снятие узла
+    // (nodeId=null) сюда не приходит — вынос из структуры не блокируется.
+    const project = await this.projects.findById(projectId);
+    if (project?.status === 'archived') {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Project is archived', { projectId });
+    }
+    // Без оракула: чужой проект, чужой узел и несуществующий узел — один
+    // ответ (узел структуры не раскрывает соседние проекты).
+    const node = await this.nodes.findById(nodeId);
+    if (!node || node.projectId !== projectId) {
+      throw new DomainException(ErrorCode.PROJECT_NODE_INVALID, 'Node is not available', {
+        nodeId,
+      });
+    }
   }
 
   async visibilityOf(projectId: string): Promise<'open' | 'secret' | null> {

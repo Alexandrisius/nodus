@@ -69,11 +69,12 @@ export class TasksService {
   /** Подзадача/перепривязка: родителя правят только те, кто может править
    *  его самого (наблюдатель или руководитель не блокируют чужую задачу
    *  гейтом «нет открытых подзадач» — находка security-гейта #37). */
-  async assertCanEditParent(user: AuthUser, parentId: string): Promise<void> {
+  async assertCanEditParent(user: AuthUser, parentId: string) {
     const parent = await this.query.visibleRow(user, parentId);
     if (!taskAccess(actorRoles(parent, user.id), user.permissions).canEdit) {
       throw DomainException.forbidden('Parent task edit not allowed');
     }
+    return parent;
   }
 
   /** Активные сотрудники из списка; иначе VALIDATION_FAILED (а не тихий пропуск). */
@@ -96,7 +97,15 @@ export class TasksService {
       actorId: user.id,
     });
     // Скрытые значения формы важнее введённого (Р4) — до всех проверок тела.
-    const body = await this.policy.withPresets(type, input);
+    let body = await this.policy.withPresets(type, input);
+    // Подзадача живёт там же, где родитель: проект и узел структуры
+    // наследуются, если вход их не задал (#467). Иначе подзадача молча
+    // выпадала из проекта и из дерева.
+    if (body.parentId) {
+      const parent = await this.assertCanEditParent(user, body.parentId);
+      if (!body.projectId && parent.projectId) body = { ...body, projectId: parent.projectId };
+      if (!body.nodeId && parent.nodeId) body = { ...body, nodeId: parent.nodeId };
+    }
     const assigneeId = body.assigneeId ?? user.id;
     const participants = this.participantRows(body, user.id, assigneeId);
     await this.assertActiveUsers([assigneeId, ...participants.map((p) => p.userId)]);
@@ -111,7 +120,16 @@ export class TasksService {
         ...participants.map((p) => p.userId),
       ]);
     }
-    if (body.parentId) await this.assertCanEditParent(user, body.parentId);
+    // Узел структуры («+ задача» на узле дерева, #467): только вместе с
+    // проектом и только узел этого проекта (порт, 422 без оракула).
+    if (body.nodeId) {
+      if (!body.projectId) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, 'nodeId requires projectId', {
+          nodeId: body.nodeId,
+        });
+      }
+      await this.projects.assertNodeAllowed(body.projectId, body.nodeId);
+    }
     const message = body.sourceMessageId
       ? await this.messages.snapshot(body.sourceMessageId, user.id)
       : null;
@@ -154,6 +172,12 @@ export class TasksService {
         // Обязательные поля — после умолчаний: если сервер заполнил значение
         // сам, «не хватает» его не считает (Р5).
         this.policy.assertComplete(type, { ...body, customFields });
+        // Узел проверен до транзакции; под advisory-локом структуры
+        // перепроверяем — параллельное удаление узла не оставит висячий node_id.
+        if (body.nodeId && body.projectId) {
+          await this.projects.lockNodeStructure(tx, body.projectId);
+          await this.projects.assertNodeAllowed(body.projectId, body.nodeId);
+        }
         const task = await this.repo.create(
           {
             title: body.title,
@@ -172,6 +196,7 @@ export class TasksService {
             assigneeId,
             parentId: body.parentId ?? null,
             projectId: body.projectId ?? null,
+            nodeId: body.nodeId ?? null,
             source: body.sourceMessageId ? 'chat_message' : 'manual',
             sourceId: body.sourceMessageId ?? null,
             checklistTotal: body.checklist?.length ?? 0,

@@ -33,7 +33,9 @@ export class BulkService {
               ? { assigneeId: a.assigneeId }
               : a.kind === 'set_priority'
                 ? { priority: a.priority }
-                : { stageId: a.stageId },
+                : a.kind === 'set_node'
+                  ? { nodeId: a.nodeId }
+                  : { stageId: a.stageId },
         );
         results.push({ taskId, ok: true });
       } catch (error) {

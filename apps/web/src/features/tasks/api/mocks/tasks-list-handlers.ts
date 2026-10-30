@@ -12,6 +12,7 @@ import {
   globalStageForPersonal,
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/project-views.js';
+import { findDemoNodeRow } from '../../../../shared/mocks/data/project-nodes.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 import type { WorkflowDetail } from '@nodus/contracts';
@@ -178,11 +179,29 @@ export const tasksListHandlers = [
     const parent = body.parentId
       ? (demoTasks.find((t) => t.id === body.parentId) ?? findSubtask(body.parentId))
       : undefined;
+    // Узел структуры (#467): должен существовать и принадлежать проекту.
+    let nodeId: string | null = null;
+    if (body.nodeId) {
+      const node = findDemoNodeRow(body.nodeId);
+      if (!node || node.projectId !== (body.projectId ?? null)) {
+        return HttpResponse.json(
+          { code: ErrorCode.PROJECT_NODE_INVALID, message: 'Node does not belong to project' },
+          { status: 422 },
+        );
+      }
+      nodeId = node.id;
+    }
     const task: TaskListItem = {
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
       title: body.title,
-      type: { id: type.id, code: type.code, name: type.name, category: type.category },
+      type: {
+        id: type.id,
+        code: type.code,
+        name: type.name,
+        category: type.category,
+        icon: type.icon,
+      },
       stage,
       personalStageId,
       customFields: body.customFields ?? {},
@@ -195,7 +214,9 @@ export const tasksListHandlers = [
         ? { id: project.id, code: project.code, name: project.name, color: project.color }
         : null,
       parentId: parent?.id ?? null,
+      nodeId,
       spentMinutes: 0,
+      plannedMinutes: body.plannedMinutes ?? null,
       commentsCount: 0,
       checklistDone: 0,
       checklistTotal: checklist.length,

@@ -1,7 +1,20 @@
 import { Injectable } from '@nestjs/common';
+import { statesOfPhase } from '@nodus/contracts';
 
 import { PrismaService } from '../../../core/database/prisma.service.js';
-import type { TaskProjectReader } from './task-project-reader.port.js';
+import { Prisma } from '../../../generated/prisma/client.js';
+import type { TaskNodeRollup, TaskProjectReader } from './task-project-reader.port.js';
+
+/** Строка сырого агрегата узла (даты — timestamptz). */
+interface RollupRow {
+  node_id: string;
+  task_count: number;
+  done_count: number;
+  planned_minutes: number;
+  spent_minutes: number;
+  nearest_deadline: Date | null;
+  latest_deadline: Date | null;
+}
 
 /**
  * Реализация read-порта TaskProjectReader: доступ к таблицам задач —
@@ -54,5 +67,51 @@ export class TaskProjectReaderProvider implements TaskProjectReader {
       LIMIT 1
     `;
     return rows[0]?.project_id ?? null;
+  }
+
+  async nodeRollups(projectId: string): Promise<TaskNodeRollup[]> {
+    // Прямые задачи узлов проекта одним GROUP BY (#467). Завершённость —
+    // канон isCompletedState: закрытая стадия && outcome ≠ 'cancelled';
+    // исход стадии — в workflow_stages (tasks денормализуют только state).
+    // nearest — MIN(deadline) фазы open (backlog/active/paused — канон
+    // statesOfPhase('open')), latest — MAX(deadline) всех задач узла.
+    const rows = await this.prisma.$queryRaw<RollupRow[]>`
+      SELECT n.id AS node_id,
+             COUNT(t.id)::int AS task_count,
+             (COUNT(*) FILTER (
+               WHERE ws.system_state = 'closed' AND ws.outcome IS DISTINCT FROM 'cancelled'
+             ))::int AS done_count,
+             COALESCE(SUM(t.planned_minutes), 0)::int AS planned_minutes,
+             COALESCE(SUM(t.spent_minutes), 0)::int AS spent_minutes,
+             MIN(t.deadline) FILTER (
+               WHERE ws.system_state IN (${Prisma.join(statesOfPhase('open'))})
+             ) AS nearest_deadline,
+             MAX(t.deadline) AS latest_deadline
+      FROM project_nodes n
+      LEFT JOIN tasks t ON t.node_id = n.id AND t.deleted_at IS NULL
+      LEFT JOIN workflow_stages ws ON ws.id = t.stage_id
+      WHERE n.project_id = ${projectId}::uuid
+      GROUP BY n.id
+    `;
+    return rows.map((row) => ({
+      nodeId: row.node_id,
+      taskCount: row.task_count,
+      doneCount: row.done_count,
+      plannedMinutes: row.planned_minutes,
+      spentMinutes: row.spent_minutes,
+      nearestDeadline: row.nearest_deadline?.toISOString() ?? null,
+      latestDeadline: row.latest_deadline?.toISOString() ?? null,
+    }));
+  }
+
+  async hasNodeTasks(projectId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<{ has: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM tasks t
+        JOIN project_nodes n ON n.id = t.node_id
+        WHERE n.project_id = ${projectId}::uuid AND t.deleted_at IS NULL
+      ) AS has
+    `;
+    return rows[0]?.has === true;
   }
 }

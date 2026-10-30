@@ -113,6 +113,17 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.ROLE_LOCKED]: HttpStatus.CONFLICT,
   [ErrorCode.ROLE_PERMISSION_NOT_HELD]: HttpStatus.FORBIDDEN,
   [ErrorCode.ROLE_LAST_ADMIN]: HttpStatus.CONFLICT,
+  // Дерево проекта (#467): негодный узел (не найден/чужой проект/не тот
+  // проект задачи) — 422 без оракула; цикл переноса, непустой узел, занятый
+  // шифр, лимит структуры и архивный вид/занятое имя вида — конфликт
+  // состояния (запрос корректен, действовать сейчас нельзя).
+  [ErrorCode.PROJECT_NODE_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.PROJECT_NODE_CYCLE]: HttpStatus.CONFLICT,
+  [ErrorCode.PROJECT_NODE_NOT_EMPTY]: HttpStatus.CONFLICT,
+  [ErrorCode.PROJECT_NODE_CODE_TAKEN]: HttpStatus.CONFLICT,
+  [ErrorCode.PROJECT_NODE_LIMIT_REACHED]: HttpStatus.CONFLICT,
+  [ErrorCode.PROJECT_NODE_LEVEL_ARCHIVED]: HttpStatus.CONFLICT,
+  [ErrorCode.PROJECT_NODE_LEVEL_NAME_TAKEN]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

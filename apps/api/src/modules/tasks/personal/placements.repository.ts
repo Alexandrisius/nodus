@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
-import { keyBetween } from '../lib/fractional-index.js';
+import { keyBetween } from '../../../core/lib/fractional-index.js';
 
 /**
  * Размещения «Моего плана» (`task_personal_placements`, ADR-0008): карточка

@@ -93,8 +93,14 @@ export const taskListItemSchema = z.object({
   project: projectRefSchema.nullable(),
   /** Родительская задача (вложенность: граф уровней в списке). */
   parentId: z.uuid().nullable(),
+  /** Узел структуры проекта (дерево #467, ADR-0030); null — вне структуры
+   *  (секция «Без узла»). Меняется только в дереве проекта, не в карточке. */
+  nodeId: z.uuid().nullable(),
   /** Трудозатраты суммарно, минуты (I14). */
   spentMinutes: z.number().int().min(0),
+  /** Плановое время задачи, минуты; null — не задано. Своё значение задачи,
+   *  не агрегат поддерева (агрегаты узлов — `ProjectNodeRollup`). */
+  plannedMinutes: z.number().int().min(0).nullable(),
   commentsCount: z.number().int().min(0),
   checklistDone: z.number().int().min(0),
   checklistTotal: z.number().int().min(0),
@@ -170,8 +176,6 @@ export const taskDetailSchema = taskListItemSchema.extend({
   chain: z.array(taskChainNodeSchema),
   /** Маршрут типа задачи — «Схема маршрута» в карточке (#378). */
   workflowId: z.uuid(),
-  /** Плановое время, минуты. */
-  plannedMinutes: z.number().int().min(0).nullable(),
   /** УСТАРЕВШЕЕ (#378): утверждение — статус маршрута, флаг не используется;
    *  поле в выдаче живёт до контракта #383 (колонка в БД остаётся). */
   acceptRequired: z.boolean(),
@@ -193,6 +197,9 @@ export const createSubtaskBodySchema = z.object({
   title: z.string().trim().min(1).max(200),
   assigneeId: z.uuid().optional(),
   deadline: z.iso.datetime().optional(),
+  /** Узел структуры (#467): без явного значения подзадача наследует узел
+   *  родителя — отдельного шага выбора узла в окне подзадачи нет. */
+  nodeId: z.uuid().optional(),
 });
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
@@ -208,6 +215,9 @@ export const createTaskBodySchema = z.object({
   personalStageId: z.uuid().optional(),
   stageId: z.uuid().optional(),
   projectId: z.uuid().optional(),
+  /** Узел структуры проекта («+ задача» на узле дерева, #467): задача
+   *  создаётся сразу в узле (валидация принадлежности проекту — read-порт). */
+  nodeId: z.uuid().optional(),
   /** Тип задачи; по умолчанию — системный «Задача». */
   typeId: z.uuid().optional(),
   parentId: z.uuid().optional(),
@@ -274,6 +284,10 @@ export const taskUpdateBodySchema = z
     /** Перенос задачи в другой проект (или из проекта — null; #52): сервер
      *  проверяет видимость проекта актёру, состав секретного и архивность. */
     projectId: z.uuid().nullable().optional(),
+    /** Перенос задачи в узел структуры проекта (или из структуры — null;
+     *  #467): узел обязан принадлежать проекту задачи; смена projectId
+     *  обнуляет узел. Поля «Узел» в карточке нет — перенос живёт в дереве. */
+    nodeId: z.uuid().nullable().optional(),
     /** Патч значений кастомных полей: `null` — очистить поле (#431). */
     customFields: customFieldValuesPatchSchema.optional(),
   })

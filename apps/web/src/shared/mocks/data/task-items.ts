@@ -5,6 +5,7 @@
 import type { TaskListItem } from '@nodus/contracts';
 
 import { isoAgo, isoIn } from './dates.js';
+import { nodeIds } from './project-node-ids.js';
 import { personalStrategic } from './personal-stages.js';
 import { mk, projectRefs, tid } from './task-item-factory.js';
 import { makeBulkDemoTasks } from './task-items-bulk.js';
@@ -35,6 +36,8 @@ export const kjSubtask: TaskListItem = mk({
   participants: [],
   project: projectRefs.p4,
   parentId: tid(2),
+  // Раздел «КР» Здания 1 демо-структуры (#467).
+  nodeId: nodeIds.b1kr,
   spentMinutes: 0,
   commentsCount: 1,
   checklistDone: 0,
@@ -77,6 +80,8 @@ export const demoTasks: TaskListItem[] = [
     participants: [userRef(userIds.klevantovich)],
     project: projectRefs.p4,
     parentId: null,
+    // Раздел «АР» Здания 1 демо-структуры (#467).
+    nodeId: nodeIds.b1ar,
     spentMinutes: 3360,
     commentsCount: 4,
     checklistDone: 1,
@@ -159,6 +164,8 @@ export const demoTasks: TaskListItem[] = [
     participants: [],
     project: projectRefs.p4,
     parentId: null,
+    // Раздел «КР» Здания 1 (замечания по КЖ — тот же раздел, #467).
+    nodeId: nodeIds.b1kr,
     spentMinutes: 90,
     commentsCount: 0,
     checklistDone: 0,
@@ -179,6 +186,8 @@ export const demoTasks: TaskListItem[] = [
     participants: [],
     project: projectRefs.p4,
     parentId: null,
+    // Раздел «КР» Здания 1 (ведомость стали — часть комплекта КР, #467).
+    nodeId: nodeIds.b1kr,
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,

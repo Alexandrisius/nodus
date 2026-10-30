@@ -1,5 +1,7 @@
 import type { ProjectRef } from '@nodus/contracts';
 
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+
 /**
  * Read-порт проектов для чужих модулей (ADR-0012, #52 Р11): задачи
  * (видимость, валидация привязок, права руководства), корреспонденция
@@ -49,6 +51,17 @@ export interface ProjectReader {
   /** Права руководства проекта на задачи (Р12): supervisor — уровень
    *  постановщика на все задачи проекта. */
   projectTaskRights(actorId: string, projectId: string): Promise<{ supervisor: boolean }>;
+
+  /** Узел пригоден задаче этого проекта: существует и принадлежит проекту;
+   *  архивный проект — 400 (структура заморожена); иначе — 422
+   *  PROJECT_NODE_INVALID без оракула существования (#467). */
+  assertNodeAllowed(projectId: string, nodeId: string): Promise<void>;
+
+  /** Сериализует привязку задачи к узлу с мутациями структуры: тот же
+   *  advisory-лок проекта, что create/move/delete узла (#467). Без него
+   *  удаление пустого узла и параллельное назначение задачи дают висячий
+   *  `tasks.node_id` — задача исчезает из дерева. */
+  lockNodeStructure(tx: TransactionClient, projectId: string): Promise<void>;
 
   /** Видимость проекта (для гейта выноса задачи из секретного). */
   visibilityOf(projectId: string): Promise<'open' | 'secret' | null>;

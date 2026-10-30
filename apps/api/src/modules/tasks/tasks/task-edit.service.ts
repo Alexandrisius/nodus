@@ -39,7 +39,13 @@ const FIELD_KEYS = [
   'assigneeId',
   'parentId',
   'projectId',
+  'nodeId',
 ] as const;
+
+/** PATCH-тело контракта + перенос в узел структуры (#467): nodeId входит в
+ *  `taskUpdateBodySchema`, приходит из дерева проекта (одиночный перенос) и
+ *  BulkService (`set_node`); отдельного поля в карточке задачи нет. */
+export type TaskEditBody = TaskUpdateBody & { nodeId?: string | null };
 
 /**
  * PATCH задачи: перенос по обеим осям (глобальная — переход маршрута,
@@ -63,7 +69,7 @@ export class TaskEditService {
     @Inject(WORKFLOW_ENGINE) private readonly engine: WorkflowEnginePort,
   ) {}
 
-  async update(user: AuthUser, id: string, body: TaskUpdateBody): Promise<TaskListItem> {
+  async update(user: AuthUser, id: string, body: TaskEditBody): Promise<TaskListItem> {
     const row = await this.query.visibleRow(user, id);
     // Руководство проекта — уровень постановщика на его задачи (Р12):
     // «менять поля» и «закрывать забытые» любой задачи проекта.
@@ -139,7 +145,7 @@ export class TaskEditService {
     tx: TransactionClient,
     user: AuthUser,
     row: TaskListRow,
-    body: TaskUpdateBody,
+    body: TaskEditBody,
     fields: readonly string[],
   ): Promise<void> {
     // Доменная логика правки полей — общий писатель (#380): окно перехода
@@ -155,6 +161,7 @@ export class TaskEditService {
         plannedMinutes: body.plannedMinutes,
         parentId: body.parentId,
         projectId: body.projectId,
+        nodeId: body.nodeId,
         deadline: body.deadline,
         assigneeId: body.assigneeId,
         customFields: body.customFields,

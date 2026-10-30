@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CreationForm, ProcessType } from '@nodus/contracts';
-import { slotLabel, typeConfigOf, typeCreationFormOf, ui } from '@nodus/contracts';
+import { typeConfigOf, typeCreationFormOf, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
@@ -21,7 +21,9 @@ import {
   buildCreateBody,
   emptyDraft,
   missingFor,
+  missingTextOf,
   withChecklist,
+  withNode,
   withTitle,
   withType,
   withValue,
@@ -31,6 +33,7 @@ import {
 import { createFailureOf } from './task-create-errors.js';
 import { TaskCreateFormBody } from './task-create-form-body.js';
 import { FormSkeleton } from './task-create-skeleton.js';
+import { TaskCreateStructure, useTaskCreateStructure } from './task-create-structure.js';
 
 /** Форма без типа (типы не загрузились): пустая — низ окна покажет заглушку. */
 const EMPTY_FORM: CreationForm = { fields: [], chips: [] };
@@ -80,6 +83,8 @@ export function TaskCreateWindow({
   const [invalidKeys, setInvalidKeys] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [checklistOpen, setChecklistOpen] = useState(false);
+  const projectId = (draft.values.project as string | undefined) ?? prefill?.projectId;
+  const structure = useTaskCreateStructure(projectId, prefill?.parentId);
 
   // Чистое окно при каждом открытии и смене заполнения (плюсик другой
   // колонки) — рендер-тайм сброс, канон React (аудит #45).
@@ -105,23 +110,23 @@ export function TaskCreateWindow({
   const typesLoading = !preview && isLoading;
 
   const missing = shownType ? missingFor(form, draft) : [];
+  const missingStructure = structure.required && draft.nodeId === null;
   const canSubmit =
-    !preview && draft.title.trim().length > 0 && missing.length === 0 && shownType !== undefined;
+    !preview &&
+    draft.title.trim().length > 0 &&
+    missing.length === 0 &&
+    !missingStructure &&
+    !structure.loading &&
+    shownType !== undefined;
   const fieldDefs = useMemo(() => visibleDefinitions(definitions), [definitions]);
   const roleLabels = shownType ? typeConfigOf(shownType).card.roleLabels : undefined;
-  const missingText = missing
-    .map((key) =>
-      slotLabel(
-        form.fields.find((slot) => slot.key === key) ?? {
-          key,
-          label: null,
-          required: true,
-          preset: null,
-        },
-        { roleLabels, definitions: fieldDefs },
-      ),
-    )
+  const missingText = [
+    missingTextOf(missing, form, roleLabels, fieldDefs),
+    ...(missingStructure ? [ui.structure.taskNodeLabel] : []),
+  ]
+    .filter(Boolean)
     .join(', ');
+  const missingCount = missing.length + (missingStructure ? 1 : 0);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
   function submit(event?: React.FormEvent) {
@@ -216,11 +221,24 @@ export function TaskCreateWindow({
                 values={draft.values}
                 definitions={fieldDefs}
                 invalidKeys={invalidKeys}
-                onChange={(key, value) => setDraft(withValue(draft, key, value))}
+                onChange={(key, value) => {
+                  const next = withValue(draft, key, value);
+                  setDraft(
+                    key === 'project' && value !== draft.values.project
+                      ? withNode(next, null)
+                      : next,
+                  );
+                }}
               />
             ) : (
               <p className="text-sm text-muted-foreground">{ui.taskCreate.noTypes}</p>
             )}
+
+            <TaskCreateStructure
+              structure={structure}
+              value={draft.nodeId}
+              onChange={(nodeId) => setDraft(withNode(draft, nodeId))}
+            />
 
             <TaskCreateChips
               chips={form.chips}
@@ -234,7 +252,7 @@ export function TaskCreateWindow({
                 {error}
               </p>
             ) : null}
-            {missing.length > 0 ? (
+            {missingCount > 0 ? (
               <p
                 id="task-create-missing"
                 className="text-xs text-muted-foreground"
@@ -255,7 +273,7 @@ export function TaskCreateWindow({
               size="sm"
               type="submit"
               disabled={!canSubmit || create.isPending}
-              aria-describedby={missing.length > 0 ? 'task-create-missing' : undefined}
+              aria-describedby={missingCount > 0 ? 'task-create-missing' : undefined}
             >
               {ui.common.create}
             </Button>

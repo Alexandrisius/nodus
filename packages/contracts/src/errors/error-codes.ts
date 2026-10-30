@@ -152,6 +152,23 @@ export const ErrorCode = {
   /** Нельзя убрать из роли «Администратор» последнего сотрудника — портал
    *  остался бы без администратора (409; #379, ADR-0034). */
   ROLE_LAST_ADMIN: 'ROLE_LAST_ADMIN',
+  /** Узел структуры не подходит: не найден, чужой проект или не совпадает с
+   *  проектом задачи (422, без оракула — не раскрывает существование; #467). */
+  PROJECT_NODE_INVALID: 'PROJECT_NODE_INVALID',
+  /** Перенос узла в собственного потомка (409; #467). */
+  PROJECT_NODE_CYCLE: 'PROJECT_NODE_CYCLE',
+  /** Удалить можно только пустой узел — в нём задачи или дочерние узлы (409;
+   *  архивации узлов нет, вердикт 30.10; #467). */
+  PROJECT_NODE_NOT_EMPTY: 'PROJECT_NODE_NOT_EMPTY',
+  /** Шифр узла уже занят в этом проекте (409; #467). */
+  PROJECT_NODE_CODE_TAKEN: 'PROJECT_NODE_CODE_TAKEN',
+  /** Лимит структуры достигнут: узлов в проекте / детей у узла / глубина /
+   *  размер пакета (409; #467). */
+  PROJECT_NODE_LIMIT_REACHED: 'PROJECT_NODE_LIMIT_REACHED',
+  /** Вид уровня в архиве — создавать узлы такого вида нельзя (409; #467). */
+  PROJECT_NODE_LEVEL_ARCHIVED: 'PROJECT_NODE_LEVEL_ARCHIVED',
+  /** Название вида уровня уже занято (409; #467). */
+  PROJECT_NODE_LEVEL_NAME_TAKEN: 'PROJECT_NODE_LEVEL_NAME_TAKEN',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

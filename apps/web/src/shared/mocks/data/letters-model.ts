@@ -158,7 +158,13 @@ export function letterDetailOf(letter: DemoLetter, actor: LetterActor): LetterDe
   const type = letterProcessTypes.find((t) => t.id === letter.typeId) ?? letterProcessTypes[0]!;
   return {
     ...letterListItemOf(letter, true),
-    type: { id: type.id, code: type.code, name: type.name, category: type.category },
+    type: {
+      id: type.id,
+      code: type.code,
+      name: type.name,
+      category: type.category,
+      icon: type.icon,
+    },
     signer: letter.signer,
     registrar: letter.registrar,
     mail: letter.mail,

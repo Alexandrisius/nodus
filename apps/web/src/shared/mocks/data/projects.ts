@@ -11,6 +11,7 @@ import type {
 
 import { counterpartyIds } from './counterparties.js';
 import { isoAgo, isoDateIn } from './dates.js';
+import { nodeLevelIds } from './project-nodes.js';
 import { projectRefs } from './task-item-factory.js';
 import { userIds } from './users.js';
 
@@ -51,9 +52,21 @@ const typeId = (n: number): string => `41000000-0000-4000-8000-${String(n).padSt
 const groupId = (n: number): string => `42000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 export const demoProjectTypes: ProjectType[] = [
-  { id: typeId(1), name: 'Договор', codeField: 'required', archivedAt: null },
-  { id: typeId(2), name: 'Тема', codeField: 'hidden', archivedAt: null },
-  { id: typeId(3), name: 'Госзакупки', codeField: 'optional', archivedAt: isoAgo(90) },
+  {
+    id: typeId(1),
+    name: 'Договор',
+    codeField: 'required',
+    levelKindIds: [...Object.values(nodeLevelIds)],
+    archivedAt: null,
+  },
+  { id: typeId(2), name: 'Тема', codeField: 'hidden', levelKindIds: null, archivedAt: null },
+  {
+    id: typeId(3),
+    name: 'Госзакупки',
+    codeField: 'optional',
+    levelKindIds: null,
+    archivedAt: isoAgo(90),
+  },
 ];
 
 export const demoProjectGroups: ProjectGroup[] = [

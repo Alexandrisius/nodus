@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Paginated, TaskListItem } from '@nodus/contracts';
 
 import { isFreshFromMutation, markFreshFromMutation } from '../api/fresh-from-mutation.js';
+import { projectsKeys } from '../api/projects-list.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { kanbanColumnKey } from '../lib/board/kanban-column-key.js';
 import type { InvalidationTier, KeyBatcher } from './invalidation-batcher.js';
@@ -90,6 +91,27 @@ describe('pushTaskKeys (#311, #317)', () => {
       [...tasksKeys.personalStages()],
       [...tasksKeys.kanbanAll()],
     ]);
+  });
+
+  it('агрегаты дерева структуры (#467): перезапрос на события, меняющие узлы', () => {
+    for (const type of [
+      'task.created',
+      'task.updated',
+      'task.stage_changed',
+      'task.status_changed',
+      'task.completed',
+      'task.deleted',
+      'task.time_logged',
+      'task.timer_stopped',
+    ]) {
+      const { batcher, keys } = recordingBatcher();
+      pushTaskKeys(batcher, new QueryClient(), type, { taskId: 't1' });
+      expect(has(keys, projectsKeys.structures()), type).toBe(true);
+    }
+    // Состав участников на агрегаты узлов не влияет — лишнего запроса нет.
+    const { batcher, keys } = recordingBatcher();
+    pushTaskKeys(batcher, new QueryClient(), 'task.assigned', { taskId: 't1' });
+    expect(has(keys, projectsKeys.structures())).toBe(false);
   });
 });
 

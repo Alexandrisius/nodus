@@ -31,6 +31,8 @@ export interface NewTaskData {
   assigneeId: string;
   parentId: string | null;
   projectId: string | null;
+  /** Узел структуры проекта (#467); null — вне структуры. */
+  nodeId: string | null;
   source: string;
   sourceId: string | null;
   checklistTotal: number;
@@ -52,6 +54,8 @@ export interface TaskFieldsPatch {
   assigneeId?: string;
   /** Перенос задачи между проектами (#52 Р4). */
   projectId?: string | null;
+  /** Узел структуры проекта (#467); null — «Без узла». */
+  nodeId?: string | null;
   /** Полный набор значений кастомных атрибутов после правки (#431). */
   customFields?: CustomFieldValues;
 }

@@ -1,6 +1,7 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import type { Paginated, TaskListItem } from '@nodus/contracts';
 
+import { projectsKeys } from './projects-list.js';
 import { taskStagesKey } from './task-stages.js';
 
 /** Ключи кэша задач — CANONICAL в shared (потребители: фича задач и
@@ -40,7 +41,8 @@ export const tasksKeys = {
 };
 
 /** Всё, что зависит от полей/состояния задачи: деталь, переходы (гейты
- *  DoR/DoD читают поля), доски, журнал и счётчики каталогов. */
+ *  DoR/DoD читают поля), доски, журнал, счётчики каталогов и агрегаты узлов
+ *  структуры проекта (#467: прогресс/часы/сроки узла считаются из задач). */
 export function taskDependentKeys(taskId: string) {
   return [
     tasksKeys.detail(taskId),
@@ -50,6 +52,7 @@ export function taskDependentKeys(taskId: string) {
     tasksKeys.personalStages(),
     tasksKeys.stages(),
     tasksKeys.branchAll(),
+    projectsKeys.structures(),
   ];
 }
 

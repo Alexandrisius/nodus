@@ -4,7 +4,7 @@ import { statesOfPhase } from '@nodus/contracts';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
-import { keyBetween } from '../lib/fractional-index.js';
+import { keyBetween } from '../../../core/lib/fractional-index.js';
 import { taskListInclude } from './task-row.js';
 export type { NewTaskData, TaskFieldsPatch, TaskStageMove } from './task-write.types.js';
 import type { NewTaskData, TaskFieldsPatch, TaskStageMove } from './task-write.types.js';

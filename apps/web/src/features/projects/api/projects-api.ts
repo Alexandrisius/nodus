@@ -74,15 +74,30 @@ export function useProjectHistory(id: string) {
   });
 }
 
+/** URL фида задач проекта: `scope=all` — дерево и список показывают ВСЕ
+ *  задачи проекта, а не только «мои» (F-A, #467). Видимость проекта уже
+ *  проверена сервером; для секретного проекта срез тот же. */
+export function projectTaskFeedUrl(projectId: string, cursor: string | null): string {
+  return `/tasks?projectId=${projectId}&scope=all&limit=100${cursor ? `&cursor=${cursor}` : ''}`;
+}
+
+/** URL колонки проектного канбана — тот же `scope=all` (F-A). */
+export function projectKanbanFeedUrl(
+  projectId: string,
+  stageId: string,
+  cursor: string | null,
+  limit: number,
+): string {
+  return `/tasks?stageId=${stageId}&projectId=${projectId}&scope=all&limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`;
+}
+
 /** Задачи проекта (вид «Список»): те же сущности, фильтр projectId
  *  (плейбук §3.1 — один канбан и один список задач, а не два). */
 export function useProjectTaskPages(projectId: string) {
   return useInfiniteQuery({
-    queryKey: tasksKeys.listPages({ projectId }),
+    queryKey: tasksKeys.listPages({ projectId, scope: 'all' }),
     queryFn: ({ pageParam }) =>
-      api<Paginated<TaskListItem>>(
-        `/tasks?projectId=${projectId}&limit=100${pageParam ? `&cursor=${pageParam}` : ''}`,
-      ),
+      api<Paginated<TaskListItem>>(projectTaskFeedUrl(projectId, pageParam)),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: projectId.length > 0,
