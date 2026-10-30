@@ -161,7 +161,16 @@ export function NodeLevelsSection({
       </div>
 
       {creating ? (
-        <div className="flex items-center gap-1.5">
+        <div className="flex h-9 items-center gap-2 px-1.5">
+          <span
+            aria-hidden
+            className={cn(
+              'flex size-6 shrink-0 items-center justify-center rounded border',
+              identityTone[draft.color].tile,
+            )}
+          >
+            <NodeLevelGlyph icon={draft.icon} className="size-3.5" />
+          </span>
           <Input
             autoFocus
             value={draft.name}
@@ -169,7 +178,7 @@ export function NodeLevelsSection({
             onKeyDown={(e) => e.key === 'Enter' && submitCreate()}
             placeholder={ui.structure.levelsNamePlaceholder}
             aria-label={ui.structure.levelsCreate}
-            className="h-8 min-w-0 flex-1 text-sm"
+            className="h-7 min-w-0 flex-1 text-sm"
           />
           <IconSelect
             value={draft.icon}

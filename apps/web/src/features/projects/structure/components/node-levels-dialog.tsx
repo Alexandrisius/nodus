@@ -19,7 +19,7 @@ export function NodeLevelsDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent
-        className="max-w-lg"
+        className="max-w-2xl sm:max-w-2xl"
         showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
         aria-describedby={undefined}
