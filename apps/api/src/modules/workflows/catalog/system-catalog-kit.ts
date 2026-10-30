@@ -8,7 +8,7 @@ import type { CatalogProcessType, CatalogStage, CatalogWorkflow } from './system
  * ответственный и постановщик). Категория task; ревизия каталога своя
  * (KIT_CATALOG_REVISION): правки задач/писем эти маршруты не перезасевают.
  * Ревизия 2 — значок «Комплекта»: лист бумаги с загнутым углом (file-text,
- * вердикт владельца 05.11), прежний package.
+ * вердикт владельца 31.10), прежний package.
  * Регистрация — в CATALOG_PROCESS_TYPES (system-catalog.ts); имя,
  * занятое пользовательским типом, — skip+warn в бутстрапе (не падаем).
  */
